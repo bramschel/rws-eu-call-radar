@@ -2,7 +2,6 @@ name: Daily data refresh
 
 on:
   schedule:
-    # Runs every day at 05:15 UTC
     - cron: "15 5 * * *"
   workflow_dispatch:
 
@@ -32,70 +31,3 @@ jobs:
           git add data/grants.json
           git diff --cached --quiet || git commit -m "chore: refresh EU grants snapshot"
           git push
-
-name: Daily Data Refresh
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '17 5 * * *'
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
-jobs:
-  refresh:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Refresh grants snapshot
-        env:
-          GRANTS_REFRESH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          GRANTS_REFRESH_WORKFLOW: ${{ github.workflow }}
-          GRANTS_REFRESH_EVENT: ${{ github.event_name }}
-        run: |
-          export GRANTS_REFRESHED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          npm run update:data
-
-      - name: Commit snapshot changes
-        run: |
-          if git diff --quiet -- data/grants.json; then
-            echo "No data changes"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add data/grants.json
-            git commit -m "chore: refresh EU grants snapshot"
-            git push
-          fi
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Stage static site
-        run: |
-          mkdir -p dist
-          cp index.html styles.css app.js dist/
-          cp -R data dist/data
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
