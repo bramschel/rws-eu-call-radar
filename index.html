@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RWS EU Call Radar</title>
+    <meta name="description" content="A static browser for European funding calls powered by the official EU Funding & Tenders search API.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=20260313-2">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero panel">
+        <div class="hero__copy">
+          <p class="eyebrow">RWS EU Call Radar</p>
+          <h1>Vind actuele EU-calls voor infrastructuur, water, natuur en circulariteit.</h1>
+          <p class="hero__lede">
+          Zoek en filter open en forthcoming EU-calls op basis van projectideeën, keywords en RWS-thema’s.
+          De data komt uit de publieke EU Funding &amp; Tenders index en wordt lokaal als snapshot gebruikt.
+          </p>
+          <div class="hero__meta" id="hero-meta">
+            <div class="metric-tile">
+              <span class="metric-tile__value" id="metric-total">-</span>
+              <span class="metric-tile__label">Calls indexed</span>
+            </div>
+            <div class="metric-tile">
+              <span class="metric-tile__value" id="metric-live">-</span>
+              <span class="metric-tile__label">Open right now</span>
+            </div>
+            <div class="metric-tile">
+              <span class="metric-tile__value" id="metric-budget">-</span>
+              <span class="metric-tile__label">Known budget</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero__aside">
+          <div class="stamp">
+            <span class="stamp__label">Last update</span>
+            <strong class="stamp__value">
+              <a id="last-updated" class="stamp__link" target="_blank" rel="noreferrer">Loading…</a>
+            </strong>
+            <span class="stamp__sub" id="source-count"></span>
+          </div>
+          <div class="legend">
+            <div class="legend__row"><span class="dot dot--open"></span> Open for submission</div>
+            <div class="legend__row"><span class="dot dot--forthcoming"></span> Forthcoming</div>
+          </div>
+        </div>
+      </header>
+
+      <section class="controls panel">
+        <label class="search-field">
+          <span>Projectidee of zoekvraag</span>
+          <textarea
+            id="project-input"
+            rows="4"
+            placeholder="Beschrijf kort je projectidee, beleidsopgave of innovatievraag. Bijvoorbeeld: circulair asfalt, hergebruik van materialen, biodiversiteit langs infrastructuur, waterkwaliteit of nature-based solutions."
+          ></textarea>
+        </label>
+
+        <label class="search-field">
+          <span>Keywords</span>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Bijvoorbeeld: circular infrastructure, biodiversity, water quality"
+    >
+  </label>
+
+        <div class="status-pills" id="status-pills"></div>
+
+        <div class="control-row">
+          <label class="select-field">
+            <span>Programme</span>
+            <select id="programme-select"></select>
+          </label>
+
+          <label class="select-field">
+            <span>Recent geopend</span>
+            <select id="recent-select">
+              <option value="all">Alles</option>
+              <option value="1">Laatste 1 maand</option>
+              <option value="2">Laatste 2 maanden</option>
+              <option value="3">Laatste 3 maanden</option>
+              <option value="6">Laatste 6 maanden</option>
+            </select>
+          </label>
+
+          <label class="select-field">
+            <span>Sort</span>
+            <select id="sort-select">
+              <option value="start-desc">Newest opening date</option>
+              <option value="deadline-asc">Closest deadline</option>
+              <option value="budget-desc">Largest budget</option>
+              <option value="title-asc">Title A-Z</option>
+            </select>
+          </label>
+
+          <button class="ghost-button" id="reset-button" type="button">Reset filters</button>
+        </div>
+     </section>
+
+<section class="panel">
+  <p>
+    <strong>Let op:</strong> deze tool gebruikt publieke EU Funding &amp; Tenders-data.
+    Controleer callinformatie altijd op de officiële EU Funding &amp; Tenders Portal.
+    Voer geen vertrouwelijke informatie of persoonsgegevens in. Zoekopdrachten worden niet opgeslagen.
+  </p>
+</section>
+
+<main class="layout">
+        <aside class="sidebar panel">
+          <div>
+            <p class="sidebar__label">Snapshot view</p>
+            <h2 id="results-count">Loading…</h2>
+          </div>
+
+          <div class="sidebar-block">
+            <p class="sidebar__label">Programme filters</p>
+            <p class="sidebar__copy">Click a programme to apply that filter instantly.</p>
+            <div id="top-programmes" class="mini-list"></div>
+          </div>
+        </aside>
+
+        <section class="results panel">
+          <div class="results__header">
+            <div>
+              <p class="sidebar__label">Results</p>
+              <h2 id="results-headline">Loading grants…</h2>
+            </div>
+            <a class="ghost-button link-button" href="https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?order=DESC&pageNumber=1&pageSize=50&sortBy=startDate&isExactMatch=true&status=31094501,31094502,31094503" target="_blank" rel="noreferrer">Open official portal</a>
+          </div>
+
+          <div id="results-list" class="results-list"></div>
+
+          <div class="results__footer">
+            <button id="load-more-button" class="ghost-button" type="button" hidden>Load more</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="grant-card-template">
+      <article class="grant-card">
+        <div class="grant-card__topline">
+          <span class="status-chip"></span>
+          <span class="grant-card__id"></span>
+        </div>
+        <div class="grant-card__title-row">
+          <h3 class="grant-card__title"><button class="grant-card__title-button" type="button"></button></h3>
+          <a class="grant-card__open-link" target="_blank" rel="noreferrer">Open</a>
+        </div>
+        <p class="grant-card__summary"></p>
+        <div class="grant-card__drawer" hidden>
+          <div class="grant-card__drawer-block">
+            <p class="grant-card__drawer-label">Feed summary</p>
+            <p class="grant-card__drawer-text grant-card__drawer-summary"></p>
+          </div>
+          <div class="grant-card__drawer-block grant-card__drawer-block--abstract" hidden>
+            <p class="grant-card__drawer-label">Abstract / scope</p>
+            <p class="grant-card__drawer-text grant-card__drawer-abstract"></p>
+          </div>
+        </div>
+        <dl class="grant-card__facts"></dl>
+      </article>
+    </template>
+
+    <script type="module" src="app.js?v=20260313-2"></script>
+  </body>
+</html>
