@@ -1,5 +1,6 @@
 const DATA_URL = './data/grants.json';
 const PAGE_STEP = 50;
+const SAVED_CALLS_STORAGE_KEY = 'rws-eu-call-radar-saved-calls';
 const STATUS_OPTIONS = [
   { id: 'live', label: 'Live', matches: new Set(['31094501', '31094502']) },
   { id: '31094502', label: 'Open', matches: new Set(['31094502']) },
@@ -194,12 +195,14 @@ const NOISE_TERMS = [
 const state = {
   data: null,
   filtered: [],
+  savedIds: new Set(),
   visibleCount: PAGE_STEP,
   filters: {
     query: '',
     projectIdea: '',
     status: 'live',
     programme: 'all',
+    theme: 'all',
     recentMonths: 'all',
     sort: 'relevance-desc'
   }
@@ -210,6 +213,7 @@ const elements = {
   searchInput: document.querySelector('#search-input'),
   statusPills: document.querySelector('#status-pills'),
   programmeSelect: document.querySelector('#programme-select'),
+  themeSelect: document.querySelector('#theme-select'),
   recentSelect: document.querySelector('#recent-select'),
   sortSelect: document.querySelector('#sort-select'),
   resetButton: document.querySelector('#reset-button'),
@@ -222,6 +226,10 @@ const elements = {
   resultsHeadline: document.querySelector('#results-headline'),
   resultsList: document.querySelector('#results-list'),
   loadMoreButton: document.querySelector('#load-more-button'),
+  savedCallsCount: document.querySelector('#saved-calls-count'),
+  savedCallsList: document.querySelector('#saved-calls-list'),
+  exportSavedButton: document.querySelector('#export-saved-button'),
+  clearSavedButton: document.querySelector('#clear-saved-button'),
   topProgrammes: document.querySelector('#top-programmes'),
   grantCardTemplate: document.querySelector('#grant-card-template')
 };
@@ -239,19 +247,41 @@ function parseHash() {
   state.filters.projectIdea = params.get('idea') || '';
   state.filters.status = params.get('s') || 'live';
   state.filters.programme = params.get('p') || 'all';
-  state.filters.recentMonths = params.get('recent') || 'all';
+  state.filters.theme = params.get('theme') || 'all';
+  state.filters.recentMonths = params.get('recent') || 'all'; 
   state.filters.sort = params.get('sort') || 'relevance-desc';
-}
+}                                                                                                                                                                                                                                                                                                                                                                                       
 
 function writeHash() {
   const params = new URLSearchParams();
 
-  if (state.filters.query) params.set('q', state.filters.query);
-  if (state.filters.projectIdea) params.set('idea', state.filters.projectIdea);
-  if (state.filters.status !== 'live') params.set('s', state.filters.status);
-  if (state.filters.programme !== 'all') params.set('p', state.filters.programme);
-  if (state.filters.recentMonths !== 'all') params.set('recent', state.filters.recentMonths);
-  if (state.filters.sort !== 'relevance-desc') params.set('sort', state.filters.sort);
+  if (state.filters.query) {
+    params.set('q', state.filters.query);
+  }
+
+  if (state.filters.projectIdea) {
+    params.set('idea', state.filters.projectIdea);
+  }
+
+  if (state.filters.status !== 'live') {
+    params.set('s', state.filters.status);
+  }
+
+  if (state.filters.programme !== 'all') {
+    params.set('p', state.filters.programme);
+  }
+
+  if (state.filters.theme !== 'all') {
+    params.set('theme', state.filters.theme);
+  }
+
+  if (state.filters.recentMonths !== 'all') {
+    params.set('recent', state.filters.recentMonths);
+  }
+
+  if (state.filters.sort !== 'relevance-desc') {
+    params.set('sort', state.filters.sort);
+  }
 
   const nextHash = params.toString();
   const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`;
@@ -319,45 +349,48 @@ function calculateRelevance(grant, query, projectIdea) {
   const terms = splitTerms(combinedInput);
 
   let score = 0;
+  let queryMatched = false;
   const matchedTerms = new Set();
   const matchedThemes = [];
   const reasons = [];
 
-  if (!combinedInput) {
-    return {
-      score: 1,
-      matchedTerms: [],
-      matchedThemes: [],
-      reasons: ['Geen zoekterm ingevoerd; standaard live call getoond.']
-    };
-  }
-
   for (const term of terms) {
-    if (fields.title.includes(term)) {
-      score += 10;
-      matchedTerms.add(term);
-    }
+  let termMatched = false;
 
-    if (fields.summary.includes(term)) {
-      score += 6;
-      matchedTerms.add(term);
-    }
-
-    if (fields.destination.includes(term)) {
-      score += 6;
-      matchedTerms.add(term);
-    }
-
-    if (fields.abstract.includes(term)) {
-      score += 4;
-      matchedTerms.add(term);
-    }
-
-    if (fields.searchText.includes(term)) {
-      score += 2;
-      matchedTerms.add(term);
-    }
+  if (fields.title.includes(term)) {
+    score += 10;
+    matchedTerms.add(term);
+    termMatched = true;
   }
+
+  if (fields.summary.includes(term)) {
+    score += 6;
+    matchedTerms.add(term);
+    termMatched = true;
+  }
+
+  if (fields.destination.includes(term)) {
+    score += 6;
+    matchedTerms.add(term);
+    termMatched = true;
+  }
+
+  if (fields.abstract.includes(term)) {
+    score += 4;
+    matchedTerms.add(term);
+    termMatched = true;
+  }
+
+  if (fields.searchText.includes(term)) {
+    score += 2;
+    matchedTerms.add(term);
+    termMatched = true;
+  }
+
+  if (termMatched) {
+    queryMatched = true;
+  }
+}
 
   for (const theme of RWS_THEMES) {
     let themeScore = 0;
@@ -400,6 +433,10 @@ function calculateRelevance(grant, query, projectIdea) {
     }
   }
 
+  if (!combinedInput && matchedThemes.length === 0) {
+    reasons.push('Geen zoekterm of themamatch; standaard live call getoond.');
+  }
+
   if (matchedTerms.size > 0) {
     reasons.push(`Zoektermen gevonden: ${Array.from(matchedTerms).slice(0, 8).join(', ')}`);
   }
@@ -417,11 +454,140 @@ function calculateRelevance(grant, query, projectIdea) {
   }
 
   return {
-    score: Math.max(0, score),
-    matchedTerms: Array.from(matchedTerms),
-    matchedThemes,
-    reasons
-  };
+  score: Math.max(0, score || 1),
+  queryMatched,
+  matchedTerms: Array.from(matchedTerms),
+  matchedThemes,
+  reasons
+};
+}
+
+function loadSavedCalls() {
+  try {
+    const raw = localStorage.getItem(SAVED_CALLS_STORAGE_KEY);
+    const ids = raw ? JSON.parse(raw) : [];
+    state.savedIds = new Set(Array.isArray(ids) ? ids : []);
+  } catch {
+    state.savedIds = new Set();
+  }
+}
+
+function persistSavedCalls() {
+  localStorage.setItem(
+    SAVED_CALLS_STORAGE_KEY,
+    JSON.stringify(Array.from(state.savedIds))
+  );
+}
+
+function getGrantSaveId(grant) {
+  return String(grant.identifier || grant.id || '').trim();
+}
+
+function isGrantSaved(grant) {
+  const id = getGrantSaveId(grant);
+
+  if (!id) {
+    return false;
+  }
+
+  return state.savedIds.has(id);
+}
+
+function toggleSavedGrant(grant) {
+  const id = getGrantSaveId(grant);
+
+  if (!id) {
+    console.warn('Kan call niet bewaren: ontbrekende identifier', grant);
+    return;
+  }
+
+  if (state.savedIds.has(id)) {
+    state.savedIds.delete(id);
+  } else {
+    state.savedIds.add(id);
+  }
+
+  persistSavedCalls();
+  update();
+}
+
+function getSavedGrants() {
+  if (!state.data?.grants) {
+    return [];
+  }
+
+  return state.data.grants.filter((grant) => state.savedIds.has(getGrantSaveId(grant)));
+}
+
+function escapeCsvValue(value) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportSavedCallsCsv() {
+  const savedGrants = getSavedGrants();
+
+  if (!savedGrants.length) {
+    alert('Er zijn nog geen bewaarde calls om te exporteren.');
+    return;
+  }
+
+  const headers = [
+    'identifier',
+    'title',
+    'programme',
+    'status',
+    'openingDate',
+    'deadlineDate',
+    'actionType',
+    'budgetEur',
+    'expectedGrants',
+    'relevanceScore',
+    'bureauBrusselThemes',
+    'matchedTerms',
+    'relevanceReasons',
+    'summary',
+    'abstract',
+    'url'
+  ];
+
+  const rows = savedGrants.map((grant) => {
+    const themes = grant.relevance?.matchedThemes?.map((theme) => theme.label).join('; ') || '';
+    const matchedTerms = grant.relevance?.matchedTerms?.join('; ') || '';
+    const reasons = grant.relevance?.reasons?.join('; ') || '';
+
+    return [
+      grant.identifier,
+      grant.title,
+      getPrimaryProgramme(grant),
+      grant.status?.label || '',
+      grant.startDate || grant.plannedOpeningDate || '',
+      grant.deadlineDate || '',
+      grant.actionType || grant.kind?.label || '',
+      grant.budget?.totalBudgetEur || '',
+      grant.budget?.expectedGrants || '',
+      grant.relevance?.score || '',
+      themes,
+      matchedTerms,
+      reasons,
+      grant.summary || grant.destination || grant.callTitle || '',
+      grant.abstract || '',
+      grant.url
+    ].map(escapeCsvValue).join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `rws-eu-call-radar-bewaarde-calls-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value) {
@@ -476,10 +642,11 @@ function filterGrants() {
       : null;
 
   state.filtered = state.data.grants
-    .filter((grant) => {
-      if (grant.deadlineDate && new Date(grant.deadlineDate).getTime() < now) {
-        return false;
-      }
+  .filter((grant) => {
+
+    if (grant.deadlineDate && new Date(grant.deadlineDate).getTime() < now) {
+      return false;
+    }
 
       if (statusOption.matches && !statusOption.matches.has(grant.status.id)) {
         return false;
@@ -503,11 +670,19 @@ function filterGrants() {
       const relevance = calculateRelevance(grant, query, projectIdea);
       grant.relevance = relevance;
 
-      if (combinedQuery && relevance.score <= 0) {
-        return false;
-      }
+if (state.filters.theme !== 'all') {
+  const matchesSelectedTheme = relevance.matchedThemes.some((theme) => theme.id === state.filters.theme);
 
-      return true;
+  if (!matchesSelectedTheme) {
+    return false;
+  }
+}
+
+if (combinedQuery && !relevance.queryMatched) {
+  return false;
+}
+
+return true;
     })
     .sort((left, right) => {
       switch (state.filters.sort) {
@@ -650,10 +825,26 @@ function renderResults() {
     const card = elements.grantCardTemplate.content.firstElementChild.cloneNode(true);
     const statusChip = card.querySelector('.status-chip');
     const id = card.querySelector('.grant-card__id');
+    const topLine = card.querySelector('.grant-card__topline');
     const titleButton = card.querySelector('.grant-card__title-button');
     const legacyTitleLink = card.querySelector('.grant-card__title a');
     const openLink = card.querySelector('.grant-card__open-link');
     const summary = card.querySelector('.grant-card__summary');
+    const saveButton = document.createElement('button');
+saveButton.className = 'ghost-button grant-card__save-button';
+saveButton.type = 'button';
+saveButton.textContent = isGrantSaved(grant) ? 'Bewaard' : 'Bewaar';
+saveButton.setAttribute(
+  'aria-label',
+  isGrantSaved(grant) ? 'Verwijder call uit bewaarde calls' : 'Bewaar call'
+);
+
+saveButton.onclick = (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  toggleSavedGrant(grant);
+};
+
     const drawer = card.querySelector('.grant-card__drawer');
     const drawerSummary = card.querySelector('.grant-card__drawer-summary');
     const drawerAbstract = card.querySelector('.grant-card__drawer-abstract');
@@ -671,9 +862,15 @@ function renderResults() {
       legacyTitleLink.textContent = grant.title;
       legacyTitleLink.href = grant.url;
     }
-    if (openLink) {
-      openLink.href = grant.url;
-    }
+    
+if (openLink) {
+  openLink.href = grant.url;
+}
+
+if (topLine) {
+  topLine.appendChild(saveButton);
+}
+
     summary.textContent = grant.destination || grant.callTitle || grant.summary || 'No destination summary available.';
     if (drawerSummary) {
       drawerSummary.textContent = grant.destination || grant.callTitle || grant.summary || 'No short summary was exposed for this call.';
@@ -748,16 +945,76 @@ function syncControls() {
   elements.projectInput.value = state.filters.projectIdea;
   elements.searchInput.value = state.filters.query;
   elements.programmeSelect.value = state.filters.programme;
+  elements.themeSelect.value = state.filters.theme;
   elements.recentSelect.value = state.filters.recentMonths;
   elements.sortSelect.value = state.filters.sort;
 }
 
+function renderSavedCallsPanel() {
+  const savedGrants = getSavedGrants();
+  const count = savedGrants.length;
+
+  if (elements.savedCallsCount) {
+    elements.savedCallsCount.textContent = count === 1 ? '1 bewaarde call' : `${count} bewaarde calls`;
+  }
+
+  if (elements.savedCallsList) {
+    elements.savedCallsList.innerHTML = '';
+
+    if (!savedGrants.length) {
+      const empty = document.createElement('p');
+      empty.className = 'sidebar__copy';
+      empty.textContent = 'Nog geen calls bewaard.';
+      elements.savedCallsList.appendChild(empty);
+    } else {
+      const visibleSaved = savedGrants.slice(0, 8);
+
+      for (const grant of visibleSaved) {
+        const link = document.createElement('a');
+        link.className = 'saved-call-link';
+        link.href = grant.url;
+        link.target = '_blank';
+        link.rel = 'noreferrer';
+        link.textContent = grant.title || grant.identifier;
+
+        const meta = document.createElement('span');
+        meta.className = 'saved-call-link__meta';
+        meta.textContent = grant.identifier;
+
+        const item = document.createElement('div');
+        item.className = 'saved-call-item';
+        item.appendChild(link);
+        item.appendChild(meta);
+
+        elements.savedCallsList.appendChild(item);
+      }
+
+      if (savedGrants.length > visibleSaved.length) {
+        const more = document.createElement('p');
+        more.className = 'sidebar__copy';
+        more.textContent = `+ ${savedGrants.length - visibleSaved.length} meer in export.`;
+        elements.savedCallsList.appendChild(more);
+      }
+    }
+  }
+
+  if (elements.exportSavedButton) {
+    elements.exportSavedButton.disabled = count === 0;
+  }
+
+  if (elements.clearSavedButton) {
+    elements.clearSavedButton.disabled = count === 0;
+  }
+}
+
 function update() {
   filterGrants();
-  renderStatusPills();
-  renderSidebar();
-  renderResults();
   writeHash();
+  renderStatusPills();
+  renderMetrics();
+  renderSidebar();
+  renderSavedCallsPanel();
+  renderResults();
 }
 
 async function loadData() {
@@ -776,8 +1033,34 @@ function wireEvents() {
     update();
   });
 
+elements.exportSavedButton.addEventListener('click', () => {
+  exportSavedCallsCsv();
+});
+
+elements.clearSavedButton.addEventListener('click', () => {
+  if (!state.savedIds.size) {
+    return;
+  }
+
+  const confirmed = confirm('Weet je zeker dat je alle bewaarde calls wilt wissen?');
+
+  if (!confirmed) {
+    return;
+  }
+
+  state.savedIds.clear();
+  persistSavedCalls();
+  update();
+});
+
   elements.projectInput.addEventListener('input', (event) => {
     state.filters.projectIdea = event.target.value;
+    state.visibleCount = PAGE_STEP;
+    update();
+  });
+
+  elements.themeSelect.addEventListener('change', (event) => {
+    state.filters.theme = event.target.value;
     state.visibleCount = PAGE_STEP;
     update();
   });
@@ -805,6 +1088,7 @@ function wireEvents() {
     projectIdea: '',
     status: 'live',
     programme: 'all',
+    theme: 'all',
     recentMonths: 'all',
     sort: 'relevance-desc'
   };
@@ -827,6 +1111,7 @@ function wireEvents() {
 }
 
 async function init() {
+  loadSavedCalls();
   parseHash();
   state.data = await loadData();
   renderProgrammeOptions();
