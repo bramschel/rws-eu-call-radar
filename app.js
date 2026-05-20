@@ -5,7 +5,192 @@ const STATUS_OPTIONS = [
   { id: '31094502', label: 'Open', matches: new Set(['31094502']) },
   { id: '31094501', label: 'Forthcoming', matches: new Set(['31094501']) }
 ];
+const RWS_THEMES = [
+  {
+    id: 'corridor-management',
+    label: 'Corridor Management',
+    description: 'Transportcorridors, vaarwegen, TEN-T, multimodaliteit, verkeersmanagement en slimme mobiliteit.',
+    terms: [
+      'corridor management',
+      'TEN-T',
+      'trans-European transport network',
+      'transport corridor',
+      'inland waterways',
+      'waterborne transport',
+      'navigation',
+      'shipping',
+      'ports',
+      'port areas',
+      'multimodal transport',
+      'logistics',
+      'traffic management',
+      'network management',
+      'smart mobility',
+      'cooperative intelligent transport systems',
+      'C-ITS',
+      'ITS',
+      'River Information Services',
+      'RIS',
+      'cross-border transport',
+      'transport infrastructure',
+      'mobility corridor'
+    ]
+  },
+  {
+    id: 'climate-adaptation',
+    label: 'Climate Adaptation',
+    description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, hitte, overstroming en resilience.',
+    terms: [
+      'climate adaptation',
+      'climate resilience',
+      'resilient infrastructure',
+      'adaptive infrastructure',
+      'flood risk',
+      'flood safety',
+      'flood protection',
+      'flood preparedness',
+      'water security',
+      'water resilience',
+      'sea level rise',
+      'storm surge',
+      'extreme weather',
+      'heat stress',
+      'drought',
+      'freshwater availability',
+      'fresh water',
+      'water management',
+      'river basin',
+      'coastal resilience',
+      'urban resilience',
+      'climate proof',
+      'climate-proof'
+    ]
+  },
+  {
+    id: 'sustainability',
+    label: 'Sustainability / Duurzame Leefomgeving',
+    description: 'Duurzame infrastructuur, circulariteit, klimaatneutraliteit, biodiversiteit, natuur en waterkwaliteit.',
+    terms: [
+      'sustainability',
+      'sustainable infrastructure',
+      'sustainable land use',
+      'sustainable water management',
+      'circular economy',
+      'circular infrastructure',
+      'material reuse',
+      'reuse of materials',
+      'secondary raw materials',
+      'asphalt recycling',
+      'recycling',
+      'circular procurement',
+      'zero-emission construction',
+      'zero emission construction',
+      'low carbon construction',
+      'climate-neutral infrastructure',
+      'carbon neutral',
+      'carbon-neutral',
+      'energy neutral',
+      'biodiversity',
+      'nature-inclusive infrastructure',
+      'nature inclusive infrastructure',
+      'habitat restoration',
+      'ecosystem restoration',
+      'nature-based solutions',
+      'nature based solutions',
+      'building with nature',
+      'green infrastructure',
+      'blue infrastructure',
+      'green and blue infrastructure',
+      'water quality',
+      'water pollution',
+      'wastewater',
+      'ecology'
+    ]
+  },
+  {
+    id: 'digitalisation',
+    label: 'Digitalisation',
+    description: 'Data, AI, digital twins, smart infrastructure, automatisering, informatievoorziening en besluitvorming.',
+    terms: [
+      'digitalisation',
+      'digitalization',
+      'data',
+      'data governance',
+      'data-driven',
+      'data driven',
+      'information systems',
+      'information management',
+      'artificial intelligence',
+      'AI',
+      'machine learning',
+      'decision support',
+      'digital twin',
+      'digital twins',
+      'smart infrastructure',
+      'smart mobility',
+      'automation',
+      'automated systems',
+      'predictive maintenance',
+      'sensor data',
+      'remote sensing',
+      'cybersecurity',
+      'interoperability',
+      'C-ITS',
+      'ITS',
+      'River Information Services',
+      'RIS',
+      'traffic data',
+      'mobility data'
+    ]
+  },
+  {
+    id: 'network-governance',
+    label: 'Network Governance',
+    description: 'Internationale samenwerking, harmonisatie, standaardisatie, beleidsinstrumenten en netwerkcoördinatie.',
+    terms: [
+      'network governance',
+      'governance',
+      'cross-border cooperation',
+      'cross border cooperation',
+      'international cooperation',
+      'European cooperation',
+      'coordination',
+      'co-ordination',
+      'harmonisation',
+      'harmonization',
+      'standardisation',
+      'standardization',
+      'interoperability',
+      'policy instruments',
+      'capacity building',
+      'institutional cooperation',
+      'stakeholder cooperation',
+      'partnerships',
+      'public authorities',
+      'public administration',
+      'regulatory framework',
+      'knowledge exchange',
+      'best practices',
+      'European networks',
+      'network operators',
+      'road authorities',
+      'water authorities'
+    ]
+  }
+];
 
+const NOISE_TERMS = [
+  'clinical trial',
+  'medical device',
+  'pharmaceutical',
+  'oncology',
+  'rare diseases',
+  'school curriculum',
+  'performing arts',
+  'film festival',
+  'space telescope'
+];
+``
 const state = {
   data: null,
   filtered: [],
@@ -16,7 +201,7 @@ const state = {
     status: 'live',
     programme: 'all',
     recentMonths: 'all',
-    sort: 'start-desc'
+    sort: 'relevance-desc'
   }
 };
 
@@ -55,7 +240,7 @@ function parseHash() {
   state.filters.status = params.get('s') || 'live';
   state.filters.programme = params.get('p') || 'all';
   state.filters.recentMonths = params.get('recent') || 'all';
-  state.filters.sort = params.get('sort') || 'start-desc';
+  state.filters.sort = params.get('sort') || 'relevance-desc';
 }
 
 function writeHash() {
@@ -66,7 +251,7 @@ function writeHash() {
   if (state.filters.status !== 'live') params.set('s', state.filters.status);
   if (state.filters.programme !== 'all') params.set('p', state.filters.programme);
   if (state.filters.recentMonths !== 'all') params.set('recent', state.filters.recentMonths);
-  if (state.filters.sort !== 'start-desc') params.set('sort', state.filters.sort);
+  if (state.filters.sort !== 'relevance-desc') params.set('sort', state.filters.sort);
 
   const nextHash = params.toString();
   const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`;
@@ -87,6 +272,7 @@ function formatCurrency(value) {
   if (!value) return 'Unknown';
   return moneyCompact.format(value);
 }
+
 function subtractMonths(date, months) {
   const result = new Date(date);
   const originalDay = result.getDate();
@@ -98,6 +284,144 @@ function subtractMonths(date, months) {
   }
 
   return result;
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/&amp;/g, '&')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitTerms(value) {
+  return normalizeText(value)
+    .split(/[\s,;]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 3);
+}
+
+function getGrantTextFields(grant) {
+  return {
+    title: normalizeText(grant.title),
+    summary: normalizeText(grant.summary),
+    destination: normalizeText(grant.destination),
+    abstract: normalizeText(grant.abstract),
+    actionType: normalizeText(grant.actionType),
+    searchText: normalizeText(grant.searchText)
+  };
+}
+
+function calculateRelevance(grant, query, projectIdea) {
+  const fields = getGrantTextFields(grant);
+  const combinedInput = normalizeText([query, projectIdea].filter(Boolean).join(' '));
+  const terms = splitTerms(combinedInput);
+
+  let score = 0;
+  const matchedTerms = new Set();
+  const matchedThemes = [];
+  const reasons = [];
+
+  if (!combinedInput) {
+    return {
+      score: 1,
+      matchedTerms: [],
+      matchedThemes: [],
+      reasons: ['Geen zoekterm ingevoerd; standaard live call getoond.']
+    };
+  }
+
+  for (const term of terms) {
+    if (fields.title.includes(term)) {
+      score += 10;
+      matchedTerms.add(term);
+    }
+
+    if (fields.summary.includes(term)) {
+      score += 6;
+      matchedTerms.add(term);
+    }
+
+    if (fields.destination.includes(term)) {
+      score += 6;
+      matchedTerms.add(term);
+    }
+
+    if (fields.abstract.includes(term)) {
+      score += 4;
+      matchedTerms.add(term);
+    }
+
+    if (fields.searchText.includes(term)) {
+      score += 2;
+      matchedTerms.add(term);
+    }
+  }
+
+  for (const theme of RWS_THEMES) {
+    let themeScore = 0;
+    const themeMatches = [];
+
+    for (const phrase of theme.terms) {
+      const normalizedPhrase = normalizeText(phrase);
+
+      if (
+        fields.title.includes(normalizedPhrase) ||
+        fields.summary.includes(normalizedPhrase) ||
+        fields.destination.includes(normalizedPhrase) ||
+        fields.abstract.includes(normalizedPhrase) ||
+        fields.searchText.includes(normalizedPhrase)
+      ) {
+        themeScore += 8;
+        themeMatches.push(phrase);
+      }
+    }
+
+    if (themeScore > 0) {
+      score += themeScore;
+      matchedThemes.push({
+        id: theme.id,
+        label: theme.label,
+        matches: themeMatches
+      });
+    }
+  }
+
+  for (const noiseTerm of NOISE_TERMS) {
+    const normalizedNoise = normalizeText(noiseTerm);
+
+    if (
+      fields.title.includes(normalizedNoise) ||
+      fields.summary.includes(normalizedNoise) ||
+      fields.abstract.includes(normalizedNoise)
+    ) {
+      score -= 8;
+    }
+  }
+
+  if (matchedTerms.size > 0) {
+    reasons.push(`Zoektermen gevonden: ${Array.from(matchedTerms).slice(0, 8).join(', ')}`);
+  }
+
+  if (matchedThemes.length > 0) {
+    reasons.push(`Bureau Brussel-thema's: ${matchedThemes.map((theme) => theme.label).join(', ')}`);
+  }
+
+  if (fields.title && terms.some((term) => fields.title.includes(term))) {
+    reasons.push('Sterke match in titel.');
+  }
+
+  if (fields.abstract && terms.some((term) => fields.abstract.includes(term))) {
+    reasons.push('Inhoudelijke match in abstract/scope.');
+  }
+
+  return {
+    score: Math.max(0, score),
+    matchedTerms: Array.from(matchedTerms),
+    matchedThemes,
+    reasons
+  };
 }
 
 function escapeHtml(value) {
@@ -176,36 +500,20 @@ function filterGrants() {
         }
       }
 
-      if (combinedQuery) {
-        const searchableText = [
-          grant.searchText,
-          grant.title,
-          grant.summary,
-          grant.abstract,
-          grant.destination,
-          grant.callTitle,
-          grant.actionType
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
+      const relevance = calculateRelevance(grant, query, projectIdea);
+      grant.relevance = relevance;
 
-        const terms = combinedQuery
-          .split(/[\s,;]+/)
-          .map((term) => term.trim())
-          .filter(Boolean);
-
-        const hasMatch = terms.some((term) => searchableText.includes(term));
-
-        if (!hasMatch) {
-          return false;
-        }
+      if (combinedQuery && relevance.score <= 0) {
+        return false;
       }
 
       return true;
     })
     .sort((left, right) => {
       switch (state.filters.sort) {
+        case 'relevance-desc': {
+          return (right.relevance?.score || 0) - (left.relevance?.score || 0);
+        }
         case 'deadline-asc': {
           return (new Date(left.deadlineDate || '2999-12-31').getTime()) - (new Date(right.deadlineDate || '2999-12-31').getTime());
         }
@@ -388,7 +696,12 @@ function renderResults() {
       });
     }
 
+    const relevanceScore = grant.relevance?.score ?? 0;
+    const bureauThemes = grant.relevance?.matchedThemes?.map((theme) => theme.label) || [];
+
     facts.innerHTML = [
+      createFact('Relevance', relevanceScore ? `${relevanceScore}` : 'Not scored'),
+      createFact('Bureau Brussel-thema', bureauThemes.length ? bureauThemes.join(', ') : 'Geen directe themamatch'),
       createFact('Programme', getPrimaryProgramme(grant)),
       createFact('Opening', formatDate(grant.startDate || grant.plannedOpeningDate)),
       createFact('Deadline', formatDate(grant.deadlineDate)),
@@ -396,6 +709,33 @@ function renderResults() {
       createFact('Budget', formatCurrency(grant.budget?.totalBudgetEur)),
       createFact('Expected grants', grant.budget?.expectedGrants ? compactNumber.format(grant.budget.expectedGrants) : 'Unknown')
     ].join('');
+
+const existingRelevanceBlock = card.querySelector('.grant-card__relevance');
+    if (existingRelevanceBlock) {
+      existingRelevanceBlock.remove();
+    }
+
+    const relevanceBlock = document.createElement('div');
+    relevanceBlock.className = 'grant-card__relevance';
+
+    const reasons = grant.relevance?.reasons || [];
+    const matchedTerms = grant.relevance?.matchedTerms || [];
+
+    relevanceBlock.innerHTML = `
+      <p class="grant-card__relevance-title">Waarom gevonden</p>
+      ${
+        reasons.length
+          ? `<ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>`
+          : '<p>Geen specifieke matchuitleg beschikbaar.</p>'
+      }
+      ${
+        matchedTerms.length
+          ? `<p class="grant-card__matched-terms">Zoektermen: ${escapeHtml(matchedTerms.slice(0, 12).join(', '))}</p>`
+          : ''
+      }
+    `;
+
+    facts.insertAdjacentElement('afterend', relevanceBlock);
 
     fragment.appendChild(card);
   }
@@ -466,7 +806,7 @@ function wireEvents() {
     status: 'live',
     programme: 'all',
     recentMonths: 'all',
-    sort: 'start-desc'
+    sort: 'relevance-desc'
   };
 
   state.visibleCount = PAGE_STEP;

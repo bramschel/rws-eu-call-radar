@@ -5,3 +5,5 @@ portal-main.js
 .Rhistory
 
 .Rhistory
+*.backup*
+app.js.backup*
