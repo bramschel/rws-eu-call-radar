@@ -731,3 +731,28 @@ body::before {
   }
 }
 
+.saved-call-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem;
+}
+
+.saved-call-text {
+  min-width: 0;
+}
+
+.saved-call-remove-button {
+  border: 0;
+  border-radius: 999px;
+  width: 1.6rem;
+  height: 1.6rem;
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.saved-call-remove-button:hover {
+  background: rgba(0, 0, 0, 0.16);
+}
