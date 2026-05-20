@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260520-1">
+    <link rel="stylesheet" href="styles.css?v=20260520-2">
   </head>
   <body>
     <div class="page-shell">
@@ -77,6 +77,18 @@
             <select id="programme-select"></select>
           </label>
 
+<label class="select-field">
+  <span>Bureau Brussel-thema</span>
+  <select id="theme-select">
+    <option value="all">Alle thema’s</option>
+    <option value="corridor-management">Corridor Management</option>
+    <option value="climate-adaptation">Climate Adaptation</option>
+    <option value="sustainability">Sustainability / Duurzame Leefomgeving</option>
+    <option value="digitalisation">Digitalisation</option>
+    <option value="network-governance">Network Governance</option>
+  </select>
+</label>
+
           <label class="select-field">
             <span>Recent geopend</span>
             <select id="recent-select">
@@ -123,6 +135,19 @@
             <p class="sidebar__copy">Click a programme to apply that filter instantly.</p>
             <div id="top-programmes" class="mini-list"></div>
           </div>
+<div class="sidebar-block saved-calls-panel">
+  <p class="sidebar__label">Bewaarde calls</p>
+  <h2 id="saved-calls-count">0 bewaarde calls</h2>
+
+  <div id="saved-calls-list" class="mini-list saved-calls-list">
+    <p class="sidebar__copy">Nog geen calls bewaard.</p>
+  </div>
+
+  <div class="saved-calls-panel__actions">
+    <button class="ghost-button" id="export-saved-button" type="button">Export CSV</button>
+    <button class="ghost-button" id="clear-saved-button" type="button">Wis selectie</button>
+  </div>
+</div>
         </aside>
 
         <section class="results panel">
@@ -168,6 +193,6 @@
       </article>
     </template>
 
-    <script type="module" src="app.js?v=20260520-1"></script>
+    <script type="module" src="app.js?v=20260520-2"></script>
   </body>
 </html>
