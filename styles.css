@@ -618,3 +618,116 @@ body::before {
   font-size: 0.9rem;
   opacity: 0.8;
 }
+
+.saved-calls-panel {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 1rem;
+}
+
+.saved-calls-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.saved-calls-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.saved-call-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.7rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.saved-call-link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.saved-call-link:hover {
+  text-decoration: underline;
+}
+
+.saved-call-link__meta {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  font-family: var(--mono-font, monospace);
+}
+
+.grant-card__topline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.grant-card__save-button {
+  margin-left: auto;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.grant-card__save-button:hover {
+  transform: translateY(-1px);
+}
+
+/* Sidebar blijft zichtbaar en krijgt eigen scrollruimte */
+.layout {
+  align-items: start;
+}
+
+.sidebar {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Zorg dat de bewaarde calls niet de hele sidebar oneindig lang maken */
+.saved-calls-list {
+  max-height: 18rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+/* Iets fijnere scrollbar in browsers die dit ondersteunen */
+.sidebar::-webkit-scrollbar,
+.saved-calls-list::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.saved-calls-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.saved-calls-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Op kleinere schermen geen sticky sidebar, anders wordt mobiel onhandig */
+@media (max-width: 900px) {
+  .sidebar {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .saved-calls-list {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
