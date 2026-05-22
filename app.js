@@ -830,6 +830,36 @@ function renderResults() {
     const legacyTitleLink = card.querySelector('.grant-card__title a');
     const openLink = card.querySelector('.grant-card__open-link');
     const summary = card.querySelector('.grant-card__summary');
+    // AI-analyseknop
+    const aiButton = document.createElement('button');
+aiButton.className = 'ghost-button grant-card__ai-button';
+aiButton.type = 'button';
+aiButton.textContent = AI_CACHE.has(grant.identifier) ? 'AI-score bekijken' : 'Analyseer met AI';
+aiButton.onclick = async () => {
+  aiButton.textContent = 'Analyseren…';
+  aiButton.disabled = true;
+  const result = await scoreGrantWithAI(grant);
+  if (result) {
+    // Voeg AI-blok toe aan de kaart
+    let aiBlock = card.querySelector('.grant-card__ai-result');
+    if (!aiBlock) {
+      aiBlock = document.createElement('div');
+      aiBlock.className = 'grant-card__ai-result';
+      facts.insertAdjacentElement('afterend', aiBlock);
+    }
+    aiBlock.innerHTML = `
+      <p class="grant-card__relevance-title">AI-analyse voor RWS</p>
+      <p><strong>Score: ${result.score}/100</strong> — Thema: ${escapeHtml(result.thema)}</p>
+      <p>${escapeHtml(result.uitleg)}</p>
+    `;
+    aiButton.textContent = `AI: ${result.score}/100`;
+  } else {
+    aiButton.textContent = 'Analyseer met AI';
+    aiButton.disabled = false;
+  }
+};
+
+if (topLine) topLine.appendChild(aiButton);
     const saveButton = document.createElement('button');
 saveButton.className = 'ghost-button grant-card__save-button';
 saveButton.type = 'button';
@@ -1113,12 +1143,100 @@ elements.clearSavedButton.addEventListener('click', () => {
 async function init() {
   loadSavedCalls();
   parseHash();
+  wireAiKeyInput();
   state.data = await loadData();
   renderProgrammeOptions();
   renderMetrics();
   syncControls();
   wireEvents();
   update();
+}
+
+// ── AI scoring ────────────────────────────────────────────────
+const AI_CACHE = new Map(); // identifier → resultaat
+
+function getApiKey() {
+  return sessionStorage.getItem('rws-ai-key') || '';
+}
+
+function wireAiKeyInput() {
+  const input = document.querySelector('#ai-key-input');
+  if (!input) return;
+  // Laad eventueel bestaande sleutel
+  input.value = getApiKey();
+  input.addEventListener('input', () => {
+    sessionStorage.setItem('rws-ai-key', input.value.trim());
+  });
+}
+
+async function scoreGrantWithAI(grant) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('Voer eerst een Anthropic API-sleutel in.');
+    return null;
+  }
+
+  const cacheKey = grant.identifier;
+  if (AI_CACHE.has(cacheKey)) {
+    return AI_CACHE.get(cacheKey);
+  }
+
+  const prompt = `
+Je bent een EU-fondsenexpert voor Rijkswaterstaat (RWS), de Nederlandse uitvoeringsorganisatie 
+voor rijkswegen, vaarwegen, zeehavens en waterbeheer. RWS valt onder het ministerie van 
+Infrastructuur en Waterstaat. RWS werkt aan: klimaatadaptatie en waterveiligheid, 
+digitalisering van infrastructuur, circulaire en duurzame leefomgeving, corridorbeheer 
+en TEN-T, en network governance (internationale samenwerking).
+
+Beoordeel onderstaande EU-call op relevantie voor RWS als uitvoeringsorganisatie — 
+dus niet als beleidsmaker, maar als beheerder en innovator van fysieke infrastructuur.
+
+Call: ${grant.title}
+Programma: ${getPrimaryProgramme(grant)}
+Samenvatting: ${(grant.destination || grant.summary || '').slice(0, 600)}
+Abstract: ${(grant.abstract || '').slice(0, 400)}
+
+Geef een JSON-object met exact deze structuur:
+{
+  "score": <getal 0-100>,
+  "uitleg": "<maximaal 2 zinnen waarom wel of niet relevant voor RWS>",
+  "thema": "<één van: Corridor Management | Climate Adaptation | Sustainability | Digitalisation | Network Governance | Geen>"
+}
+Reageer ALLEEN met het JSON-object, geen markdown, geen extra tekst.
+`.trim();
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', // snel en goedkoop voor batch gebruik
+        max_tokens: 200,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || `API-fout: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '{}';
+    const result = JSON.parse(text);
+    AI_CACHE.set(cacheKey, result);
+    return result;
+
+  } catch (error) {
+    console.error('AI-scoring mislukt:', error);
+    alert(`AI-analyse mislukt: ${error.message}`);
+    return null;
+  }
 }
 
 init().catch((error) => {
