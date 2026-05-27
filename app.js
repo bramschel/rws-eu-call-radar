@@ -1,4 +1,5 @@
 const DATA_URL = './data/grants.json';
+const AI_API_URL = ''; // Vul in na Vercel deploy: 'https://jouw-project.vercel.app/api/score'
 const PAGE_STEP = 50;
 const SAVED_CALLS_STORAGE_KEY = 'rws-eu-call-radar-saved-calls';
 const STATUS_OPTIONS = [
@@ -191,12 +192,13 @@ const NOISE_TERMS = [
   'film festival',
   'space telescope'
 ];
-``
+
 const state = {
   data: null,
   filtered: [],
   savedIds: new Set(),
   visibleCount: PAGE_STEP,
+  aiReviews: new Map(), // identifier → { score, rationale, rws_role, uncertainties, next_step }
   filters: {
     query: '',
     projectIdea: '',
@@ -1000,6 +1002,9 @@ function renderSavedCallsPanel() {
       const visibleSaved = savedGrants.slice(0, 8);
 
       for (const grant of visibleSaved) {
+        const item = document.createElement('div');
+        item.className = 'saved-call-item';
+
         const link = document.createElement('a');
         link.className = 'saved-call-link';
         link.href = grant.url;
@@ -1011,11 +1016,21 @@ function renderSavedCallsPanel() {
         meta.className = 'saved-call-link__meta';
         meta.textContent = grant.identifier;
 
-        const item = document.createElement('div');
-        item.className = 'saved-call-item';
+        const removeButton = document.createElement('button');
+        removeButton.className = 'ghost-button saved-call-item__remove';
+        removeButton.type = 'button';
+        removeButton.title = 'Verwijder uit bewaarde calls';
+        removeButton.setAttribute('aria-label', `Verwijder ${grant.identifier} uit bewaarde calls`);
+        removeButton.textContent = '×';
+        removeButton.addEventListener('click', () => {
+          state.savedIds.delete(getGrantSaveId(grant));
+          persistSavedCalls();
+          update();
+        });
+
         item.appendChild(link);
         item.appendChild(meta);
-
+        item.appendChild(removeButton);
         elements.savedCallsList.appendChild(item);
       }
 
@@ -1035,7 +1050,121 @@ function renderSavedCallsPanel() {
   if (elements.clearSavedButton) {
     elements.clearSavedButton.disabled = count === 0;
   }
+
+  // AI-review knop: alleen zichtbaar als er bewaarde calls zijn én een backend URL is ingesteld
+  const aiReviewButton = document.querySelector('#ai-review-button');
+  if (aiReviewButton) {
+    const backendConfigured = Boolean(AI_API_URL);
+    aiReviewButton.hidden = !backendConfigured || count === 0;
+    aiReviewButton.disabled = count === 0;
+  }
 }
+
+// ── AI review (via serverless backend) ───────────────────────
+
+async function runAiReview() {
+  const savedGrants = getSavedGrants();
+  if (!savedGrants.length) return;
+
+  if (!AI_API_URL) {
+    alert('AI-backend nog niet geconfigureerd. Stel AI_API_URL in in app.js na het deployen van de Vercel-functie.');
+    return;
+  }
+
+  const aiReviewButton = document.querySelector('#ai-review-button');
+  const aiResultsPanel = document.querySelector('#ai-results-panel');
+
+  if (aiReviewButton) {
+    aiReviewButton.disabled = true;
+    aiReviewButton.textContent = 'Analyseren…';
+  }
+
+  const callsPayload = savedGrants.map((grant) => ({
+    identifier: grant.identifier,
+    title: grant.title,
+    programme: getPrimaryProgramme(grant),
+    summary: (grant.destination || grant.summary || '').slice(0, 600),
+    abstract: (grant.abstract || '').slice(0, 400),
+    actionType: grant.actionType || grant.kind?.label || '',
+    budget: grant.budget?.totalBudgetEur || null,
+    deadline: grant.deadlineDate || null
+  }));
+
+  try {
+    const response = await fetch(AI_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ calls: callsPayload })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Backend-fout ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    for (const review of data.reviews || []) {
+      state.aiReviews.set(review.identifier, review);
+    }
+
+    renderAiResults();
+
+  } catch (error) {
+    console.error('AI-review mislukt:', error);
+    alert(`AI-review mislukt: ${error.message}`);
+  } finally {
+    if (aiReviewButton) {
+      aiReviewButton.disabled = false;
+      aiReviewButton.textContent = 'Beoordeel met AI';
+    }
+  }
+}
+
+function renderAiResults() {
+  const aiResultsPanel = document.querySelector('#ai-results-panel');
+  if (!aiResultsPanel) return;
+
+  if (!state.aiReviews.size) {
+    aiResultsPanel.hidden = true;
+    return;
+  }
+
+  aiResultsPanel.hidden = false;
+  const list = aiResultsPanel.querySelector('#ai-results-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+
+  // Sorteer op score, hoogste eerst
+  const sorted = Array.from(state.aiReviews.values())
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  for (const review of sorted) {
+    const item = document.createElement('div');
+    item.className = 'ai-review-item';
+
+    const scoreClass = review.score >= 70 ? 'ai-score--high' : review.score >= 40 ? 'ai-score--mid' : 'ai-score--low';
+
+    item.innerHTML = `
+      <div class="ai-review-item__header">
+        <span class="ai-score ${scoreClass}">${review.score}/100</span>
+        <strong class="ai-review-item__id">${escapeHtml(review.identifier)}</strong>
+      </div>
+      <p class="ai-review-item__rationale">${escapeHtml(review.rationale)}</p>
+      <dl class="ai-review-item__facts">
+        <div><dt>RWS-rol</dt><dd>${escapeHtml(review.rws_role || '—')}</dd></div>
+        <div><dt>Onzekerheden</dt><dd>${escapeHtml(review.uncertainties || '—')}</dd></div>
+        <div><dt>Volgende stap</dt><dd>${escapeHtml(review.next_step || '—')}</dd></div>
+        <div><dt>Thema</dt><dd>${escapeHtml(review.theme || '—')}</dd></div>
+      </dl>
+    `;
+
+    list.appendChild(item);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 
 function update() {
   filterGrants();
@@ -1132,6 +1261,13 @@ elements.clearSavedButton.addEventListener('click', () => {
     state.visibleCount += PAGE_STEP;
     renderResults();
   });
+
+  const aiReviewButton = document.querySelector('#ai-review-button');
+  if (aiReviewButton) {
+    aiReviewButton.addEventListener('click', () => {
+      runAiReview();
+    });
+  }
 
   window.addEventListener('hashchange', () => {
     parseHash();
