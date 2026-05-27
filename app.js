@@ -1,7 +1,8 @@
 const DATA_URL = './data/grants.json';
 const AI_API_URL = window.location.hostname.includes('vercel.app')
   ? '/api/score'
-  : '';const PAGE_STEP = 50;
+  : '';
+const PAGE_STEP = 50;
 const SAVED_CALLS_STORAGE_KEY = 'rws-eu-call-radar-saved-calls';
 const STATUS_OPTIONS = [
   { id: 'live', label: 'Live', matches: new Set(['31094501', '31094502']) },
@@ -1280,7 +1281,6 @@ elements.clearSavedButton.addEventListener('click', () => {
 async function init() {
   loadSavedCalls();
   parseHash();
-  wireAiKeyInput();
   state.data = await loadData();
   renderProgrammeOptions();
   renderMetrics();
@@ -1307,9 +1307,8 @@ function wireAiKeyInput() {
 }
 
 async function scoreGrantWithAI(grant) {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    alert('Voer eerst een Anthropic API-sleutel in.');
+  if (!AI_API_URL) {
+    alert('AI-backend nog niet geconfigureerd. Test AI via de Vercel-site.');
     return null;
   }
 
@@ -1318,59 +1317,67 @@ async function scoreGrantWithAI(grant) {
     return AI_CACHE.get(cacheKey);
   }
 
-  const prompt = `
-Je bent een EU-fondsenexpert voor Rijkswaterstaat (RWS), de Nederlandse uitvoeringsorganisatie 
-voor rijkswegen, vaarwegen, zeehavens en waterbeheer. RWS valt onder het ministerie van 
-Infrastructuur en Waterstaat. RWS werkt aan: klimaatadaptatie en waterveiligheid, 
-digitalisering van infrastructuur, circulaire en duurzame leefomgeving, corridorbeheer 
-en TEN-T, en network governance (internationale samenwerking).
+  const projectIdea = document.querySelector('#project-input')?.value || '';
+  const keywords = document.querySelector('#search-input')?.value || '';
+  const selectedTheme = state.filters.theme || 'all';
 
-Beoordeel onderstaande EU-call op relevantie voor RWS als uitvoeringsorganisatie — 
-dus niet als beleidsmaker, maar als beheerder en innovator van fysieke infrastructuur.
-
-Call: ${grant.title}
-Programma: ${getPrimaryProgramme(grant)}
-Samenvatting: ${(grant.destination || grant.summary || '').slice(0, 600)}
-Abstract: ${(grant.abstract || '').slice(0, 400)}
-
-Geef een JSON-object met exact deze structuur:
-{
-  "score": <getal 0-100>,
-  "uitleg": "<maximaal 2 zinnen waarom wel of niet relevant voor RWS>",
-  "thema": "<één van: Corridor Management | Climate Adaptation | Sustainability | Digitalisation | Network Governance | Geen>"
-}
-Reageer ALLEEN met het JSON-object, geen markdown, geen extra tekst.
-`.trim();
+  const payload = {
+    projectIdea,
+    keywords,
+    selectedTheme,
+    calls: [
+      {
+        identifier: grant.identifier,
+        title: grant.title,
+        programme: getPrimaryProgramme(grant),
+        destination: grant.destination || '',
+        summary: grant.summary || '',
+        abstract: grant.abstract || '',
+        actionType: grant.actionType || grant.kind?.label || '',
+        frameworkProgrammes: grant.frameworkProgrammes?.map((programme) => programme.label) || [],
+        programmeDivisions: grant.programmeDivisions?.map((division) => division.label) || [],
+        matchedThemes: grant.relevance?.matchedThemes?.map((theme) => theme.label) || [],
+        matchedTerms: grant.relevance?.matchedTerms || []
+      }
+    ]
+  };
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(AI_API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', // snel en goedkoop voor batch gebruik
-        max_tokens: 200,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || `API-fout: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(errorText || `AI-backend fout: ${response.status}`);
     }
 
     const data = await response.json();
-    const text = data.content?.[0]?.text || '{}';
-    const result = JSON.parse(text);
+
+    const review =
+      data.reviews?.[0] ||
+      (Array.isArray(data) ? data[0] : null) ||
+      data;
+
+    const result = {
+      score: review.aiRelevanceScore ?? review.score ?? 0,
+      uitleg: review.rationale ?? review.uitleg ?? '',
+      thema: Array.isArray(review.themeFit)
+        ? review.themeFit.join(', ')
+        : review.themeFit ?? review.thema ?? '',
+      possibleRwsRole: review.possibleRwsRole ?? '',
+      uncertainties: review.uncertainties ?? '',
+      recommendedNextStep: review.recommendedNextStep ?? ''
+    };
+
     AI_CACHE.set(cacheKey, result);
     return result;
-
   } catch (error) {
-    console.error('AI-scoring mislukt:', error);
+    console.error('AI-analyse mislukt:', error);
     alert(`AI-analyse mislukt: ${error.message}`);
     return null;
   }
