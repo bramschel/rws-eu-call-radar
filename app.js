@@ -1292,20 +1292,6 @@ async function init() {
 // ── AI scoring ────────────────────────────────────────────────
 const AI_CACHE = new Map(); // identifier → resultaat
 
-function getApiKey() {
-  return sessionStorage.getItem('rws-ai-key') || '';
-}
-
-function wireAiKeyInput() {
-  const input = document.querySelector('#ai-key-input');
-  if (!input) return;
-  // Laad eventueel bestaande sleutel
-  input.value = getApiKey();
-  input.addEventListener('input', () => {
-    sessionStorage.setItem('rws-ai-key', input.value.trim());
-  });
-}
-
 async function scoreGrantWithAI(grant) {
   if (!AI_API_URL) {
     alert('AI-backend nog niet geconfigureerd. Test AI via de Vercel-site.');
@@ -1363,16 +1349,22 @@ async function scoreGrantWithAI(grant) {
       (Array.isArray(data) ? data[0] : null) ||
       data;
 
-    const result = {
-      score: review.aiRelevanceScore ?? review.score ?? 0,
-      uitleg: review.rationale ?? review.uitleg ?? '',
-      thema: Array.isArray(review.themeFit)
-        ? review.themeFit.join(', ')
-        : review.themeFit ?? review.thema ?? '',
-      possibleRwsRole: review.possibleRwsRole ?? '',
-      uncertainties: review.uncertainties ?? '',
-      recommendedNextStep: review.recommendedNextStep ?? ''
-    };
+    const themeValue =
+  review.themeFit ||
+  review.thema ||
+  review.theme ||
+  review.bureauBrusselTheme ||
+  review.selectedTheme ||
+  '';
+
+const result = {
+  score: review.aiRelevanceScore ?? review.score ?? review.relevanceScore ?? 0,
+  uitleg: review.rationale ?? review.uitleg ?? review.explanation ?? '',
+  thema: Array.isArray(themeValue) ? themeValue.join(', ') : themeValue,
+  possibleRwsRole: review.possibleRwsRole ?? review.rwsRole ?? '',
+  uncertainties: review.uncertainties ?? review.onzekerheden ?? '',
+  recommendedNextStep: review.recommendedNextStep ?? review.nextStep ?? ''
+};
 
     AI_CACHE.set(cacheKey, result);
     return result;
