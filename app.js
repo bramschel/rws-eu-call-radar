@@ -1,6 +1,7 @@
 const DATA_URL = './data/grants.json';
-const AI_API_URL = ''; // Vul in na Vercel deploy: 'https://jouw-project.vercel.app/api/score'
-const PAGE_STEP = 50;
+const AI_API_URL = window.location.hostname.includes('vercel.app')
+  ? '/api/score'
+  : '';const PAGE_STEP = 50;
 const SAVED_CALLS_STORAGE_KEY = 'rws-eu-call-radar-saved-calls';
 const STATUS_OPTIONS = [
   { id: 'live', label: 'Live', matches: new Set(['31094501', '31094502']) },
