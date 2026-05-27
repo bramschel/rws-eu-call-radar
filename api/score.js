@@ -8,7 +8,7 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 
 const RWS_CONTEXT = `
 Rijkswaterstaat (RWS) is de Nederlandse uitvoeringsorganisatie voor rijkswegen, vaarwegen,
