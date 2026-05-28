@@ -200,7 +200,8 @@ const state = {
   filtered: [],
   savedIds: new Set(),
   visibleCount: PAGE_STEP,
-  aiReviews: new Map(), // identifier → { score, rationale, rws_role, uncertainties, next_step }
+  aiReviews: new Map(), // identifier → review van batch-analyse
+  aiRerankActive: false,
   filters: {
     query: '',
     projectIdea: '',
@@ -968,6 +969,33 @@ const existingRelevanceBlock = card.querySelector('.grant-card__relevance');
 
     facts.insertAdjacentElement('afterend', relevanceBlock);
 
+    // AI-rerank block: toon resultaat van batch-analyse als dat beschikbaar is
+    const aiReview = state.aiReviews.get(grant.identifier);
+    if (aiReview) {
+      const aiBlock = document.createElement('div');
+      aiBlock.className = 'grant-card__ai-review';
+
+      const aiScore = aiReview.aiRelevanceScore ?? 0;
+      const scoreClass = aiScore >= 61 ? 'ai-score--high' : aiScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
+      const themeFit = Array.isArray(aiReview.themeFit) ? aiReview.themeFit.join(', ') : (aiReview.themeFit || '—');
+
+      aiBlock.innerHTML = `
+        <p class="grant-card__relevance-title">
+          AI-analyse voor RWS
+          <span class="ai-score ${scoreClass}" style="margin-left:0.5rem">${aiScore}/100</span>
+        </p>
+        <p>${escapeHtml(aiReview.rationale || '')}</p>
+        <dl class="grant-card__facts" style="margin-top:0.5rem">
+          ${themeFit !== '—' ? `<div><dt>Thema's</dt><dd>${escapeHtml(themeFit)}</dd></div>` : ''}
+          ${aiReview.possibleRwsRole ? `<div><dt>RWS-rol</dt><dd>${escapeHtml(aiReview.possibleRwsRole)}</dd></div>` : ''}
+          ${aiReview.uncertainties ? `<div><dt>Onzekerheden</dt><dd>${escapeHtml(aiReview.uncertainties)}</dd></div>` : ''}
+          ${aiReview.recommendedNextStep ? `<div><dt>Volgende stap</dt><dd>${escapeHtml(aiReview.recommendedNextStep)}</dd></div>` : ''}
+        </dl>
+      `;
+
+      relevanceBlock.insertAdjacentElement('afterend', aiBlock);
+    }
+
     fragment.appendChild(card);
   }
 
@@ -1166,6 +1194,92 @@ function renderAiResults() {
   }
 }
 
+// ── AI reranking: batch top 15 ────────────────────────────────
+
+function toAiCallPayload(grant) {
+  return {
+    identifier: grant.identifier,
+    title: grant.title,
+    programme: getPrimaryProgramme(grant),
+    destination: grant.destination || '',
+    summary: grant.summary || '',
+    abstract: String(grant.abstract || '').slice(0, 2500),
+    actionType: grant.actionType || grant.kind?.label || '',
+    frameworkProgrammes: grant.frameworkProgrammes?.map((p) => p.label) || [],
+    programmeDivisions: grant.programmeDivisions?.map((d) => d.label) || [],
+    matchedThemes: grant.relevance?.matchedThemes?.map((t) => t.label) || [],
+    matchedTerms: grant.relevance?.matchedTerms || [],
+    localRelevanceScore: grant.relevance?.score || 0
+  };
+}
+
+async function scoreTopResultsWithAI() {
+  if (!AI_API_URL) {
+    alert('AI_API_URL is niet ingesteld. Zorg dat de Vercel-backend actief is.');
+    return;
+  }
+
+  const candidates = state.filtered.slice(0, 15);
+  if (!candidates.length) {
+    alert('Geen resultaten om te analyseren. Pas je filters aan.');
+    return;
+  }
+
+  const button = document.querySelector('#ai-rerank-button');
+  const statusEl = document.querySelector('#ai-rerank-status');
+
+  if (button) { button.disabled = true; button.textContent = 'Analyseren…'; }
+  if (statusEl) { statusEl.textContent = `Top ${candidates.length} calls worden beoordeeld…`; statusEl.hidden = false; }
+
+  const payload = {
+    projectIdea: state.filters.projectIdea,
+    keywords: state.filters.query,
+    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+    calls: candidates.map(toAiCallPayload)
+  };
+
+  try {
+    const response = await fetch(AI_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Backend-fout ${response.status}`);
+    }
+
+    const data = await response.json();
+    const reviews = data.reviews || [];
+
+    if (!reviews.length) throw new Error('Geen beoordelingen ontvangen.');
+
+    for (const review of reviews) {
+      state.aiReviews.set(review.identifier, review);
+    }
+
+    // Sorteer: AI-gescoorde calls bovenaan, rest onderaan op bestaande volgorde
+    state.filtered.sort((a, b) => {
+      const left  = state.aiReviews.get(a.identifier)?.aiRelevanceScore ?? -1;
+      const right = state.aiReviews.get(b.identifier)?.aiRelevanceScore ?? -1;
+      return right - left;
+    });
+
+    state.aiRerankActive = true;
+
+    if (statusEl) { statusEl.textContent = `${reviews.length} calls beoordeeld door AI — gesorteerd op AI-relevantie.`; }
+    if (button) { button.textContent = 'Heranalyseer'; button.disabled = false; }
+
+    renderResults();
+
+  } catch (error) {
+    console.error('AI-reranking mislukt:', error);
+    if (statusEl) { statusEl.textContent = `Analyse mislukt: ${error.message}`; }
+    if (button) { button.textContent = 'AI analyseer top 15'; button.disabled = false; }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 
 function update() {
@@ -1254,6 +1368,13 @@ elements.clearSavedButton.addEventListener('click', () => {
     sort: 'relevance-desc'
   };
 
+  state.aiReviews.clear();
+  state.aiRerankActive = false;
+  const statusEl = document.querySelector('#ai-rerank-status');
+  if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
+  const aiBtn = document.querySelector('#ai-rerank-button');
+  if (aiBtn) { aiBtn.textContent = 'AI analyseer top 15'; aiBtn.disabled = false; }
+
   state.visibleCount = PAGE_STEP;
   syncControls();
   update();
@@ -1263,6 +1384,11 @@ elements.clearSavedButton.addEventListener('click', () => {
     state.visibleCount += PAGE_STEP;
     renderResults();
   });
+
+  const aiRerankButton = document.querySelector('#ai-rerank-button');
+  if (aiRerankButton) {
+    aiRerankButton.addEventListener('click', () => scoreTopResultsWithAI());
+  }
 
   const aiReviewButton = document.querySelector('#ai-review-button');
   if (aiReviewButton) {
