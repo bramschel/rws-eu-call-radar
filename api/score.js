@@ -14,40 +14,74 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
   const allowed = ALLOWED_ORIGINS.some((o) => origin.startsWith(o));
+
   res.setHeader('Access-Control-Allow-Origin', allowed ? origin : ALLOWED_ORIGINS[0]);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
+const RWS_CONTEXT = `
+Rijkswaterstaat (RWS) beheert en ontwikkelt nationale infrastructuur voor wegen, vaarwegen, waterbeheer en verkeersmanagement. RWS is vooral relevant voor EU-calls wanneer er een duidelijke uitvoerings-, beheer-, innovatie-, pilot- of implementatierol mogelijk is.
+
+Concrete RWS-aansluitingen bij EU-calls kunnen zijn:
+- klimaatbestendige infrastructuur en waterwerken;
+- digitale infrastructuur, digital twins, sensoren, data en decision support;
+- energietransitie en verduurzaming van infrastructuur;
+- circulair materiaalgebruik, hergebruik van asfalt, biobased materialen en duurzaam onderhoud;
+- waterveiligheid, sedimenttransport, vaarwegen, rivieren en kustsystemen;
+- TEN-T corridors, CEF Transport, corridorbeheer, logistiek en binnenvaart;
+- grensoverschrijdend waterbeheer met buurlanden;
+- internationale kennisuitwisseling rond wegen, vaarwegen, havens en waterbeheer.
+
+Bureau Brussel gebruikt vijf thema's:
+1. Corridor Management
+2. Climate Adaptation
+3. Sustainability / Duurzame Leefomgeving
+4. Digitalisation
+5. Network Governance
+
+Een call scoort hoog als:
+- RWS logisch kan deelnemen als beheerder, asset owner, pilotlocatie, living lab, kennispartner, dataleverancier, implementatiepartner of consortiumdeelnemer;
+- de call toepasbaar is op infrastructuur, waterbeheer, wegen, vaarwegen, verkeersmanagement, assetmanagement of duurzame leefomgeving;
+- de call ruimte biedt voor demonstratie, implementatie, governance, datadeling of praktijkgerichte innovatie.
+
+Een call scoort lager als:
+- de call primair gericht is op beleidsvorming of wetgeving zonder duidelijke uitvoeringscomponent;
+- de call vooral bedoeld is voor individuele onderzoekers, steden/gemeenten zonder RWS-rol, MKB-leadpartners, defensie zonder civiele of dual-use infrastructuur-link, of thema's zonder infrastructuur-, water- of netwerkcomponent.
+`.trim();
+
 function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
   return `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
 
-DOEL:
-Beoordeel welke EU-calls het beste passen bij de zoekvraag van de gebruiker en bij de rol van Rijkswaterstaat als uitvoeringsorganisatie voor rijkswegen, vaarwegen, waterbeheer en infrastructuur.
+RWS-CONTEXT:
+${RWS_CONTEXT}
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
 ${projectIdea || 'Niet opgegeven'}
+
 Keywords:
 ${keywords || 'Niet opgegeven'}
+
 Gekozen Bureau Brussel-thema:
 ${selectedTheme || 'Niet opgegeven'}
 
-BUREAU BRUSSEL-THEMA'S:
-- Corridor Management
-- Climate Adaptation
-- Sustainability / Duurzame Leefomgeving
-- Digitalisation
-- Network Governance
+OPDRACHT:
+Beoordeel de onderstaande EU-calls specifiek op hoe goed ze aansluiten bij:
+1. de zoekvraag van de gebruiker;
+2. de rol van Rijkswaterstaat als uitvoeringsorganisatie;
+3. het gekozen Bureau Brussel-thema, indien opgegeven.
+
+Rangschik de calls van meest naar minst relevant.
 
 BEOORDELINGSCRITERIA:
 Beoordeel per call:
-1. Inhoudelijke aansluiting op projectidee en keywords
-2. Aansluiting op het gekozen Bureau Brussel-thema, indien opgegeven
-3. Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie, niet primair als beleidsmaker
-4. Mogelijke rol voor RWS, bijvoorbeeld kennispartner, pilotlocatie, asset owner, beheerder, consortiumdeelnemer of stakeholder
-5. Mate van onzekerheid, bijvoorbeeld als scope te breed is of eligibility onduidelijk is
+1. Inhoudelijke aansluiting op projectidee en keywords.
+2. Aansluiting op het gekozen Bureau Brussel-thema, indien opgegeven.
+3. Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie, niet primair als beleidsmaker.
+4. Mogelijke rol voor RWS, bijvoorbeeld kennispartner, pilotlocatie, asset owner, beheerder, consortiumdeelnemer of stakeholder.
+5. Mate van onzekerheid, bijvoorbeeld als scope te breed is of eligibility onduidelijk is.
 
 SCORING:
 0-20 = niet relevant
@@ -63,7 +97,8 @@ Geef uitsluitend geldige JSON terug.
 Geen markdown.
 Geen code fences.
 Geen uitleg buiten JSON.
-De JSON moet excact deze structuur hebben:
+
+De JSON moet exact deze structuur hebben:
 {
   "reviews": [
     {
@@ -71,7 +106,7 @@ De JSON moet excact deze structuur hebben:
       "aiRelevanceScore": 0,
       "themeFit": ["..."],
       "rationale": "...",
-      "possibleRWSRole": "...",
+      "possibleRwsRole": "...",
       "uncertainties": "...",
       "recommendedNextStep": "..."
     }
@@ -79,7 +114,6 @@ De JSON moet excact deze structuur hebben:
 }
 
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
-Gebruik geen markdown.
 Gebruik geen tekst buiten JSON.
 `.trim();
 }
@@ -180,7 +214,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Geen calls meegestuurd' });
   }
 
-  const batch = calls.slice(0, 15);
+  const batch = calls.slice(0, 10);
   const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
   try {
