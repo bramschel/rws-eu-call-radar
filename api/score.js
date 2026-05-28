@@ -59,7 +59,11 @@ SCORING:
 CALLS:
 ${JSON.stringify(calls, null, 2)}
 
-Geef uitsluitend geldige JSON terug met exact deze structuur:
+Geef uitsluitend geldige JSON terug.
+Geen markdown.
+Geen code fences.
+Geen uitleg buiten JSON.
+De JSON moet excact deze structuur hebben:
 {
   "reviews": [
     {
@@ -67,7 +71,7 @@ Geef uitsluitend geldige JSON terug met exact deze structuur:
       "aiRelevanceScore": 0,
       "themeFit": ["..."],
       "rationale": "...",
-      "possibleRwsRole": "...",
+      "possibleRWSRole": "...",
       "uncertainties": "...",
       "recommendedNextStep": "..."
     }
@@ -78,6 +82,79 @@ Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen markdown.
 Gebruik geen tekst buiten JSON.
 `.trim();
+}
+
+function extractJsonFromText(text) {
+  const cleaned = String(text || '')
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Ga door naar extractie hieronder.
+  }
+
+  const firstObject = cleaned.indexOf('{');
+  const lastObject = cleaned.lastIndexOf('}');
+  const firstArray = cleaned.indexOf('[');
+  const lastArray = cleaned.lastIndexOf(']');
+
+  const objectCandidate =
+    firstObject !== -1 && lastObject !== -1 && lastObject > firstObject
+      ? cleaned.slice(firstObject, lastObject + 1)
+      : '';
+
+  const arrayCandidate =
+    firstArray !== -1 && lastArray !== -1 && lastArray > firstArray
+      ? cleaned.slice(firstArray, lastArray + 1)
+      : '';
+
+  const candidates = [objectCandidate, arrayCandidate].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Probeer volgende kandidaat.
+    }
+  }
+
+  throw new Error('AI gaf geen geldige JSON terug');
+}
+
+function normalizeAiReviews(parsed) {
+  const reviews = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.reviews)
+      ? parsed.reviews
+      : [];
+
+  return {
+    reviews: reviews.map((review) => ({
+      identifier: review.identifier || review.callId || '',
+      aiRelevanceScore: Number(
+        review.aiRelevanceScore ??
+        review.score ??
+        review.relevanceScore ??
+        0
+      ),
+      themeFit: Array.isArray(review.themeFit)
+        ? review.themeFit
+        : review.themeFit
+          ? [review.themeFit]
+          : review.theme
+            ? [review.theme]
+            : review.thema
+              ? [review.thema]
+              : [],
+      rationale: review.rationale || review.uitleg || review.explanation || '',
+      possibleRwsRole: review.possibleRwsRole || review.rws_role || review.rwsRole || '',
+      uncertainties: review.uncertainties || review.onzekerheden || '',
+      recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || ''
+    }))
+  };
 }
 
 export default async function handler(req, res) {
@@ -130,17 +207,24 @@ export default async function handler(req, res) {
     }
 
     const geminiData = await geminiResponse.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{"reviews":[]}';
+    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText.trim());
-    } catch {
-      console.error('Kon Gemini-output niet parsen:', rawText);
-      return res.status(502).json({ error: 'AI gaf geen geldige JSON terug' });
-    }
+let parsed;
+try {
+  parsed = extractJsonFromText(rawText);
+} catch (error) {
+  console.error('Kon Gemini-output niet parsen:', rawText);
 
-    return res.status(200).json({ reviews: parsed.reviews || [] });
+  return res.status(502).json({
+    error: 'AI gaf geen geldige JSON terug',
+    rawText
+  });
+}
+
+const normalized = normalizeAiReviews(parsed);
+
+return res.status(200).json(normalized);
+
 
   } catch (error) {
     console.error('Fout in /api/score:', error);
