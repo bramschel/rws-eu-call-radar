@@ -1194,7 +1194,7 @@ function renderAiResults() {
   }
 }
 
-// ── AI reranking: batch top 15 ────────────────────────────────
+// ── AI reranking: batch top 10 ────────────────────────────────
 
 function toAiCallPayload(grant) {
   return {
@@ -1219,7 +1219,7 @@ async function scoreTopResultsWithAI() {
     return;
   }
 
-  const candidates = state.filtered.slice(0, 15);
+  const candidates = state.filtered.slice(0, 10);
   if (!candidates.length) {
     alert('Geen resultaten om te analyseren. Pas je filters aan.');
     return;
@@ -1276,7 +1276,7 @@ async function scoreTopResultsWithAI() {
   } catch (error) {
     console.error('AI-reranking mislukt:', error);
     if (statusEl) { statusEl.textContent = `Analyse mislukt: ${error.message}`; }
-    if (button) { button.textContent = 'AI analyseer top 15'; button.disabled = false; }
+    if (button) { button.textContent = 'AI analyseer top 10'; button.disabled = false; }
   }
 }
 
@@ -1373,7 +1373,7 @@ elements.clearSavedButton.addEventListener('click', () => {
   const statusEl = document.querySelector('#ai-rerank-status');
   if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
   const aiBtn = document.querySelector('#ai-rerank-button');
-  if (aiBtn) { aiBtn.textContent = 'AI analyseer top 15'; aiBtn.disabled = false; }
+  if (aiBtn) { aiBtn.textContent = 'AI analyseer top 10'; aiBtn.disabled = false; }
 
   state.visibleCount = PAGE_STEP;
   syncControls();
