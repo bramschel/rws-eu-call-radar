@@ -9,7 +9,8 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
+const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
@@ -202,64 +203,76 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error('GEMINI_API_KEY is niet ingesteld');
-    return res.status(500).json({ error: 'Backend niet geconfigureerd' });
-  }
-
-  const { projectIdea, keywords, selectedTheme, calls } = req.body || {};
-
-  if (!Array.isArray(calls) || calls.length === 0) {
-    return res.status(400).json({ error: 'Geen calls meegestuurd' });
-  }
-
-  const batch = calls.slice(0, 10);
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-
   try {
-    const geminiResponse = await fetch(geminiUrl, {
+    const apiKey = process.env.MISTRAL_API_KEY;
+
+    if (!apiKey) {
+      console.error('MISTRAL_API_KEY is niet ingesteld');
+      return res.status(500).json({ error: 'Backend niet geconfigureerd' });
+    }
+
+    const { projectIdea, keywords, selectedTheme, calls } = req.body || {};
+
+    if (!Array.isArray(calls) || calls.length === 0) {
+      return res.status(400).json({ error: 'Geen calls meegestuurd' });
+    }
+
+    const batch = calls.slice(0, 10);
+
+    const prompt = buildPrompt({
+      projectIdea,
+      keywords,
+      selectedTheme,
+      calls: batch
+    });
+
+    const mistralResponse = await fetch(MISTRAL_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
       body: JSON.stringify({
-        contents: [
+        model: MISTRAL_MODEL,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        messages: [
           {
-            parts: [{ text: buildPrompt({ projectIdea, keywords, selectedTheme, calls: batch }) }]
+            role: 'system',
+            content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
+          },
+          {
+            role: 'user',
+            content: prompt
           }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4096,
-          responseMimeType: 'application/json'
-        }
+        ]
       })
     });
 
-    if (!geminiResponse.ok) {
-      const err = await geminiResponse.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Gemini-fout ${geminiResponse.status}`);
+    if (!mistralResponse.ok) {
+      const err = await mistralResponse.json().catch(() => ({}));
+      throw new Error(err.error?.message || `Mistral-fout ${mistralResponse.status}`);
     }
 
-    const geminiData = await geminiResponse.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const mistralData = await mistralResponse.json();
+    const rawText = mistralData.choices?.[0]?.message?.content || '{"reviews":[]}';
 
-let parsed;
-try {
-  parsed = extractJsonFromText(rawText);
-} catch (error) {
-  console.error('Kon Gemini-output niet parsen:', rawText);
+    let parsed;
 
-  return res.status(502).json({
-    error: 'AI gaf geen geldige JSON terug',
-    rawText
-  });
-}
+    try {
+      parsed = extractJsonFromText(rawText);
+    } catch (parseError) {
+      console.error('Kon Mistral-output niet parsen:', rawText);
 
-const normalized = normalizeAiReviews(parsed);
+      return res.status(502).json({
+        error: 'AI gaf geen geldige JSON terug',
+        rawText
+      });
+    }
 
-return res.status(200).json(normalized);
+    const normalized = normalizeAiReviews(parsed);
 
-
+    return res.status(200).json(normalized);
   } catch (error) {
     console.error('Fout in /api/score:', error);
     return res.status(500).json({ error: error.message });
