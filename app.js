@@ -183,6 +183,63 @@ const RWS_THEMES = [
   }
 ];
 
+const RWS_DOMAIN_TERMS = [
+  'infrastructure',
+  'transport infrastructure',
+  'road infrastructure',
+  'roads',
+  'highways',
+  'bridges',
+  'tunnels',
+  'asset management',
+  'maintenance',
+  'renovation',
+  'traffic management',
+  'mobility',
+  'smart mobility',
+  'corridor',
+  'TEN-T',
+  'inland waterways',
+  'waterways',
+  'navigation',
+  'shipping',
+  'ports',
+  'river',
+  'river basin',
+  'flood risk',
+  'flood protection',
+  'water safety',
+  'water management',
+  'coastal',
+  'sea level rise',
+  'drought',
+  'digital twin',
+  'sensor data',
+  'decision support',
+  'predictive maintenance'
+];
+
+const LOW_RWS_FIT_TERMS = [
+  'farmer',
+  'farmers',
+  'farming',
+  'farm profitability',
+  'agriculture',
+  'agricultural',
+  'agri-food',
+  'agrifood',
+  'crop',
+  'crops',
+  'livestock',
+  'rural development',
+  'food systems',
+  'food chain',
+  'soil fertility',
+  'farm income',
+  'common agricultural policy',
+  'CAP'
+];
+
 const NOISE_TERMS = [
   'clinical trial',
   'medical device',
@@ -330,6 +387,10 @@ function normalizeText(value) {
     .trim();
 }
 
+function textContainsAny(text, terms) {
+  return terms.some((term) => text.includes(normalizeText(term)));
+}
+
 function splitTerms(value) {
   return normalizeText(value)
     .split(/[\s,;]+/)
@@ -353,7 +414,20 @@ function calculateRelevance(grant, query, projectIdea) {
   const combinedInput = normalizeText([query, projectIdea].filter(Boolean).join(' '));
   const terms = splitTerms(combinedInput);
 
+  const combinedGrantText = normalizeText([
+    grant.title,
+    grant.summary,
+    grant.destination,
+    grant.abstract,
+    grant.actionType,
+    grant.searchText
+  ].filter(Boolean).join(' '));
+
+  const hasRwsDomainFit = textContainsAny(combinedGrantText, RWS_DOMAIN_TERMS);
+  const hasLowRwsFitContext = textContainsAny(combinedGrantText, LOW_RWS_FIT_TERMS);
+
   let score = 0;
+  
   let queryMatched = false;
   const matchedTerms = new Set();
   const matchedThemes = [];
@@ -458,7 +532,12 @@ function calculateRelevance(grant, query, projectIdea) {
     reasons.push('Inhoudelijke match in abstract/scope.');
   }
 
-  return {
+if (hasLowRwsFitContext && !hasRwsDomainFit) {
+  score -= 35;
+  reasons.push('Lagere RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder duidelijke infrastructuur-, water- of mobiliteitscomponent.');
+}
+
+return {
   score: Math.max(0, score || 1),
   queryMatched,
   matchedTerms: Array.from(matchedTerms),

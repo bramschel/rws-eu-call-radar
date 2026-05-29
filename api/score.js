@@ -49,6 +49,31 @@ Een call scoort hoog als:
 Een call scoort lager als:
 - de call primair gericht is op beleidsvorming of wetgeving zonder duidelijke uitvoeringscomponent;
 - de call vooral bedoeld is voor individuele onderzoekers, steden/gemeenten zonder RWS-rol, MKB-leadpartners, defensie zonder civiele of dual-use infrastructuur-link, of thema's zonder infrastructuur-, water- of netwerkcomponent.
+Belangrijke beoordelingsregel:
+Beoordeel calls niet op algemene maatschappelijke relevantie, maar op concrete relevantie voor Rijkswaterstaat als uitvoeringsorganisatie.
+
+Een call mag alleen hoog scoren als er een duidelijke link is met minimaal één van deze RWS-domeinen:
+- rijkswegen, verkeersmanagement, mobiliteitscorridors of smart mobility;
+- vaarwegen, binnenvaart, havens, waterborne transport of River Information Services;
+- waterbeheer, waterveiligheid, overstromingsrisico, droogte, rivierbeheer, kustsystemen of klimaatbestendige infrastructuur;
+- beheer, onderhoud, renovatie, asset management of lifecycle management van infrastructuur;
+- circulariteit, materiaalhergebruik of emissiereductie in infrastructuurprojecten;
+- data, digital twins, sensoren, AI, decision support of cybersecurity voor infrastructuur, water of mobiliteit;
+- internationale samenwerking, harmonisatie of interoperabiliteit tussen infrastructuurbeheerders of publieke autoriteiten.
+
+Thema-specifieke interpretatie:
+- Climate Adaptation betekent voor RWS: klimaatbestendige infrastructuur, waterveiligheid, droogte, overstroming, hitte, zeespiegelstijging, rivierbeheer, kustbeheer en adaptatie van wegen, vaarwegen en kunstwerken.
+- Climate Adaptation betekent niet automatisch: landbouwadaptatie, boereninkomen, voedselproductie, gewassen, veeteelt of agrarische bedrijfsvoering, tenzij er een directe link is met RWS-taken zoals waterbeheer, overstromingsrisico, rivierbekkens of klimaatbestendige infrastructuur.
+- Sustainability / Duurzame Leefomgeving betekent voor RWS vooral: circulaire infrastructuur, materiaalhergebruik, duurzaam beheer en onderhoud, emissiereductie, biodiversiteit langs infrastructuur, waterkwaliteit en nature-based solutions met een infrastructuur- of waterbeheercomponent.
+- Digitalisation betekent voor RWS vooral: data, digital twins, sensoren, decision support, ITS, predictive maintenance en digitale infrastructuurtoepassingen.
+- Corridor Management betekent voor RWS vooral: TEN-T, corridors, vaarwegen, logistiek, verkeersmanagement, binnenvaart, havens en multimodaal transport.
+- Network Governance betekent voor RWS vooral: samenwerking tussen publieke infrastructuurbeheerders, harmonisatie, interoperabiliteit, standaarden en grensoverschrijdende samenwerking.
+
+Scorebeperkingen:
+- Als een call primair over landbouw, boereninkomen, voedselketens, gewassen of veeteelt gaat zonder duidelijke RWS-rol, geef maximaal 35/100.
+- Als een call wel bij een EU-thema past maar geen duidelijke rol voor RWS heeft, geef maximaal 50/100.
+- Als een call alleen generieke termen zoals resilience, climate, sustainability of data bevat zonder concrete infrastructuur-, water- of mobiliteitscomponent, geef maximaal 45/100.
+- Geef 80+ alleen als zowel de projectfit als de RWS-uitvoeringsrol duidelijk zijn.
 `.trim();
 
 function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
@@ -84,12 +109,21 @@ Beoordeel per call:
 4. Mogelijke rol voor RWS, bijvoorbeeld kennispartner, pilotlocatie, asset owner, beheerder, consortiumdeelnemer of stakeholder.
 5. Mate van onzekerheid, bijvoorbeeld als scope te breed is of eligibility onduidelijk is.
 
+
 SCORING:
-0-20 = niet relevant
-21-40 = zwakke match
-41-60 = mogelijk relevant
-61-80 = relevant
-81-100 = sterk relevant
+Beoordeel streng. Een call is alleen hoog relevant als er zowel projectfit als RWS-fit is.
+
+0-20 = niet relevant voor RWS
+21-40 = zwakke RWS-fit of vooral buiten RWS-domein
+41-60 = mogelijk relevant, maar RWS-rol is onzeker of indirect
+61-80 = relevant, duidelijke link met RWS-domeinen en mogelijke RWS-rol
+81-100 = sterk relevant, duidelijke projectfit, duidelijke RWS-rol en passend Bureau Brussel-thema
+
+Scorebeperkingen:
+- Primair landbouw/boeren/voedsel/gewassen/veeteelt zonder RWS-waterbeheer of infrastructuurcomponent: maximaal 35.
+- Primair gemeentelijk/stedelijk zonder rol voor nationale infrastructuur, waterbeheer of corridors: maximaal 45.
+- Puur academisch of individuele onderzoeker zonder implementatie/pilot/asset owner rol: maximaal 40.
+- Algemene klimaatadaptatie zonder RWS-specifieke toepassing: maximaal 45.
 
 CALLS:
 ${JSON.stringify(calls, null, 2)}
