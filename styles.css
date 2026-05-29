@@ -1380,3 +1380,303 @@ body::before {
     -webkit-line-clamp: 3;
   }
 }
+
+/* =========================================================
+   Saved calls readability refinement
+   ========================================================= */
+
+.layout {
+  grid-template-columns: 500px minmax(0, 1fr);
+}
+
+.saved-call-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.9rem 1rem;
+  min-height: 4.6rem;
+}
+
+.saved-call-text {
+  display: block;
+  min-width: 0;
+}
+
+.saved-call-link {
+  display: block;
+  color: #ffffff;
+  font-weight: 750;
+  font-size: 0.98rem;
+  line-height: 1.32;
+  text-decoration: none;
+
+  /* Toon meer titel, maar houd de kaart beheersbaar */
+  max-height: 5.2rem;
+  overflow: hidden;
+
+  /* Betere woordafbreking voor lange Engelse titels */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+}
+
+.saved-call-link:hover {
+  text-decoration: underline;
+}
+
+/* Call-code niet meer prominent tonen */
+.saved-call-link__meta {
+  display: block;
+  margin-top: 0.35rem;
+  max-width: 100%;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.68rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Maak de verwijderknop kleiner en minder dominant */
+.saved-call-remove-button {
+  width: 1.55rem;
+  height: 1.55rem;
+  align-self: start;
+  margin-top: 0.1rem;
+}
+
+/* Meer ruimte voor de lijst, zonder dat de sidebar onbruikbaar wordt */
+.saved-calls-list {
+  max-height: calc(100vh - 250px);
+}
+
+/* Op kleinere schermen sidebar gewoon stapelen */
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-calls-list {
+    max-height: none;
+  }
+}
+
+/* =========================================================
+   AI review readability refinement
+   ========================================================= */
+
+.ai-results-panel {
+  background: #fff8df;
+  border-left: 8px solid var(--rws-yellow);
+}
+
+.ai-results-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.ai-result,
+.ai-review {
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #ead68a;
+}
+
+.ai-result__score {
+  margin: 0 0 0.75rem;
+  color: var(--rws-blue);
+  font-weight: 750;
+}
+
+.ai-result__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.ai-result__details div {
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #f8fbfd;
+  border: 1px solid var(--line);
+}
+
+.ai-result__details dt {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ai-result__details dd {
+  margin: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .ai-result__details {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Saved calls readability refinement */
+
+.layout {
+  grid-template-columns: 500px minmax(0, 1fr);
+}
+
+.saved-call-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.9rem 1rem;
+  min-height: 4.6rem;
+}
+
+.saved-call-text {
+  display: block;
+  min-width: 0;
+}
+
+.saved-call-link {
+  display: block;
+  color: #ffffff;
+  font-weight: 750;
+  font-size: 0.98rem;
+  line-height: 1.32;
+  text-decoration: none;
+  max-height: 5.2rem;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+}
+
+.saved-call-link:hover {
+  text-decoration: underline;
+}
+
+.saved-call-link__meta {
+  display: block;
+  margin-top: 0.35rem;
+  max-width: 100%;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.68rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-call-remove-button {
+  width: 1.55rem;
+  height: 1.55rem;
+  align-self: start;
+  margin-top: 0.1rem;
+}
+
+.saved-calls-list {
+  max-height: calc(100vh - 250px);
+}
+
+/* AI review readability refinement */
+
+.ai-results-panel {
+  background: #fff8df;
+  border-left: 8px solid var(--rws-yellow);
+}
+
+.ai-results-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.ai-review-item {
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #ead68a;
+}
+
+.ai-review-item__header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.ai-score {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem;
+  font-weight: 800;
+}
+
+.ai-score--high {
+  background: #e5f4e0;
+  color: #275937;
+}
+
+.ai-score--mid {
+  background: #fff1c2;
+  color: #6d4b00;
+}
+
+.ai-score--low {
+  background: #fbe1de;
+  color: #8f1f16;
+}
+
+.ai-review-item__id {
+  color: var(--rws-blue);
+}
+
+.ai-review-item__rationale {
+  line-height: 1.55;
+}
+
+.ai-review-item__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.ai-review-item__facts div {
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #f8fbfd;
+  border: 1px solid var(--line);
+}
+
+.ai-review-item__facts dt {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ai-review-item__facts dd {
+  margin: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-calls-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .ai-review-item__facts {
+    grid-template-columns: 1fr;
+  }
+}

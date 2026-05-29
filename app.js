@@ -971,27 +971,47 @@ const existingRelevanceBlock = card.querySelector('.grant-card__relevance');
 
     // AI-rerank block: toon resultaat van batch-analyse als dat beschikbaar is
     const aiReview = state.aiReviews.get(grant.identifier);
-    if (aiReview) {
-      const aiBlock = document.createElement('div');
-      aiBlock.className = 'grant-card__ai-review';
+if (aiReview) {
+  const normalizedAiReview = normalizeAiReviewForDisplay(aiReview);
 
-      const aiScore = aiReview.aiRelevanceScore ?? 0;
-      const scoreClass = aiScore >= 61 ? 'ai-score--high' : aiScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
-      const themeFit = Array.isArray(aiReview.themeFit) ? aiReview.themeFit.join(', ') : (aiReview.themeFit || '—');
+  const aiBlock = document.createElement('div');
+  aiBlock.className = 'grant-card__ai-review';
+
+  const aiScore = normalizedAiReview.score;
+  const scoreClass = aiScore >= 61 ? 'ai-score--high' : aiScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
+  const themeFit = normalizedAiReview.theme || '—';
 
       aiBlock.innerHTML = `
-        <p class="grant-card__relevance-title">
-          AI-analyse voor RWS
-          <span class="ai-score ${scoreClass}" style="margin-left:0.5rem">${aiScore}/100</span>
-        </p>
-        <p>${escapeHtml(aiReview.rationale || '')}</p>
-        <dl class="grant-card__facts" style="margin-top:0.5rem">
-          ${themeFit !== '—' ? `<div><dt>Thema's</dt><dd>${escapeHtml(themeFit)}</dd></div>` : ''}
-          ${aiReview.possibleRwsRole ? `<div><dt>RWS-rol</dt><dd>${escapeHtml(aiReview.possibleRwsRole)}</dd></div>` : ''}
-          ${aiReview.uncertainties ? `<div><dt>Onzekerheden</dt><dd>${escapeHtml(aiReview.uncertainties)}</dd></div>` : ''}
-          ${aiReview.recommendedNextStep ? `<div><dt>Volgende stap</dt><dd>${escapeHtml(aiReview.recommendedNextStep)}</dd></div>` : ''}
-        </dl>
-      `;
+  <p class="grant-card__relevance-title">
+    AI-analyse voor RWS
+    <span class="ai-score ${scoreClass}" style="margin-left:0.5rem">${aiScore}/100</span>
+  </p>
+
+  <p>${escapeHtml(normalizedAiReview.rationale || 'Geen toelichting beschikbaar.')}</p>
+
+  <dl class="grant-card__facts" style="margin-top:0.5rem">
+    ${
+      themeFit !== '—'
+        ? `<div><dt>Thema's</dt><dd>${escapeHtml(themeFit)}</dd></div>`
+        : ''
+    }
+    ${
+      normalizedAiReview.possibleRwsRole
+        ? `<div><dt>RWS-rol</dt><dd>${escapeHtml(normalizedAiReview.possibleRwsRole)}</dd></div>`
+        : ''
+    }
+    ${
+      normalizedAiReview.uncertainties
+        ? `<div><dt>Onzekerheden</dt><dd>${escapeHtml(normalizedAiReview.uncertainties)}</dd></div>`
+        : ''
+    }
+    ${
+      normalizedAiReview.recommendedNextStep
+        ? `<div><dt>Volgende stap</dt><dd>${escapeHtml(normalizedAiReview.recommendedNextStep)}</dd></div>`
+        : ''
+    }
+  </dl>
+`;
 
       relevanceBlock.insertAdjacentElement('afterend', aiBlock);
     }
@@ -1029,11 +1049,14 @@ function renderSavedCallsPanel() {
       empty.textContent = 'Nog geen calls bewaard.';
       elements.savedCallsList.appendChild(empty);
     } else {
-      const visibleSaved = savedGrants.slice(0, 8);
+      const visibleSaved = savedGrants.slice(0, 12);
 
       for (const grant of visibleSaved) {
         const item = document.createElement('div');
         item.className = 'saved-call-item';
+
+        const textWrapper = document.createElement('div');
+        textWrapper.className = 'saved-call-text';
 
         const link = document.createElement('a');
         link.className = 'saved-call-link';
@@ -1041,26 +1064,32 @@ function renderSavedCallsPanel() {
         link.target = '_blank';
         link.rel = 'noreferrer';
         link.textContent = grant.title || grant.identifier;
+        link.title = grant.title || grant.identifier;
 
         const meta = document.createElement('span');
         meta.className = 'saved-call-link__meta';
         meta.textContent = grant.identifier;
+        meta.title = grant.identifier;
+
+        textWrapper.appendChild(link);
+        textWrapper.appendChild(meta);
 
         const removeButton = document.createElement('button');
-        removeButton.className = 'ghost-button saved-call-item__remove';
+        removeButton.className = 'saved-call-remove-button';
         removeButton.type = 'button';
         removeButton.title = 'Verwijder uit bewaarde calls';
         removeButton.setAttribute('aria-label', `Verwijder ${grant.identifier} uit bewaarde calls`);
         removeButton.textContent = '×';
+
         removeButton.addEventListener('click', () => {
           state.savedIds.delete(getGrantSaveId(grant));
           persistSavedCalls();
           update();
         });
 
-        item.appendChild(link);
-        item.appendChild(meta);
+        item.appendChild(textWrapper);
         item.appendChild(removeButton);
+
         elements.savedCallsList.appendChild(item);
       }
 
@@ -1081,7 +1110,6 @@ function renderSavedCallsPanel() {
     elements.clearSavedButton.disabled = count === 0;
   }
 
-  // AI-review knop: alleen zichtbaar als er bewaarde calls zijn én een backend URL is ingesteld
   const aiReviewButton = document.querySelector('#ai-review-button');
   if (aiReviewButton) {
     const backendConfigured = Boolean(AI_API_URL);
@@ -1097,34 +1125,44 @@ async function runAiReview() {
   if (!savedGrants.length) return;
 
   if (!AI_API_URL) {
-    alert('AI-backend nog niet geconfigureerd. Stel AI_API_URL in in app.js na het deployen van de Vercel-functie.');
+    alert('AI-backend nog niet geconfigureerd. Test AI via de Vercel-site.');
     return;
   }
 
   const aiReviewButton = document.querySelector('#ai-review-button');
-  const aiResultsPanel = document.querySelector('#ai-results-panel');
 
   if (aiReviewButton) {
     aiReviewButton.disabled = true;
-    aiReviewButton.textContent = 'Analyseren…';
+    aiReviewButton.textContent = 'Analyseren...';
   }
 
-  const callsPayload = savedGrants.map((grant) => ({
+  const callsPayload = savedGrants.slice(0, 10).map((grant) => ({
     identifier: grant.identifier,
     title: grant.title,
     programme: getPrimaryProgramme(grant),
-    summary: (grant.destination || grant.summary || '').slice(0, 600),
-    abstract: (grant.abstract || '').slice(0, 400),
+    destination: grant.destination || '',
+    summary: grant.summary || '',
+    abstract: String(grant.abstract || '').slice(0, 2500),
     actionType: grant.actionType || grant.kind?.label || '',
     budget: grant.budget?.totalBudgetEur || null,
-    deadline: grant.deadlineDate || null
+    deadline: grant.deadlineDate || null,
+    matchedThemes: grant.relevance?.matchedThemes?.map((theme) => theme.label) || [],
+    matchedTerms: grant.relevance?.matchedTerms || [],
+    localRelevanceScore: grant.relevance?.score || 0
   }));
+
+  const payload = {
+    projectIdea: state.filters.projectIdea,
+    keywords: state.filters.query,
+    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+    calls: callsPayload
+  };
 
   try {
     const response = await fetch(AI_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ calls: callsPayload })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -1135,11 +1173,12 @@ async function runAiReview() {
     const data = await response.json();
 
     for (const review of data.reviews || []) {
-      state.aiReviews.set(review.identifier, review);
+      const normalized = normalizeAiReviewForDisplay(review);
+      state.aiReviews.set(normalized.identifier, normalized);
     }
 
     renderAiResults();
-
+    renderResults();
   } catch (error) {
     console.error('AI-review mislukt:', error);
     alert(`AI-review mislukt: ${error.message}`);
@@ -1149,6 +1188,45 @@ async function runAiReview() {
       aiReviewButton.textContent = 'Beoordeel met AI';
     }
   }
+}
+
+function normalizeAiReviewForDisplay(review) {
+  const score =
+    review.aiRelevanceScore ??
+    review.score ??
+    review.relevanceScore ??
+    review.projectFitScore ??
+    0;
+
+  const themeValue =
+    review.themeFit ??
+    review.theme ??
+    review.thema ??
+    review.bureauBrusselTheme ??
+    review.selectedTheme ??
+    '';
+
+  return {
+    identifier: review.identifier || review.callId || '',
+    score: Number(score) || 0,
+    theme: Array.isArray(themeValue) ? themeValue.join(', ') : String(themeValue || ''),
+    rationale: review.rationale || review.uitleg || review.explanation || '',
+    possibleRwsRole:
+      review.possibleRwsRole ||
+      review.possibleRWSRole ||
+      review.rwsRole ||
+      review.rws_role ||
+      '',
+    uncertainties:
+      review.uncertainties ||
+      review.onzekerheden ||
+      '',
+    recommendedNextStep:
+      review.recommendedNextStep ||
+      review.nextStep ||
+      review.next_step ||
+      ''
+  };
 }
 
 function renderAiResults() {
@@ -1161,32 +1239,54 @@ function renderAiResults() {
   }
 
   aiResultsPanel.hidden = false;
+
   const list = aiResultsPanel.querySelector('#ai-results-list');
   if (!list) return;
 
   list.innerHTML = '';
 
-  // Sorteer op score, hoogste eerst
   const sorted = Array.from(state.aiReviews.values())
-    .sort((a, b) => (b.score || 0) - (a.score || 0));
+    .map(normalizeAiReviewForDisplay)
+    .sort((a, b) => b.score - a.score);
 
   for (const review of sorted) {
     const item = document.createElement('div');
     item.className = 'ai-review-item';
 
-    const scoreClass = review.score >= 70 ? 'ai-score--high' : review.score >= 40 ? 'ai-score--mid' : 'ai-score--low';
+    const scoreClass =
+      review.score >= 70
+        ? 'ai-score--high'
+        : review.score >= 40
+          ? 'ai-score--mid'
+          : 'ai-score--low';
 
     item.innerHTML = `
       <div class="ai-review-item__header">
-        <span class="ai-score ${scoreClass}">${review.score}/100</span>
-        <strong class="ai-review-item__id">${escapeHtml(review.identifier)}</strong>
+        <span class="ai-score ${scoreClass}">${escapeHtml(String(review.score))}/100</span>
+        <strong class="ai-review-item__id">${escapeHtml(review.identifier || 'Onbekende call')}</strong>
       </div>
-      <p class="ai-review-item__rationale">${escapeHtml(review.rationale)}</p>
+
+      <p class="ai-review-item__rationale">
+        ${escapeHtml(review.rationale || 'Geen toelichting beschikbaar.')}
+      </p>
+
       <dl class="ai-review-item__facts">
-        <div><dt>RWS-rol</dt><dd>${escapeHtml(review.rws_role || '—')}</dd></div>
-        <div><dt>Onzekerheden</dt><dd>${escapeHtml(review.uncertainties || '—')}</dd></div>
-        <div><dt>Volgende stap</dt><dd>${escapeHtml(review.next_step || '—')}</dd></div>
-        <div><dt>Thema</dt><dd>${escapeHtml(review.theme || '—')}</dd></div>
+        <div>
+          <dt>RWS-rol</dt>
+          <dd>${escapeHtml(review.possibleRwsRole || 'Niet gespecificeerd')}</dd>
+        </div>
+        <div>
+          <dt>Onzekerheden</dt>
+          <dd>${escapeHtml(review.uncertainties || 'Niet gespecificeerd')}</dd>
+        </div>
+        <div>
+          <dt>Volgende stap</dt>
+          <dd>${escapeHtml(review.recommendedNextStep || 'Niet gespecificeerd')}</dd>
+        </div>
+        <div>
+          <dt>Thema</dt>
+          <dd>${escapeHtml(review.theme || 'Niet gespecificeerd')}</dd>
+        </div>
       </dl>
     `;
 
