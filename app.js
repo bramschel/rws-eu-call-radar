@@ -657,148 +657,112 @@ function getGrantTextFields(grant) {
   };
 }
 
+// Termen die veel voorkomen en weinig discrimineren — tellen alleen mee als er ook
+// een RWS-domeinterm aanwezig is (zie calculateRelevance).
+const WEAK_TERMS = new Set([
+  'data', 'ai', 'resilience', 'sustainability', 'innovation', 'transition',
+  'governance', 'management', 'system', 'systems', 'network', 'capacity',
+  'digital', 'green', 'smart', 'risk', 'assessment', 'monitoring', 'analysis'
+]);
+
 function calculateRelevance(grant, query, projectIdea) {
   const fields = getGrantTextFields(grant);
   const combinedInput = normalizeText([query, projectIdea].filter(Boolean).join(' '));
   const terms = splitTerms(combinedInput);
 
-  const combinedGrantText = normalizeText([
-    grant.title,
-    grant.summary,
-    grant.destination,
-    grant.abstract,
-    grant.actionType,
-    grant.searchText
-  ].filter(Boolean).join(' '));
+  const combinedGrantText = [
+    fields.title, fields.summary, fields.destination, fields.abstract, fields.searchText
+  ].join(' ');
 
-  const hasRwsDomainFit = textContainsAny(combinedGrantText, RWS_DOMAIN_TERMS);
+  const hasRwsDomainFit     = textContainsAny(combinedGrantText, RWS_DOMAIN_TERMS);
+  const hasStrongRwsFit     = textContainsAny(combinedGrantText, STRONG_RWS_DOMAIN_TERMS);
   const hasLowRwsFitContext = textContainsAny(combinedGrantText, LOW_RWS_FIT_TERMS);
-  const hasStrongRwsDomainFit = textContainsAny(combinedGrantText, STRONG_RWS_DOMAIN_TERMS);
 
-  let score = 0;
-  let queryMatched = false;
-  const matchedTerms = new Set();
+  const matchedTerms  = new Set();
   const matchedThemes = [];
-  const reasons = [];
+  const reasons       = [];
 
-  const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
-  score += phraseResult.phraseScore;
-
+  // ── Component 1: query/keyword match (max 30) ─────────────
+  let queryRaw = 0;
   for (const term of terms) {
-    let termMatched = false;
+    // Zwakke generieke termen tellen alleen mee als er ook RWS-domeinfit is
+    if (WEAK_TERMS.has(term) && !hasRwsDomainFit) continue;
 
-    if (fields.title.includes(term)) {
-      score += 10;
-      matchedTerms.add(term);
-      termMatched = true;
-    }
-
-    if (fields.summary.includes(term)) {
-      score += 6;
-      matchedTerms.add(term);
-      termMatched = true;
-    }
-
-    if (fields.destination.includes(term)) {
-      score += 6;
-      matchedTerms.add(term);
-      termMatched = true;
-    }
-
-    if (fields.abstract.includes(term)) {
-      score += 4;
-      matchedTerms.add(term);
-      termMatched = true;
-    }
-
-    if (fields.searchText.includes(term)) {
-      score += 2;
-      matchedTerms.add(term);
-      termMatched = true;
-    }
-
-    if (termMatched) {
-      queryMatched = true;
-    }
+    if (fields.title.includes(term))                          { queryRaw += 10; matchedTerms.add(term); }
+    else if (fields.summary.includes(term) ||
+             fields.destination.includes(term))               { queryRaw += 6;  matchedTerms.add(term); }
+    else if (fields.abstract.includes(term))                  { queryRaw += 4;  matchedTerms.add(term); }
+    else if (fields.searchText.includes(term))                { queryRaw += 2;  matchedTerms.add(term); }
   }
+  const queryScore = Math.min(30, queryRaw);
+  const queryMatched = matchedTerms.size > 0;
 
+  // ── Component 2: thema-match (max 40) ─────────────────────
+  let themeRaw = 0;
   for (const theme of RWS_THEMES) {
     let themeScore = 0;
     const themeMatches = [];
 
     for (const phrase of theme.terms) {
-      const normalizedPhrase = normalizeText(phrase);
-
-      if (
-        fields.title.includes(normalizedPhrase) ||
-        fields.summary.includes(normalizedPhrase) ||
-        fields.destination.includes(normalizedPhrase) ||
-        fields.abstract.includes(normalizedPhrase) ||
-        fields.searchText.includes(normalizedPhrase)
-      ) {
-        themeScore += 8;
+      const np = normalizeText(phrase);
+      if (combinedGrantText.includes(np)) {
+        // Gewicht: langere / specifiekere termen zwaarder
+        const w = np.includes(' ') ? 6 : 3;
+        themeScore += w;
         themeMatches.push(phrase);
       }
     }
 
     if (themeScore > 0) {
-      score += themeScore;
-      matchedThemes.push({
-        id: theme.id,
-        label: theme.label,
-        matches: themeMatches
-      });
+      // Bonus als dit het actief geselecteerde thema is
+      if (state.filters.theme !== 'all' && theme.id === state.filters.theme) themeScore += 8;
+      themeRaw += themeScore;
+      matchedThemes.push({ id: theme.id, label: theme.label, matches: themeMatches });
     }
   }
+  const themeScore = Math.min(40, themeRaw);
 
+  // ── Component 3: specifieke RWS-phrases (max 30) ──────────
+  const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
+  const phraseScore  = Math.min(30, phraseResult.phraseScore);
+
+  // ── Totaal vóór penalties ─────────────────────────────────
+  let score = queryScore + themeScore + phraseScore;
+
+  // ── Noise penalty ─────────────────────────────────────────
   for (const noiseTerm of NOISE_TERMS) {
-    const normalizedNoise = normalizeText(noiseTerm);
+    if (combinedGrantText.includes(normalizeText(noiseTerm))) score -= 10;
+  }
 
-    if (
-      fields.title.includes(normalizedNoise) ||
-      fields.summary.includes(normalizedNoise) ||
-      fields.abstract.includes(normalizedNoise)
-    ) {
-      score -= 8;
+  // ── Low-fit penalty: landbouw/voedsel/ruraal ──────────────
+  // Strenger dan voorheen: cap op 30, ook als er RWS-termen zijn tenzij
+  // er een STERKE RWS-term aanwezig is die de call duidelijk verankert.
+  if (hasLowRwsFitContext) {
+    if (!hasStrongRwsFit) {
+      score = Math.min(score, 30);
+      reasons.push('Lage RWS-fit: primair gericht op landbouw, voedsel of rurale context zonder sterke infrastructuur- of watercomponent.');
+    } else {
+      // Heeft wel sterke RWS-term, maar mild afstraffen voor gemengde scope
+      score = Math.min(score, 60);
+      reasons.push('Gemengde scope: landbouw-context naast infrastructuur/water.');
     }
   }
 
+  // ── Reasons voor UI ───────────────────────────────────────
   if (!combinedInput && matchedThemes.length === 0) {
     reasons.push('Geen zoekterm of themamatch; standaard live call getoond.');
   }
-
   if (matchedTerms.size > 0) {
-    reasons.push(`Zoektermen gevonden: ${Array.from(matchedTerms).slice(0, 8).join(', ')}`);
+    reasons.push(`Zoektermen: ${Array.from(matchedTerms).slice(0, 6).join(', ')}`);
   }
-
   if (matchedThemes.length > 0) {
-    reasons.push(`Bureau Brussel-thema's: ${matchedThemes.map((theme) => theme.label).join(', ')}`);
+    reasons.push(`Thema's: ${matchedThemes.map((t) => t.label).join(', ')}`);
   }
-
   if (phraseResult.matchedPhrases.length > 0) {
-    reasons.push(`Sterke termcombinaties: ${phraseResult.matchedPhrases.slice(0, 8).join(', ')}`);
+    reasons.push(`Sleuteltermen: ${phraseResult.matchedPhrases.slice(0, 5).join(', ')}`);
   }
-
-  if (fields.title && terms.some((term) => fields.title.includes(term))) {
-    reasons.push('Sterke match in titel.');
-  }
-
-  if (fields.abstract && terms.some((term) => fields.abstract.includes(term))) {
-    reasons.push('Inhoudelijke match in abstract/scope.');
-  }
-
-  if (hasLowRwsFitContext && !hasStrongRwsDomainFit) {
-    score = Math.min(score, 25);
-    reasons.push('Lage RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder sterke infrastructuur-, waterveiligheids-, vaarweg- of mobiliteitscomponent.');
-  }
-
-  if (
-    state.filters.theme === 'climate-adaptation' &&
-    hasLowRwsFitContext &&
-    !hasStrongRwsDomainFit
-  ) {
-    score = Math.min(score, 20);
-    reasons.push('Niet passend als RWS Climate Adaptation: landbouw- of boerencontext zonder directe link met waterveiligheid, infrastructuur, rivieren, kust, vaarwegen, droogtebeheer of klimaatbestendig assetbeheer.');
+  if (fields.title && terms.some((t) => fields.title.includes(t))) {
+    reasons.push('Match in titel.');
   }
 
   return {
