@@ -216,7 +216,26 @@ const RWS_DOMAIN_TERMS = [
   'digital twin',
   'sensor data',
   'decision support',
-  'predictive maintenance'
+  'predictive maintenance',
+'water infrastructure',
+'flood management',
+'flood resilience',
+'flood defence',
+'flood defense',
+'stormwater',
+'river management',
+'coastal management',
+'coastal protection',
+'dike',
+'dyke',
+'levee',
+'waterway infrastructure',
+'climate-proof infrastructure',
+'climate proof infrastructure',
+'infrastructure resilience',
+'road resilience',
+'bridge resilience',
+'tunnel resilience'
 ];
 
 const LOW_RWS_FIT_TERMS = [
@@ -237,7 +256,23 @@ const LOW_RWS_FIT_TERMS = [
   'soil fertility',
   'farm income',
   'common agricultural policy',
-  'CAP'
+  'CAP',
+'agricultural productivity',
+'agricultural production',
+'farmer income',
+'farmers income',
+'farmers profitability',
+'farmer profitability',
+'farm management',
+'farm advisory',
+'agricultural advisory',
+'agricultural value chain',
+'food production',
+'food security',
+'soil health',
+'agroecology',
+'agri sector',
+'agricultural sector'
 ];
 
 const NOISE_TERMS = [
@@ -533,8 +568,17 @@ function calculateRelevance(grant, query, projectIdea) {
   }
 
 if (hasLowRwsFitContext && !hasRwsDomainFit) {
-  score -= 35;
-  reasons.push('Lagere RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder duidelijke infrastructuur-, water- of mobiliteitscomponent.');
+  score = Math.min(score, 25);
+  reasons.push('Lage RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder duidelijke infrastructuur-, water- of mobiliteitscomponent.');
+}
+
+if (
+  state.filters.theme === 'climate-adaptation' &&
+  hasLowRwsFitContext &&
+  !hasRwsDomainFit
+) {
+  score = Math.min(score, 20);
+  reasons.push('Niet passend als RWS Climate Adaptation: landbouw- of boerencontext zonder directe link met waterveiligheid, infrastructuur, rivieren, kust, droogtebeheer of klimaatbestendig assetbeheer.');
 }
 
 return {
