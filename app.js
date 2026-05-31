@@ -183,6 +183,134 @@ const RWS_THEMES = [
   }
 ];
 
+const IMPORTANT_PHRASES = [
+  {
+    phrase: 'material reuse',
+    theme: 'sustainability',
+    weight: 28
+  },
+  {
+    phrase: 'reuse of materials',
+    theme: 'sustainability',
+    weight: 28
+  },
+  {
+    phrase: 'circular infrastructure',
+    theme: 'sustainability',
+    weight: 32
+  },
+  {
+    phrase: 'asphalt recycling',
+    theme: 'sustainability',
+    weight: 30
+  },
+  {
+    phrase: 'circular procurement',
+    theme: 'sustainability',
+    weight: 24
+  },
+  {
+    phrase: 'nature-based solutions',
+    theme: 'sustainability',
+    weight: 26
+  },
+  {
+    phrase: 'water quality',
+    theme: 'sustainability',
+    weight: 20
+  },
+  {
+    phrase: 'climate resilient infrastructure',
+    theme: 'climate-adaptation',
+    weight: 34
+  },
+  {
+    phrase: 'climate resilience',
+    theme: 'climate-adaptation',
+    weight: 24
+  },
+  {
+    phrase: 'flood risk',
+    theme: 'climate-adaptation',
+    weight: 28
+  },
+  {
+    phrase: 'flood protection',
+    theme: 'climate-adaptation',
+    weight: 28
+  },
+  {
+    phrase: 'sea level rise',
+    theme: 'climate-adaptation',
+    weight: 26
+  },
+  {
+    phrase: 'river basin',
+    theme: 'climate-adaptation',
+    weight: 22
+  },
+  {
+    phrase: 'inland waterways',
+    theme: 'corridor-management',
+    weight: 30
+  },
+  {
+    phrase: 'river information services',
+    theme: 'corridor-management',
+    weight: 30
+  },
+  {
+    phrase: 'TEN-T corridor',
+    theme: 'corridor-management',
+    weight: 30
+  },
+  {
+    phrase: 'traffic management',
+    theme: 'corridor-management',
+    weight: 22
+  },
+  {
+    phrase: 'digital twin',
+    theme: 'digitalisation',
+    weight: 30
+  },
+  {
+    phrase: 'decision support',
+    theme: 'digitalisation',
+    weight: 22
+  },
+  {
+    phrase: 'predictive maintenance',
+    theme: 'digitalisation',
+    weight: 26
+  },
+  {
+    phrase: 'sensor data',
+    theme: 'digitalisation',
+    weight: 20
+  },
+  {
+    phrase: 'network governance',
+    theme: 'network-governance',
+    weight: 30
+  },
+  {
+    phrase: 'cross-border cooperation',
+    theme: 'network-governance',
+    weight: 24
+  },
+  {
+    phrase: 'interoperability',
+    theme: 'network-governance',
+    weight: 18
+  },
+  {
+    phrase: 'harmonisation',
+    theme: 'network-governance',
+    weight: 18
+  }
+];
+
 const RWS_DOMAIN_TERMS = [
   'infrastructure',
   'transport infrastructure',
@@ -426,6 +554,51 @@ function textContainsAny(text, terms) {
   return terms.some((term) => text.includes(normalizeText(term)));
 }
 
+function scoreImportantPhrases(fields, selectedTheme) {
+  let phraseScore = 0;
+  const matchedPhrases = [];
+
+  for (const item of IMPORTANT_PHRASES) {
+    const normalizedPhrase = normalizeText(item.phrase);
+
+    const matchedInTitle = fields.title.includes(normalizedPhrase);
+    const matchedInSummary = fields.summary.includes(normalizedPhrase);
+    const matchedInDestination = fields.destination.includes(normalizedPhrase);
+    const matchedInAbstract = fields.abstract.includes(normalizedPhrase);
+    const matchedInSearchText = fields.searchText.includes(normalizedPhrase);
+
+    if (
+      matchedInTitle ||
+      matchedInSummary ||
+      matchedInDestination ||
+      matchedInAbstract ||
+      matchedInSearchText
+    ) {
+      let weight = item.weight;
+
+      if (matchedInTitle) {
+        weight += 12;
+      }
+
+      if (matchedInSummary || matchedInDestination) {
+        weight += 6;
+      }
+
+      if (selectedTheme !== 'all' && item.theme === selectedTheme) {
+        weight += 10;
+      }
+
+      phraseScore += weight;
+      matchedPhrases.push(item.phrase);
+    }
+  }
+
+  return {
+    phraseScore,
+    matchedPhrases
+ };
+}
+
 function splitTerms(value) {
   return normalizeText(value)
     .split(/[\s,;]+/)
@@ -467,6 +640,9 @@ function calculateRelevance(grant, query, projectIdea) {
   const matchedTerms = new Set();
   const matchedThemes = [];
   const reasons = [];
+
+const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
+score += phraseResult.phraseScore;
 
   for (const term of terms) {
   let termMatched = false;
@@ -559,6 +735,10 @@ function calculateRelevance(grant, query, projectIdea) {
     reasons.push(`Bureau Brussel-thema's: ${matchedThemes.map((theme) => theme.label).join(', ')}`);
   }
 
+  if (phraseResult.matchedPhrases.length > 0) {
+    reasons.push(`Sterke termcombinaties: ${phraseResult.matchedPhrases.slice(0, 8).join(', ')}`);
+  }
+
   if (fields.title && terms.some((term) => fields.title.includes(term))) {
     reasons.push('Sterke match in titel.');
   }
@@ -567,27 +747,28 @@ function calculateRelevance(grant, query, projectIdea) {
     reasons.push('Inhoudelijke match in abstract/scope.');
   }
 
-if (hasLowRwsFitContext && !hasRwsDomainFit) {
-  score = Math.min(score, 25);
-  reasons.push('Lage RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder duidelijke infrastructuur-, water- of mobiliteitscomponent.');
-}
+  if (hasLowRwsFitContext && !hasRwsDomainFit) {
+    score = Math.min(score, 25);
+    reasons.push('Lage RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder duidelijke infrastructuur-, water- of mobiliteitscomponent.');
+  }
 
-if (
-  state.filters.theme === 'climate-adaptation' &&
-  hasLowRwsFitContext &&
-  !hasRwsDomainFit
-) {
-  score = Math.min(score, 20);
-  reasons.push('Niet passend als RWS Climate Adaptation: landbouw- of boerencontext zonder directe link met waterveiligheid, infrastructuur, rivieren, kust, droogtebeheer of klimaatbestendig assetbeheer.');
-}
+  if (
+    state.filters.theme === 'climate-adaptation' &&
+    hasLowRwsFitContext &&
+    !hasRwsDomainFit
+  ) {
+    score = Math.min(score, 20);
+    reasons.push('Niet passend als RWS Climate Adaptation: landbouw- of boerencontext zonder directe link met waterveiligheid, infrastructuur, rivieren, kust, droogtebeheer of klimaatbestendig assetbeheer.');
+  }
 
-return {
-  score: Math.max(0, score || 1),
-  queryMatched,
-  matchedTerms: Array.from(matchedTerms),
-  matchedThemes,
-  reasons
-};
+  return {
+    score: Math.max(0, score || 1),
+    queryMatched,
+    matchedTerms: Array.from(matchedTerms),
+    matchedPhrases: phraseResult.matchedPhrases,
+    matchedThemes,
+    reasons
+  };
 }
 
 function loadSavedCalls() {
