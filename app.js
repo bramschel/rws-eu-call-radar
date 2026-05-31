@@ -366,6 +366,46 @@ const RWS_DOMAIN_TERMS = [
 'tunnel resilience'
 ];
 
+const STRONG_RWS_DOMAIN_TERMS = [
+  'transport infrastructure',
+  'road infrastructure',
+  'water infrastructure',
+  'climate resilient infrastructure',
+  'climate-proof infrastructure',
+  'climate proof infrastructure',
+  'infrastructure resilience',
+  'asset management',
+  'traffic management',
+  'inland waterways',
+  'waterways',
+  'waterway infrastructure',
+  'navigation',
+  'shipping',
+  'ports',
+  'river basin',
+  'river management',
+  'flood risk',
+  'flood protection',
+  'flood management',
+  'flood resilience',
+  'flood defence',
+  'flood defense',
+  'coastal management',
+  'coastal protection',
+  'sea level rise',
+  'dike',
+  'dyke',
+  'levee',
+  'digital twin',
+  'sensor data',
+  'decision support',
+  'predictive maintenance',
+  'TEN-T',
+  'corridor management',
+  'River Information Services',
+  'RIS'
+];
+
 const LOW_RWS_FIT_TERMS = [
   'farmer',
   'farmers',
@@ -633,54 +673,54 @@ function calculateRelevance(grant, query, projectIdea) {
 
   const hasRwsDomainFit = textContainsAny(combinedGrantText, RWS_DOMAIN_TERMS);
   const hasLowRwsFitContext = textContainsAny(combinedGrantText, LOW_RWS_FIT_TERMS);
+  const hasStrongRwsDomainFit = textContainsAny(combinedGrantText, STRONG_RWS_DOMAIN_TERMS);
 
   let score = 0;
-  
   let queryMatched = false;
   const matchedTerms = new Set();
   const matchedThemes = [];
   const reasons = [];
 
-const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
-score += phraseResult.phraseScore;
+  const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
+  score += phraseResult.phraseScore;
 
   for (const term of terms) {
-  let termMatched = false;
+    let termMatched = false;
 
-  if (fields.title.includes(term)) {
-    score += 10;
-    matchedTerms.add(term);
-    termMatched = true;
-  }
+    if (fields.title.includes(term)) {
+      score += 10;
+      matchedTerms.add(term);
+      termMatched = true;
+    }
 
-  if (fields.summary.includes(term)) {
-    score += 6;
-    matchedTerms.add(term);
-    termMatched = true;
-  }
+    if (fields.summary.includes(term)) {
+      score += 6;
+      matchedTerms.add(term);
+      termMatched = true;
+    }
 
-  if (fields.destination.includes(term)) {
-    score += 6;
-    matchedTerms.add(term);
-    termMatched = true;
-  }
+    if (fields.destination.includes(term)) {
+      score += 6;
+      matchedTerms.add(term);
+      termMatched = true;
+    }
 
-  if (fields.abstract.includes(term)) {
-    score += 4;
-    matchedTerms.add(term);
-    termMatched = true;
-  }
+    if (fields.abstract.includes(term)) {
+      score += 4;
+      matchedTerms.add(term);
+      termMatched = true;
+    }
 
-  if (fields.searchText.includes(term)) {
-    score += 2;
-    matchedTerms.add(term);
-    termMatched = true;
-  }
+    if (fields.searchText.includes(term)) {
+      score += 2;
+      matchedTerms.add(term);
+      termMatched = true;
+    }
 
-  if (termMatched) {
-    queryMatched = true;
+    if (termMatched) {
+      queryMatched = true;
+    }
   }
-}
 
   for (const theme of RWS_THEMES) {
     let themeScore = 0;
@@ -747,22 +787,22 @@ score += phraseResult.phraseScore;
     reasons.push('Inhoudelijke match in abstract/scope.');
   }
 
-  if (hasLowRwsFitContext && !hasRwsDomainFit) {
+  if (hasLowRwsFitContext && !hasStrongRwsDomainFit) {
     score = Math.min(score, 25);
-    reasons.push('Lage RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder duidelijke infrastructuur-, water- of mobiliteitscomponent.');
+    reasons.push('Lage RWS-fit: call lijkt primair gericht op landbouw, voedsel of rurale context zonder sterke infrastructuur-, waterveiligheids-, vaarweg- of mobiliteitscomponent.');
   }
 
   if (
     state.filters.theme === 'climate-adaptation' &&
     hasLowRwsFitContext &&
-    !hasRwsDomainFit
+    !hasStrongRwsDomainFit
   ) {
     score = Math.min(score, 20);
-    reasons.push('Niet passend als RWS Climate Adaptation: landbouw- of boerencontext zonder directe link met waterveiligheid, infrastructuur, rivieren, kust, droogtebeheer of klimaatbestendig assetbeheer.');
+    reasons.push('Niet passend als RWS Climate Adaptation: landbouw- of boerencontext zonder directe link met waterveiligheid, infrastructuur, rivieren, kust, vaarwegen, droogtebeheer of klimaatbestendig assetbeheer.');
   }
 
   return {
-    score: Math.max(0, score || 1),
+    score: Math.min(100, Math.max(0, score || 1)),
     queryMatched,
     matchedTerms: Array.from(matchedTerms),
     matchedPhrases: phraseResult.matchedPhrases,
