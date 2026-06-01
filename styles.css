@@ -1680,3 +1680,16 @@ body::before {
     grid-template-columns: 1fr;
   }
 }
+
+.ai-review-item__project-fit {
+  margin: 0.75rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: #eef8ff;
+  border: 1px solid #c7e0f2;
+  line-height: 1.5;
+}
+
+.ai-review-item__project-fit strong {
+  color: var(--rws-blue);
+}

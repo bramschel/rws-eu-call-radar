@@ -90,10 +90,22 @@ Gekozen Bureau Brussel-thema:
 ${selectedTheme || 'Niet opgegeven'}
 
 OPDRACHT:
-Beoordeel de onderstaande EU-calls specifiek op hoe goed ze aansluiten bij:
-1. de zoekvraag van de gebruiker;
-2. de rol van Rijkswaterstaat als uitvoeringsorganisatie;
-3. het gekozen Bureau Brussel-thema, indien opgegeven.
+Beoordeel de onderstaande EU-calls specifiek ten opzichte van de zoekvraag van de gebruiker.
+
+De zoekvraag van de gebruiker is leidend. Leg per call expliciet uit:
+1. of en hoe de call aansluit op het projectidee;
+2. welke onderdelen van het projectidee terugkomen in de call;
+3. welke onderdelen ontbreken of onzeker zijn;
+4. of Rijkswaterstaat een logische rol kan hebben als uitvoeringsorganisatie;
+5. hoe de call past binnen het gekozen Bureau Brussel-thema.
+
+Als het projectidee Nederlandstalige RWS-termen bevat, interpreteer deze in EU-call context. Bijvoorbeeld:
+- bruggenmonitoring = bridge monitoring, bridge inspection, structural health monitoring, condition monitoring;
+- hoofdwegennet = highway network, national road network, motorway network, road infrastructure;
+- instandhouding = maintenance, renovation, replacement, lifecycle management, asset management;
+- kunstwerken = bridges, tunnels, locks, sluices, civil structures.
+
+Geef een hoge score alleen als de call zowel inhoudelijk aansluit op het projectidee als een duidelijke RWS-rol heeft.
 
 Rangschik de calls van meest naar minst relevant.
 
@@ -135,6 +147,8 @@ De JSON moet exact deze structuur hebben:
     {
       "identifier": "...",
       "aiRelevanceScore": 0,
+      "projectFit": "...",
+      "projectFitScore": 0,
       "themeFit": ["..."],
       "rationale": "...",
       "possibleRwsRole": "...",
@@ -143,6 +157,11 @@ De JSON moet exact deze structuur hebben:
     }
   ]
 }
+
+Veldinstructies:
+- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker.
+- projectFitScore: score 0-100 voor aansluiting op het projectidee, los van algemene RWS-relevantie.
+- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit. 
 
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen tekst buiten JSON.
@@ -197,29 +216,36 @@ function normalizeAiReviews(parsed) {
       : [];
 
   return {
-    reviews: reviews.map((review) => ({
-      identifier: review.identifier || review.callId || '',
-      aiRelevanceScore: Number(
-        review.aiRelevanceScore ??
-        review.score ??
-        review.relevanceScore ??
-        0
-      ),
-      themeFit: Array.isArray(review.themeFit)
-        ? review.themeFit
-        : review.themeFit
-          ? [review.themeFit]
-          : review.theme
-            ? [review.theme]
-            : review.thema
-              ? [review.thema]
-              : [],
-      rationale: review.rationale || review.uitleg || review.explanation || '',
-      possibleRwsRole: review.possibleRwsRole || review.rws_role || review.rwsRole || '',
-      uncertainties: review.uncertainties || review.onzekerheden || '',
-      recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || ''
-    }))
-  };
+  reviews: reviews.map((review) => ({
+    identifier: review.identifier || review.callId || '',
+    aiRelevanceScore: Number(
+      review.aiRelevanceScore ??
+      review.score ??
+      review.relevanceScore ??
+      0
+    ),
+    projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
+    projectFitScore: Number(
+      review.projectFitScore ??
+      review.project_fit_score ??
+      review.projectMatchScore ??
+      0
+    ),
+    themeFit: Array.isArray(review.themeFit)
+      ? review.themeFit
+      : review.themeFit
+        ? [review.themeFit]
+        : review.theme
+          ? [review.theme]
+          : review.thema
+            ? [review.thema]
+            : [],
+    rationale: review.rationale || review.uitleg || review.explanation || '',
+    possibleRwsRole: review.possibleRwsRole || review.rws_role || review.rwsRole || '',
+    uncertainties: review.uncertainties || review.onzekerheden || '',
+    recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || ''
+  }))
+};
 }
 
 export default async function handler(req, res) {
