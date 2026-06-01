@@ -21,67 +21,63 @@ function setCorsHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-const RWS_CONTEXT = `
-Rijkswaterstaat (RWS) beheert en ontwikkelt nationale infrastructuur voor wegen, vaarwegen, waterbeheer en verkeersmanagement. RWS is vooral relevant voor EU-calls wanneer er een duidelijke uitvoerings-, beheer-, innovatie-, pilot- of implementatierol mogelijk is.
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-Concrete RWS-aansluitingen bij EU-calls kunnen zijn:
-- klimaatbestendige infrastructuur en waterwerken;
-- digitale infrastructuur, digital twins, sensoren, data en decision support;
-- energietransitie en verduurzaming van infrastructuur;
-- circulair materiaalgebruik, hergebruik van asfalt, biobased materialen en duurzaam onderhoud;
-- waterveiligheid, sedimenttransport, vaarwegen, rivieren en kustsystemen;
-- TEN-T corridors, CEF Transport, corridorbeheer, logistiek en binnenvaart;
-- grensoverschrijdend waterbeheer met buurlanden;
-- internationale kennisuitwisseling rond wegen, vaarwegen, havens en waterbeheer.
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-Bureau Brussel gebruikt vijf thema's:
-1. Corridor Management
-2. Climate Adaptation
-3. Sustainability / Duurzame Leefomgeving
-4. Digitalisation
-5. Network Governance
+// RAG-context: laad eenmalig bij cold start
+let RAG_CONTEXT = [];
+try {
+  const raw = readFileSync(join(__dirname, '../data/rws_rag_context.json'), 'utf8');
+  RAG_CONTEXT = JSON.parse(raw);
+} catch (err) {
+  console.warn('rws_rag_context.json niet gevonden, RAG uitgeschakeld:', err.message);
+}
 
-Een call scoort hoog als:
-- RWS logisch kan deelnemen als beheerder, asset owner, pilotlocatie, living lab, kennispartner, dataleverancier, implementatiepartner of consortiumdeelnemer;
-- de call toepasbaar is op infrastructuur, waterbeheer, wegen, vaarwegen, verkeersmanagement, assetmanagement of duurzame leefomgeving;
-- de call ruimte biedt voor demonstratie, implementatie, governance, datadeling of praktijkgerichte innovatie.
-
-Een call scoort lager als:
-- de call primair gericht is op beleidsvorming of wetgeving zonder duidelijke uitvoeringscomponent;
-- de call vooral bedoeld is voor individuele onderzoekers, steden/gemeenten zonder RWS-rol, MKB-leadpartners, defensie zonder civiele of dual-use infrastructuur-link, of thema's zonder infrastructuur-, water- of netwerkcomponent.
-Belangrijke beoordelingsregel:
-Beoordeel calls niet op algemene maatschappelijke relevantie, maar op concrete relevantie voor Rijkswaterstaat als uitvoeringsorganisatie.
-
-Een call mag alleen hoog scoren als er een duidelijke link is met minimaal één van deze RWS-domeinen:
-- rijkswegen, verkeersmanagement, mobiliteitscorridors of smart mobility;
-- vaarwegen, binnenvaart, havens, waterborne transport of River Information Services;
-- waterbeheer, waterveiligheid, overstromingsrisico, droogte, rivierbeheer, kustsystemen of klimaatbestendige infrastructuur;
-- beheer, onderhoud, renovatie, asset management of lifecycle management van infrastructuur;
-- circulariteit, materiaalhergebruik of emissiereductie in infrastructuurprojecten;
-- data, digital twins, sensoren, AI, decision support of cybersecurity voor infrastructuur, water of mobiliteit;
-- internationale samenwerking, harmonisatie of interoperabiliteit tussen infrastructuurbeheerders of publieke autoriteiten.
-
-Thema-specifieke interpretatie:
-- Climate Adaptation betekent voor RWS: klimaatbestendige infrastructuur, waterveiligheid, droogte, overstroming, hitte, zeespiegelstijging, rivierbeheer, kustbeheer en adaptatie van wegen, vaarwegen en kunstwerken.
-- Climate Adaptation betekent niet automatisch: landbouwadaptatie, boereninkomen, voedselproductie, gewassen, veeteelt of agrarische bedrijfsvoering, tenzij er een directe link is met RWS-taken zoals waterbeheer, overstromingsrisico, rivierbekkens of klimaatbestendige infrastructuur.
-- Sustainability / Duurzame Leefomgeving betekent voor RWS vooral: circulaire infrastructuur, materiaalhergebruik, duurzaam beheer en onderhoud, emissiereductie, biodiversiteit langs infrastructuur, waterkwaliteit en nature-based solutions met een infrastructuur- of waterbeheercomponent.
-- Digitalisation betekent voor RWS vooral: data, digital twins, sensoren, decision support, ITS, predictive maintenance en digitale infrastructuurtoepassingen.
-- Corridor Management betekent voor RWS vooral: TEN-T, corridors, vaarwegen, logistiek, verkeersmanagement, binnenvaart, havens en multimodaal transport.
-- Network Governance betekent voor RWS vooral: samenwerking tussen publieke infrastructuurbeheerders, harmonisatie, interoperabiliteit, standaarden en grensoverschrijdende samenwerking.
-
-Scorebeperkingen:
-- Als een call primair over landbouw, boereninkomen, voedselketens, gewassen of veeteelt gaat zonder duidelijke RWS-rol, geef maximaal 35/100.
-- Als een call wel bij een EU-thema past maar geen duidelijke rol voor RWS heeft, geef maximaal 50/100.
-- Als een call alleen generieke termen zoals resilience, climate, sustainability of data bevat zonder concrete infrastructuur-, water- of mobiliteitscomponent, geef maximaal 45/100.
-- Geef 80+ alleen als zowel de projectfit als de RWS-uitvoeringsrol duidelijk zijn.
+const RWS_CONTEXT_FALLBACK = `
+Rijkswaterstaat is de Nederlandse uitvoeringsorganisatie voor rijkswegen, vaarwegen, waterbeheer, verkeersmanagement en infrastructuur. Beoordeel EU-calls niet op algemene EU-relevantie, maar op concrete relevantie voor RWS als uitvoeringsorganisatie. Een call scoort alleen hoog als er een duidelijke uitvoerings-, beheer-, innovatie-, pilot-, implementatie- of demonstratierol voor RWS mogelijk is.
 `.trim();
 
+function selectRagEntries(selectedTheme) {
+  const theme = selectedTheme || 'all';
+  const entries = RAG_CONTEXT.filter((entry) => {
+    const themes = entry.themes || [];
+    if (themes.includes('all')) return true;
+    if (theme !== 'all' && themes.includes(theme)) return true;
+    if (theme === 'all' && String(entry.id || '').startsWith('rws-')) return true;
+    return false;
+  });
+  return entries.slice(0, 8);
+}
+
+function buildRwsContext(selectedTheme) {
+  const entries = selectRagEntries(selectedTheme);
+  return entries
+    .map((entry) => `## ${entry.title}\nBron: ${entry.source}\n${entry.text}`)
+    .join('\n\n');
+}
+
+function getRagContextMetadata(selectedTheme) {
+  return selectRagEntries(selectedTheme).map((entry) => ({
+    id: entry.id,
+    title: entry.title,
+    source: entry.source,
+    themes: entry.themes || []
+  }));
+}
+
 function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
+  const rwsContext = buildRwsContext(selectedTheme) || RWS_CONTEXT_FALLBACK;
+
   return `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
 
-RWS-CONTEXT:
-${RWS_CONTEXT}
+RELEVANTE RWS- EN BUREAU BRUSSEL-RAG-CONTEXT:
+${rwsContext}
+
+Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-relevantie, maar op concrete RWS-relevantie, uitvoerbaarheid en toepasbaarheid voor Rijkswaterstaat als uitvoeringsorganisatie.
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
@@ -306,7 +302,12 @@ export default async function handler(req, res) {
 
     const normalized = normalizeAiReviews(parsed);
 
-    return res.status(200).json(normalized);
+return res.status(200).json({
+  ...normalized,
+  provider: 'mistral',
+  model: MISTRAL_MODEL,
+  ragContextUsed: getRagContextMetadata(selectedTheme)
+});
   } catch (error) {
     console.error('Fout in /api/score:', error);
     return res.status(500).json({ error: error.message });
