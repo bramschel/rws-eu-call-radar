@@ -443,6 +443,765 @@ const LOW_RWS_FIT_TERMS = [
 'agricultural sector'
 ];
 
+const QUERY_SYNONYMS = {
+  // Assetmanagement, instandhouding en areaal
+  assetmanagement: [
+    'asset management',
+    'infrastructure asset management',
+    'ISO 55001',
+    'lifecycle management',
+    'asset lifecycle',
+    'network performance',
+    'condition assessment',
+    'asset data',
+    'areaaldata',
+    'infrastructure maintenance'
+  ],
+  instandhouding: [
+    'maintenance',
+    'infrastructure maintenance',
+    'asset management',
+    'renovation',
+    'replacement',
+    'renewal',
+    'lifecycle management',
+    'predictive maintenance',
+    'condition monitoring'
+  ],
+  onderhoud: [
+    'maintenance',
+    'infrastructure maintenance',
+    'asset management',
+    'predictive maintenance',
+    'preventive maintenance',
+    'condition-based maintenance'
+  ],
+  renovatie: [
+    'renovation',
+    'infrastructure renovation',
+    'renewal',
+    'replacement',
+    'rehabilitation',
+    'lifecycle extension'
+  ],
+  vervanging: [
+    'replacement',
+    'renewal',
+    'renovation',
+    'infrastructure renewal',
+    'asset replacement'
+  ],
+  areaal: [
+    'infrastructure assets',
+    'asset base',
+    'road assets',
+    'waterway assets',
+    'civil infrastructure'
+  ],
+  areaaldata: [
+    'asset data',
+    'infrastructure data',
+    'BIM data',
+    'geospatial data',
+    'asset information management'
+  ],
+  kunstwerken: [
+    'civil structures',
+    'bridges',
+    'tunnels',
+    'locks',
+    'sluices',
+    'viaducts',
+    'hydraulic structures'
+  ],
+  bruggen: [
+    'bridges',
+    'bridge infrastructure',
+    'civil structures',
+    'structural assets'
+  ],
+  bruggenmonitoring: [
+    'bridge monitoring',
+    'bridge inspection',
+    'structural health monitoring',
+    'condition monitoring',
+    'sensor-based monitoring',
+    'predictive maintenance'
+  ],
+  brugmonitoring: [
+    'bridge monitoring',
+    'bridge inspection',
+    'structural health monitoring',
+    'condition monitoring'
+  ],
+  tunnels: [
+    'tunnels',
+    'tunnel infrastructure',
+    'civil structures',
+    'infrastructure safety',
+    'industrial automation'
+  ],
+  sluizen: [
+    'locks',
+    'sluices',
+    'waterway infrastructure',
+    'hydraulic structures',
+    'navigation locks'
+  ],
+  viaducten: [
+    'viaducts',
+    'bridges',
+    'civil structures',
+    'infrastructure renovation'
+  ],
+
+  // Hoofdwegennet, wegen en mobiliteit
+  hoofdwegennet: [
+    'highway network',
+    'road network',
+    'national road network',
+    'motorway network',
+    'road infrastructure',
+    'TEN-T road network'
+  ],
+  rijkswegen: [
+    'highways',
+    'national roads',
+    'motorways',
+    'road infrastructure',
+    'road network',
+    'TEN-T roads'
+  ],
+  wegen: [
+    'roads',
+    'road infrastructure',
+    'road network',
+    'highways',
+    'motorways'
+  ],
+  verkeersmanagement: [
+    'traffic management',
+    'road traffic management',
+    'traffic flow',
+    'network management',
+    'traffic control',
+    'intelligent transport systems',
+    'ITS'
+  ],
+  doorstroming: [
+    'traffic flow',
+    'traffic efficiency',
+    'congestion management',
+    'network performance',
+    'traffic management'
+  ],
+  verkeersveiligheid: [
+    'road safety',
+    'traffic safety',
+    'transport safety',
+    'safe mobility'
+  ],
+  hinderaanpak: [
+    'traffic disruption management',
+    'roadworks planning',
+    'maintenance planning',
+    'smart planning',
+    'mobility management'
+  ],
+  smartmobility: [
+    'smart mobility',
+    'intelligent transport systems',
+    'ITS',
+    'C-ITS',
+    'connected mobility',
+    'multimodal mobility',
+    'digital mobility services'
+  ],
+  'slimme mobiliteit': [
+    'smart mobility',
+    'intelligent transport systems',
+    'ITS',
+    'C-ITS',
+    'connected mobility',
+    'multimodal mobility'
+  ],
+  corridor: [
+    'transport corridor',
+    'TEN-T corridor',
+    'mobility corridor',
+    'logistics corridor',
+    'multimodal corridor'
+  ],
+  corridorbeheer: [
+    'corridor management',
+    'TEN-T corridor management',
+    'transport corridor management',
+    'multimodal corridor management'
+  ],
+
+  // Vaarwegen, water en klimaatadaptatie
+  vaarwegen: [
+    'waterways',
+    'inland waterways',
+    'navigation',
+    'waterborne transport',
+    'waterway infrastructure',
+    'River Information Services',
+    'RIS'
+  ],
+  binnenvaart: [
+    'inland navigation',
+    'inland waterways',
+    'waterborne transport',
+    'shipping',
+    'River Information Services',
+    'RIS'
+  ],
+  rivieren: [
+    'rivers',
+    'river basin',
+    'river management',
+    'river systems',
+    'water management',
+    'flood risk'
+  ],
+  rivierbeheer: [
+    'river management',
+    'river basin management',
+    'integrated river management',
+    'water management',
+    'flood risk management'
+  ],
+  waterbeheer: [
+    'water management',
+    'water system management',
+    'river basin management',
+    'integrated water management',
+    'water governance'
+  ],
+  waterveiligheid: [
+    'flood risk',
+    'flood protection',
+    'flood safety',
+    'water safety',
+    'flood resilience',
+    'flood risk management'
+  ],
+  overstroming: [
+    'flood',
+    'flooding',
+    'flood risk',
+    'flood protection',
+    'flood resilience'
+  ],
+  overstromingsrisico: [
+    'flood risk',
+    'flood risk management',
+    'flood resilience',
+    'flood protection'
+  ],
+  droogte: [
+    'drought',
+    'drought resilience',
+    'water scarcity',
+    'freshwater availability',
+    'water security'
+  ],
+  zoetwater: [
+    'freshwater',
+    'freshwater availability',
+    'water availability',
+    'water security'
+  ],
+  zoetwatervoorziening: [
+    'freshwater supply',
+    'freshwater availability',
+    'water security',
+    'drought management'
+  ],
+  kust: [
+    'coastal',
+    'coastal resilience',
+    'coastal management',
+    'coastal protection'
+  ],
+  kustbeheer: [
+    'coastal management',
+    'coastal protection',
+    'coastal resilience'
+  ],
+  zeespiegelstijging: [
+    'sea level rise',
+    'coastal resilience',
+    'coastal protection',
+    'flood risk'
+  ],
+  dijken: [
+    'dikes',
+    'dykes',
+    'levees',
+    'flood defences',
+    'flood protection'
+  ],
+  waterkeringen: [
+    'flood defences',
+    'water barriers',
+    'dikes',
+    'dykes',
+    'levees',
+    'flood protection'
+  ],
+  klimaatadaptatie: [
+    'climate adaptation',
+    'climate resilience',
+    'climate-proof infrastructure',
+    'climate proof infrastructure',
+    'resilient infrastructure',
+    'adaptive infrastructure'
+  ],
+  klimaatbestendig: [
+    'climate resilient',
+    'climate-proof',
+    'climate proof',
+    'resilient infrastructure',
+    'climate adaptive'
+  ],
+  stresstest: [
+    'stress test',
+    'climate stress test',
+    'vulnerability assessment',
+    'climate risk assessment'
+  ],
+  stresstesten: [
+    'stress tests',
+    'climate stress tests',
+    'vulnerability assessments',
+    'climate risk assessments'
+  ],
+
+  // Duurzaamheid, circulariteit en leefomgeving
+  duurzaamheid: [
+    'sustainability',
+    'sustainable infrastructure',
+    'sustainable asset management',
+    'climate neutral',
+    'low carbon infrastructure'
+  ],
+  circulair: [
+    'circular economy',
+    'circular infrastructure',
+    'circular construction',
+    'material reuse',
+    'reuse of materials',
+    'secondary raw materials'
+  ],
+  circulariteit: [
+    'circular economy',
+    'circular infrastructure',
+    'circular construction',
+    'material reuse',
+    'reuse of materials'
+  ],
+  materiaalhergebruik: [
+    'material reuse',
+    'reuse of materials',
+    'reuse of construction materials',
+    'secondary raw materials',
+    'circular construction'
+  ],
+  hergebruik: [
+    'reuse',
+    'material reuse',
+    'reuse of materials',
+    'recycling',
+    'secondary raw materials'
+  ],
+  asfalt: [
+    'asphalt',
+    'asphalt recycling',
+    'recycled asphalt',
+    'low-temperature asphalt',
+    'road materials'
+  ],
+  asfalthergebruik: [
+    'asphalt recycling',
+    'recycled asphalt',
+    'asphalt reuse',
+    'circular road materials'
+  ],
+  lagetemperatuurasfalt: [
+    'low-temperature asphalt',
+    'warm mix asphalt',
+    'low carbon asphalt',
+    'sustainable asphalt'
+  ],
+  biobased: [
+    'bio-based materials',
+    'biobased materials',
+    'sustainable materials',
+    'circular materials'
+  ],
+  natuurinclusief: [
+    'nature-inclusive',
+    'nature inclusive infrastructure',
+    'biodiversity',
+    'ecological infrastructure',
+    'green infrastructure'
+  ],
+  biodiversiteit: [
+    'biodiversity',
+    'ecosystem restoration',
+    'habitat restoration',
+    'nature-inclusive infrastructure'
+  ],
+  natuur: [
+    'nature',
+    'biodiversity',
+    'ecosystem',
+    'habitat',
+    'nature-based solutions'
+  ],
+  waterkwaliteit: [
+    'water quality',
+    'water pollution',
+    'ecological water quality',
+    'aquatic ecosystems'
+  ],
+  energietransitie: [
+    'energy transition',
+    'renewable energy',
+    'solar energy',
+    'wind energy',
+    'energy infrastructure',
+    'zero emission'
+  ],
+  emissiereductie: [
+    'emission reduction',
+    'CO2 reduction',
+    'carbon reduction',
+    'low carbon',
+    'zero emission'
+  ],
+  klimaatneutraal: [
+    'climate neutral',
+    'carbon neutral',
+    'net zero',
+    'zero emission'
+  ],
+
+  // Data, informatievoorziening en digitalisering
+  digitalisering: [
+    'digitalisation',
+    'digitalization',
+    'digital transformation',
+    'digital infrastructure',
+    'data-driven infrastructure'
+  ],
+  informatievoorziening: [
+    'information management',
+    'information systems',
+    'data management',
+    'digital infrastructure'
+  ],
+  data: [
+    'data',
+    'data governance',
+    'data ecosystem',
+    'data sharing',
+    'data infrastructure'
+  ],
+  dataecosysteem: [
+    'data ecosystem',
+    'data sharing ecosystem',
+    'digital ecosystem',
+    'interoperable data'
+  ],
+  'data-ecosysteem': [
+    'data ecosystem',
+    'data sharing ecosystem',
+    'digital ecosystem',
+    'interoperable data'
+  ],
+  datascience: [
+    'data science',
+    'analytics',
+    'machine learning',
+    'AI',
+    'decision support'
+  ],
+  sensoring: [
+    'sensors',
+    'sensoring',
+    'sensor data',
+    'remote sensing',
+    'monitoring'
+  ],
+  sensoren: [
+    'sensors',
+    'sensor data',
+    'monitoring',
+    'remote sensing'
+  ],
+  digitaltwin: [
+    'digital twin',
+    'digital twins',
+    'infrastructure digital twin',
+    'asset digital twin'
+  ],
+  'digitale tweeling': [
+    'digital twin',
+    'digital twins',
+    'infrastructure digital twin',
+    'asset digital twin'
+  ],
+  'digitale tweelingen': [
+    'digital twins',
+    'infrastructure digital twins',
+    'asset digital twins'
+  ],
+  voorspellendonderhoud: [
+    'predictive maintenance',
+    'condition-based maintenance',
+    'asset monitoring',
+    'failure prediction'
+  ],
+  'voorspellend onderhoud': [
+    'predictive maintenance',
+    'condition-based maintenance',
+    'asset monitoring',
+    'failure prediction'
+  ],
+  robotisering: [
+    'robotics',
+    'robotisation',
+    'automation',
+    'inspection robots',
+    'maintenance robotics'
+  ],
+  automatisering: [
+    'automation',
+    'industrial automation',
+    'control systems',
+    'operational technology'
+  ],
+  cyberveiligheid: [
+    'cybersecurity',
+    'cyber security',
+    'secure infrastructure',
+    'operational technology security'
+  ],
+  bim: [
+    'BIM',
+    'Building Information Model',
+    'Building Information Modelling',
+    'asset information model'
+  ],
+  dsgo: [
+    'DSGO',
+    'digital built environment',
+    'data ecosystem',
+    'built environment data'
+  ],
+  dsm: [
+    'DSM',
+    'digital mobility system',
+    'mobility data ecosystem',
+    'transport data'
+  ],
+  ngii: [
+    'NGII',
+    'geospatial data infrastructure',
+    'national geo-information infrastructure',
+    'geodata'
+  ],
+
+  // Samenwerking, governance en EU-context
+  opgavegericht: [
+    'mission-oriented',
+    'challenge-driven',
+    'programme-based cooperation',
+    'integrated approach'
+  ],
+  opgavegerichtsamenwerken: [
+    'mission-oriented collaboration',
+    'integrated cooperation',
+    'cross-sector cooperation',
+    'public sector cooperation'
+  ],
+  'opgavegericht samenwerken': [
+    'mission-oriented collaboration',
+    'integrated cooperation',
+    'cross-sector cooperation',
+    'public sector cooperation'
+  ],
+  ketensamenwerking: [
+    'value chain cooperation',
+    'supply chain cooperation',
+    'sector collaboration',
+    'infrastructure sector cooperation'
+  ],
+  samenwerking: [
+    'cooperation',
+    'collaboration',
+    'partnership',
+    'knowledge exchange'
+  ],
+  grensoverschrijdend: [
+    'cross-border',
+    'cross-border cooperation',
+    'transnational cooperation',
+    'international cooperation'
+  ],
+  harmonisatie: [
+    'harmonisation',
+    'harmonization',
+    'standardisation',
+    'standardization',
+    'interoperability'
+  ],
+  standaardisatie: [
+    'standardisation',
+    'standardization',
+    'harmonisation',
+    'interoperability'
+  ],
+  interoperabiliteit: [
+    'interoperability',
+    'data interoperability',
+    'technical interoperability',
+    'standards'
+  ],
+  infrabeheerders: [
+    'infrastructure managers',
+    'infrastructure operators',
+    'road authorities',
+    'water authorities',
+    'asset owners'
+  ],
+  markt: [
+    'market parties',
+    'contractors',
+    'infrastructure sector',
+    'supply chain',
+    'public procurement'
+  ],
+  portfolioaanpak: [
+    'portfolio approach',
+    'programme approach',
+    'portfolio management',
+    'infrastructure portfolio'
+  ],
+  tweefasenaanpak: [
+    'two-phase approach',
+    'two-stage contracting',
+    'collaborative contracting',
+    'procurement innovation'
+  ],
+  taskforceinfra: [
+    'Taskforce Infra',
+    'infrastructure sector collaboration',
+    'market cooperation',
+    'innovation platform'
+  ],
+  'taskforce infra': [
+    'Taskforce Infra',
+    'infrastructure sector collaboration',
+    'market cooperation',
+    'innovation platform'
+  ],
+  piarc: [
+    'PIARC',
+    'World Road Association',
+    'road authorities',
+    'international road cooperation'
+  ],
+  pianc: [
+    'PIANC',
+    'waterborne transport infrastructure',
+    'navigation infrastructure',
+    'ports and waterways'
+  ]
+};
+
+const STOP_WORDS = new Set([
+  // Nederlands
+  'de',
+  'het',
+  'een',
+  'en',
+  'of',
+  'op',
+  'in',
+  'aan',
+  'van',
+  'voor',
+  'met',
+  'zonder',
+  'door',
+  'over',
+  'onder',
+  'naar',
+  'uit',
+  'bij',
+  'als',
+  'dat',
+  'dit',
+  'die',
+  'deze',
+  'wat',
+  'waar',
+  'welke',
+  'hoe',
+  'om',
+  'te',
+  'tot',
+  'is',
+  'zijn',
+  'wordt',
+  'worden',
+  'kan',
+  'kunnen',
+  'rond',
+  'binnen',
+  'tussen',
+  'zoals',
+
+  // Engels
+  'the',
+  'and',
+  'or',
+  'for',
+  'with',
+  'without',
+  'from',
+  'into',
+  'onto',
+  'over',
+  'under',
+  'between',
+  'within',
+  'about',
+  'that',
+  'this',
+  'these',
+  'those',
+  'what',
+  'which',
+  'how',
+  'can',
+  'could',
+  'should',
+  'would',
+  'will',
+  'are',
+  'was',
+  'were',
+  'been',
+  'being',
+  'such',
+  'via'
+]);
+
 const NOISE_TERMS = [
   'clinical trial',
   'medical device',
@@ -643,7 +1402,61 @@ function splitTerms(value) {
   return normalizeText(value)
     .split(/[\s,;]+/)
     .map((term) => term.trim())
-    .filter((term) => term.length >= 3);
+    .filter((term) => {
+      if (term.length < 3) {
+        return false;
+      }
+
+      if (STOP_WORDS.has(term)) {
+        return false;
+      }
+
+      // Filter woorden die alleen uit cijfers bestaan
+      if (/^\d+$/.test(term)) {
+        return false;
+      }
+
+      return true;
+    });
+}
+
+function expandQueryTerms(rawInputOrTerms) {
+  const rawInput = Array.isArray(rawInputOrTerms)
+    ? rawInputOrTerms.join(' ')
+    : String(rawInputOrTerms || '');
+
+  const normalizedInput = normalizeText(rawInput);
+  const baseTerms = Array.isArray(rawInputOrTerms)
+    ? rawInputOrTerms
+    : splitTerms(rawInput);
+
+  const expanded = new Set(baseTerms);
+
+  for (const [trigger, synonyms] of Object.entries(QUERY_SYNONYMS)) {
+    const normalizedTrigger = normalizeText(trigger);
+
+    const triggerMatches =
+      normalizedInput.includes(normalizedTrigger) ||
+      baseTerms.includes(normalizedTrigger);
+
+    if (!triggerMatches) {
+      continue;
+    }
+
+    for (const synonym of synonyms) {
+      const normalizedSynonym = normalizeText(synonym);
+
+      if (normalizedSynonym) {
+        expanded.add(normalizedSynonym);
+      }
+
+      for (const synonymTerm of splitTerms(synonym)) {
+        expanded.add(synonymTerm);
+      }
+    }
+  }
+
+  return Array.from(expanded);
 }
 
 function getGrantTextFields(grant) {
@@ -668,81 +1481,133 @@ const WEAK_TERMS = new Set([
 function calculateRelevance(grant, query, projectIdea) {
   const fields = getGrantTextFields(grant);
   const combinedInput = normalizeText([query, projectIdea].filter(Boolean).join(' '));
-  const terms = splitTerms(combinedInput);
+  const originalTerms = splitTerms(combinedInput);
+  const terms = expandQueryTerms(combinedInput);
 
   const combinedGrantText = [
-    fields.title, fields.summary, fields.destination, fields.abstract, fields.searchText
+    fields.title,
+    fields.summary,
+    fields.destination,
+    fields.abstract,
+    fields.actionType,
+    fields.searchText
   ].join(' ');
 
-  const hasRwsDomainFit     = textContainsAny(combinedGrantText, RWS_DOMAIN_TERMS);
-  const hasStrongRwsFit     = textContainsAny(combinedGrantText, STRONG_RWS_DOMAIN_TERMS);
+  const hasRwsDomainFit = textContainsAny(combinedGrantText, RWS_DOMAIN_TERMS);
+  const hasStrongRwsFit = textContainsAny(combinedGrantText, STRONG_RWS_DOMAIN_TERMS);
   const hasLowRwsFitContext = textContainsAny(combinedGrantText, LOW_RWS_FIT_TERMS);
 
-  const matchedTerms  = new Set();
+  const matchedTerms = new Set();
+  const originalMatchedTerms = new Set();
   const matchedThemes = [];
-  const reasons       = [];
+  const reasons = [];
+
+  let expandedPhraseMatched = false;
 
   // ── Component 1: query/keyword match (max 30) ─────────────
   let queryRaw = 0;
-  for (const term of terms) {
-    // Zwakke generieke termen tellen alleen mee als er ook RWS-domeinfit is
-    if (WEAK_TERMS.has(term) && !hasRwsDomainFit) continue;
 
-    if (fields.title.includes(term))                          { queryRaw += 10; matchedTerms.add(term); }
-    else if (fields.summary.includes(term) ||
-             fields.destination.includes(term))               { queryRaw += 6;  matchedTerms.add(term); }
-    else if (fields.abstract.includes(term))                  { queryRaw += 4;  matchedTerms.add(term); }
-    else if (fields.searchText.includes(term))                { queryRaw += 2;  matchedTerms.add(term); }
+  for (const term of terms) {
+    const isOriginalTerm = originalTerms.includes(term);
+    const isExpandedPhrase = term.includes(' ');
+
+    // Zwakke generieke termen tellen alleen mee als er ook RWS-domeinfit is.
+    if (WEAK_TERMS.has(term) && !hasRwsDomainFit) {
+      continue;
+    }
+
+    let termMatched = false;
+
+    const titleWeight = isOriginalTerm ? 10 : isExpandedPhrase ? 9 : 3;
+    const summaryWeight = isOriginalTerm ? 6 : isExpandedPhrase ? 6 : 2;
+    const abstractWeight = isOriginalTerm ? 4 : isExpandedPhrase ? 4 : 1;
+    const searchTextWeight = isOriginalTerm ? 2 : isExpandedPhrase ? 2 : 0;
+
+    if (fields.title.includes(term)) {
+      queryRaw += titleWeight;
+      termMatched = true;
+    } else if (fields.summary.includes(term) || fields.destination.includes(term)) {
+      queryRaw += summaryWeight;
+      termMatched = true;
+    } else if (fields.abstract.includes(term)) {
+      queryRaw += abstractWeight;
+      termMatched = true;
+    } else if (searchTextWeight > 0 && fields.searchText.includes(term)) {
+      queryRaw += searchTextWeight;
+      termMatched = true;
+    }
+
+    if (termMatched) {
+      matchedTerms.add(term);
+
+      if (isOriginalTerm) {
+        originalMatchedTerms.add(term);
+      }
+
+      if (isExpandedPhrase) {
+        expandedPhraseMatched = true;
+      }
+    }
   }
+
   const queryScore = Math.min(30, queryRaw);
   const queryMatched = matchedTerms.size > 0;
+  const originalQueryMatched = originalMatchedTerms.size > 0;
 
   // ── Component 2: thema-match (max 40) ─────────────────────
   let themeRaw = 0;
+
   for (const theme of RWS_THEMES) {
     let themeScore = 0;
     const themeMatches = [];
 
     for (const phrase of theme.terms) {
-      const np = normalizeText(phrase);
-      if (combinedGrantText.includes(np)) {
-        // Gewicht: langere / specifiekere termen zwaarder
-        const w = np.includes(' ') ? 6 : 3;
-        themeScore += w;
+      const normalizedPhrase = normalizeText(phrase);
+
+      if (combinedGrantText.includes(normalizedPhrase)) {
+        const weight = normalizedPhrase.includes(' ') ? 6 : 3;
+        themeScore += weight;
         themeMatches.push(phrase);
       }
     }
 
     if (themeScore > 0) {
-      // Bonus als dit het actief geselecteerde thema is
-      if (state.filters.theme !== 'all' && theme.id === state.filters.theme) themeScore += 8;
+      if (state.filters.theme !== 'all' && theme.id === state.filters.theme) {
+        themeScore += 8;
+      }
+
       themeRaw += themeScore;
-      matchedThemes.push({ id: theme.id, label: theme.label, matches: themeMatches });
+
+      matchedThemes.push({
+        id: theme.id,
+        label: theme.label,
+        matches: themeMatches
+      });
     }
   }
+
   const themeScore = Math.min(40, themeRaw);
 
   // ── Component 3: specifieke RWS-phrases (max 30) ──────────
   const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
-  const phraseScore  = Math.min(30, phraseResult.phraseScore);
+  const phraseScore = Math.min(30, phraseResult.phraseScore);
 
   // ── Totaal vóór penalties ─────────────────────────────────
   let score = queryScore + themeScore + phraseScore;
 
   // ── Noise penalty ─────────────────────────────────────────
   for (const noiseTerm of NOISE_TERMS) {
-    if (combinedGrantText.includes(normalizeText(noiseTerm))) score -= 10;
+    if (combinedGrantText.includes(normalizeText(noiseTerm))) {
+      score -= 10;
+    }
   }
 
   // ── Low-fit penalty: landbouw/voedsel/ruraal ──────────────
-  // Strenger dan voorheen: cap op 30, ook als er RWS-termen zijn tenzij
-  // er een STERKE RWS-term aanwezig is die de call duidelijk verankert.
   if (hasLowRwsFitContext) {
     if (!hasStrongRwsFit) {
       score = Math.min(score, 30);
       reasons.push('Lage RWS-fit: primair gericht op landbouw, voedsel of rurale context zonder sterke infrastructuur- of watercomponent.');
     } else {
-      // Heeft wel sterke RWS-term, maar mild afstraffen voor gemengde scope
       score = Math.min(score, 60);
       reasons.push('Gemengde scope: landbouw-context naast infrastructuur/water.');
     }
@@ -752,23 +1617,34 @@ function calculateRelevance(grant, query, projectIdea) {
   if (!combinedInput && matchedThemes.length === 0) {
     reasons.push('Geen zoekterm of themamatch; standaard live call getoond.');
   }
+
   if (matchedTerms.size > 0) {
-    reasons.push(`Zoektermen: ${Array.from(matchedTerms).slice(0, 6).join(', ')}`);
+    const displayTerms = originalMatchedTerms.size > 0
+      ? Array.from(originalMatchedTerms)
+      : Array.from(matchedTerms);
+
+    reasons.push(`Zoektermen: ${displayTerms.slice(0, 6).join(', ')}`);
   }
+
   if (matchedThemes.length > 0) {
-    reasons.push(`Thema's: ${matchedThemes.map((t) => t.label).join(', ')}`);
+    reasons.push(`Thema's: ${matchedThemes.map((theme) => theme.label).join(', ')}`);
   }
+
   if (phraseResult.matchedPhrases.length > 0) {
     reasons.push(`Sleuteltermen: ${phraseResult.matchedPhrases.slice(0, 5).join(', ')}`);
   }
-  if (fields.title && terms.some((t) => fields.title.includes(t))) {
+
+  if (fields.title && terms.some((term) => fields.title.includes(term))) {
     reasons.push('Match in titel.');
   }
 
   return {
     score: Math.min(100, Math.max(0, score || 1)),
     queryMatched,
+    originalQueryMatched,
+    expandedPhraseMatched,
     matchedTerms: Array.from(matchedTerms),
+    originalMatchedTerms: Array.from(originalMatchedTerms),
     matchedPhrases: phraseResult.matchedPhrases,
     matchedThemes,
     reasons
@@ -991,7 +1867,13 @@ if (state.filters.theme !== 'all') {
   }
 }
 
-if (combinedQuery && !relevance.queryMatched) {
+if (
+  combinedQuery &&
+  !relevance.originalQueryMatched &&
+  !relevance.expandedPhraseMatched &&
+  !(relevance.matchedPhrases && relevance.matchedPhrases.length > 0) &&
+  relevance.score < 50
+) {
   return false;
 }
 
