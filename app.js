@@ -2160,7 +2160,8 @@ const existingRelevanceBlock = card.querySelector('.grant-card__relevance');
     facts.insertAdjacentElement('afterend', relevanceBlock);
 
     // AI-rerank block: toon resultaat van batch-analyse als dat beschikbaar is
-    const aiReview = state.aiReviews.get(grant.identifier);
+const aiReview = state.aiReviews.get(grant.identifier);
+
 if (aiReview) {
   const normalizedAiReview = normalizeAiReviewForDisplay(aiReview);
 
@@ -2168,43 +2169,58 @@ if (aiReview) {
   aiBlock.className = 'grant-card__ai-review';
 
   const aiScore = normalizedAiReview.score;
-  const scoreClass = aiScore >= 61 ? 'ai-score--high' : aiScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
+  const scoreClass = aiScore >= 61
+    ? 'ai-score--high'
+    : aiScore >= 41
+      ? 'ai-score--mid'
+      : 'ai-score--low';
+
   const themeFit = normalizedAiReview.theme || '—';
 
-      aiBlock.innerHTML = `
-  <p class="grant-card__relevance-title">
-    AI-analyse voor RWS
-    <span class="ai-score ${scoreClass}" style="margin-left:0.5rem">${aiScore}/100</span>
-  </p>
+  const projectFitHtml = normalizedAiReview.projectFit
+    ? `<p><strong>Projectfit:</strong> ${escapeHtml(normalizedAiReview.projectFit)}${
+        normalizedAiReview.projectFitScore
+          ? ` <span class="ai-score ai-score--mid" style="margin-left:0.35rem">${escapeHtml(String(normalizedAiReview.projectFitScore))}/100</span>`
+          : ''
+      }</p>`
+    : '';
 
-  <p>${escapeHtml(normalizedAiReview.rationale || 'Geen toelichting beschikbaar.')}</p>
+  const themeHtml = themeFit !== '—'
+    ? `<div><dt>Thema's</dt><dd>${escapeHtml(themeFit)}</dd></div>`
+    : '';
 
-  <dl class="grant-card__facts" style="margin-top:0.5rem">
-    ${
-      themeFit !== '—'
-        ? `<div><dt>Thema's</dt><dd>${escapeHtml(themeFit)}</dd></div>`
-        : ''
-    }
-    ${
-      normalizedAiReview.possibleRwsRole
-        ? `<div><dt>RWS-rol</dt><dd>${escapeHtml(normalizedAiReview.possibleRwsRole)}</dd></div>`
-        : ''
-    }
-    ${
-      normalizedAiReview.uncertainties
-        ? `<div><dt>Onzekerheden</dt><dd>${escapeHtml(normalizedAiReview.uncertainties)}</dd></div>`
-        : ''
-    }
-    ${
-      normalizedAiReview.recommendedNextStep
-        ? `<div><dt>Volgende stap</dt><dd>${escapeHtml(normalizedAiReview.recommendedNextStep)}</dd></div>`
-        : ''
-    }
-  </dl>
-`;
+  const roleHtml = normalizedAiReview.possibleRwsRole
+    ? `<div><dt>RWS-rol</dt><dd>${escapeHtml(normalizedAiReview.possibleRwsRole)}</dd></div>`
+    : '';
 
-      relevanceBlock.insertAdjacentElement('afterend', aiBlock);
-    }
+  const uncertaintiesHtml = normalizedAiReview.uncertainties
+    ? `<div><dt>Onzekerheden</dt><dd>${escapeHtml(normalizedAiReview.uncertainties)}</dd></div>`
+    : '';
+
+  const nextStepHtml = normalizedAiReview.recommendedNextStep
+    ? `<div><dt>Volgende stap</dt><dd>${escapeHtml(normalizedAiReview.recommendedNextStep)}</dd></div>`
+    : '';
+
+  aiBlock.innerHTML = `
+    <p class="grant-card__relevance-title">
+      AI-analyse voor RWS
+      <span class="ai-score ${scoreClass}" style="margin-left:0.5rem">${escapeHtml(String(aiScore))}/100</span>
+    </p>
+
+    ${projectFitHtml}
+
+    <p>${escapeHtml(normalizedAiReview.rationale || 'Geen toelichting beschikbaar.')}</p>
+
+    <dl class="grant-card__facts" style="margin-top:0.5rem">
+      ${themeHtml}
+      ${roleHtml}
+      ${uncertaintiesHtml}
+      ${nextStepHtml}
+    </dl>
+  `;
+
+  relevanceBlock.insertAdjacentElement('afterend', aiBlock);
+}
 
     fragment.appendChild(card);
   }
@@ -2397,26 +2413,33 @@ function normalizeAiReviewForDisplay(review) {
     '';
 
   return {
-    identifier: review.identifier || review.callId || '',
-    score: Number(score) || 0,
-    theme: Array.isArray(themeValue) ? themeValue.join(', ') : String(themeValue || ''),
-    rationale: review.rationale || review.uitleg || review.explanation || '',
-    possibleRwsRole:
-      review.possibleRwsRole ||
-      review.possibleRWSRole ||
-      review.rwsRole ||
-      review.rws_role ||
-      '',
-    uncertainties:
-      review.uncertainties ||
-      review.onzekerheden ||
-      '',
-    recommendedNextStep:
-      review.recommendedNextStep ||
-      review.nextStep ||
-      review.next_step ||
-      ''
-  };
+  identifier: review.identifier || review.callId || '',
+  score: Number(score) || 0,
+  projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
+  projectFitScore: Number(
+    review.projectFitScore ??
+    review.project_fit_score ??
+    review.projectMatchScore ??
+    0
+  ),
+  theme: Array.isArray(themeValue) ? themeValue.join(', ') : String(themeValue || ''),
+  rationale: review.rationale || review.uitleg || review.explanation || '',
+  possibleRwsRole:
+    review.possibleRwsRole ||
+    review.possibleRWSRole ||
+    review.rwsRole ||
+    review.rws_role ||
+    '',
+  uncertainties:
+    review.uncertainties ||
+    review.onzekerheden ||
+    '',
+  recommendedNextStep:
+    review.recommendedNextStep ||
+    review.nextStep ||
+    review.next_step ||
+    ''
+};
 }
 
 function renderAiResults() {
@@ -2450,15 +2473,22 @@ function renderAiResults() {
           ? 'ai-score--mid'
           : 'ai-score--low';
 
-    item.innerHTML = `
-      <div class="ai-review-item__header">
-        <span class="ai-score ${scoreClass}">${escapeHtml(String(review.score))}/100</span>
-        <strong class="ai-review-item__id">${escapeHtml(review.identifier || 'Onbekende call')}</strong>
-      </div>
+   
+item.innerHTML = `
+  <div class="ai-review-item__header">
+    <span class="ai-score ${scoreClass}">${escapeHtml(String(review.score))}/100</span>
+    <strong class="ai-review-item__id">${escapeHtml(review.identifier || 'Onbekende call')}</strong>
+  </div>
 
-      <p class="ai-review-item__rationale">
-        ${escapeHtml(review.rationale || 'Geen toelichting beschikbaar.')}
-      </p>
+  <p class="ai-review-item__project-fit">
+    <strong>Projectfit:</strong>
+    ${escapeHtml(review.projectFit || 'Geen specifieke projectfit toegelicht.')}
+    ${review.projectFitScore ? ` <span class="ai-score ai-score--mid">${escapeHtml(String(review.projectFitScore))}/100</span>` : ''}
+  </p>
+
+  <p class="ai-review-item__rationale">
+    ${escapeHtml(review.rationale || 'Geen toelichting beschikbaar.')}
+  </p>
 
       <dl class="ai-review-item__facts">
         <div>
