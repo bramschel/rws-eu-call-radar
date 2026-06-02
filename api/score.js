@@ -136,13 +136,33 @@ Scorebeperkingen:
 CALLS:
 ${JSON.stringify(calls, null, 2)}
 
-Geef uitsluitend geldige JSON terug.
+MANAGEMENT SAMENVATTING OPDRACHT:
+Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 10 resultaten. 
+Deze samenvatting is bedoeld voor RWS-management en moet de volgende elementen bevatten:
+
+Geefitsluitend geldige JSON terug.
 Geen markdown.
 Geen code fences.
 Geen uitleg buiten JSON.
 
 De JSON moet exact deze structuur hebben:
 {
+  "summary": {
+    "executiveSummary": "Beknopte samenvatting in 2-3 zinnen van de belangrijkste bevindingen voor RWS",
+    "overallAdvice": "Algemene advies in 1-2 zinnen over de kansen en uitdagingen",
+    "topOpportunities": [
+      {"identifier": "...", "title": "...", "score": 0, "rationale": "..."},
+      {"identifier": "...", "title": "...", "score": 0, "rationale": "..."},
+      {"identifier": "...", "title": "...", "score": 0, "rationale": "..."}
+    ],
+    "notableExclusions": "Belangrijke calls die NIET in de top 10 zitten maar wel relevant kunnen zijn voor RWS (max 2-3 regels)",
+    "recommendedNextSteps": [
+      "Concrete aanbeveling 1",
+      "Concrete aanbeveling 2",
+      "Concrete aanbeveling 3"
+    ],
+    "ragContextUsed": ["lijst van gebruikte RAG context titels"]
+  },
   "reviews": [
     {
       "identifier": "...",
@@ -161,7 +181,12 @@ De JSON moet exact deze structuur hebben:
 Veldinstructies:
 - projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker.
 - projectFitScore: score 0-100 voor aansluiting op het projectidee, los van algemene RWS-relevantie.
-- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit. 
+- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit.
+- summary.executiveSummary: management samenvatting van de top resultaten
+- summary.topOpportunities: top 3 meest relevante calls met korte toelichting
+- summary.notableExclusions: importante calls die net buiten de top 10 vallen
+- summary.recommendedNextSteps: 3 concrete actiepunten voor RWS
+- summary.ragContextUsed: titels van de RAG context documenten die gebruikt zijn
 
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen tekst buiten JSON.
@@ -206,6 +231,27 @@ function extractJsonFromText(text) {
   }
 
   throw new Error('AI gaf geen geldige JSON terug');
+}
+
+function extractSummaryFromData(parsed) {
+  // Extract summary from various possible locations
+  if (parsed?.summary) {
+    return parsed.summary;
+  }
+
+  // If summary is at root level
+  if (parsed.executiveSummary || parsed.overallAdvice) {
+    return parsed;
+  }
+
+  // If reviews contains summary
+  const reviewsArray = Array.isArray(parsed?.reviews) ? parsed.reviews : [];
+  const firstReview = reviewsArray[0];
+  if (firstReview?.summary) {
+    return firstReview.summary;
+  }
+
+  return null;
 }
 
 function normalizeAiReviews(parsed) {
@@ -311,7 +357,7 @@ export default async function handler(req, res) {
     }
 
     const mistralData = await mistralResponse.json();
-    const rawText = mistralData.choices?.[0]?.message?.content || '{"reviews":[]}';
+    const rawText = mistralData.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}';
 
     let parsed;
 
@@ -327,12 +373,30 @@ export default async function handler(req, res) {
     }
 
     const normalized = normalizeAiReviews(parsed);
+    const summary = extractSummaryFromData(parsed);
+
+    // Build summary from AI response or create default
+    const responseSummary = summary || {
+      executiveSummary: '',
+      overallAdvice: '',
+      topOpportunities: [],
+      notableExclusions: '',
+      recommendedNextSteps: [],
+      ragContextUsed: []
+    };
+
+    // Ensure ragContextUsed is populated
+    const ragContext = getRagContextMetadata(selectedTheme);
+    if (!responseSummary.ragContextUsed || responseSummary.ragContextUsed.length === 0) {
+      responseSummary.ragContextUsed = ragContext.map(entry => entry.title);
+    }
 
 return res.status(200).json({
   ...normalized,
+  summary: responseSummary,
   provider: 'mistral',
   model: MISTRAL_MODEL,
-  ragContextUsed: getRagContextMetadata(selectedTheme)
+  ragContextUsed: ragContext
 });
   } catch (error) {
     console.error('Fout in /api/score:', error);
