@@ -1222,6 +1222,7 @@ const state = {
   aiReviews: new Map(), // identifier → review van batch-analyse
   aiSummary: null, // Management summary van AI-analyse
   aiRerankActive: false,
+  activeView: 'radar',
   filters: {
     query: '',
     projectIdea: '',
@@ -1252,12 +1253,18 @@ const elements = {
   resultsList: document.querySelector('#results-list'),
   loadMoreButton: document.querySelector('#load-more-button'),
   aiBriefingPanel: document.querySelector('#ai-briefing-panel'),
+  aiShortlistBriefing: document.querySelector('#ai-shortlist-briefing'),
+  aiShortlistCalls: document.querySelector('#ai-shortlist-calls'),
   savedCallsCount: document.querySelector('#saved-calls-count'),
   savedCallsList: document.querySelector('#saved-calls-list'),
   exportSavedButton: document.querySelector('#export-saved-button'),
   clearSavedButton: document.querySelector('#clear-saved-button'),
   topProgrammes: document.querySelector('#top-programmes'),
-  grantCardTemplate: document.querySelector('#grant-card-template')
+  grantCardTemplate: document.querySelector('#grant-card-template'),
+  viewTabs: document.querySelector('.view-tabs'),
+  radarView: document.querySelector('#radar-view'),
+  aiShortlistView: document.querySelector('#ai-shortlist-view'),
+  pipelineView: document.querySelector('#pipeline-view')
 };
 
 const compactNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
@@ -1996,6 +2003,126 @@ function renderSidebar() {
 
 function createFact(label, value) {
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+
+function switchView(viewName) {
+  state.activeView = viewName;
+  if (elements.viewTabs) {
+    const tabs = elements.viewTabs.querySelectorAll('.view-tab');
+    tabs.forEach(tab => {
+      tab.classList.toggle('is-active', tab.dataset.view === viewName);
+    });
+  }
+  if (elements.radarView) elements.radarView.hidden = viewName !== 'radar';
+  if (elements.aiShortlistView) elements.aiShortlistView.hidden = viewName !== 'ai-shortlist';
+  if (elements.pipelineView) elements.pipelineView.hidden = viewName !== 'pipeline';
+  if (viewName === 'ai-shortlist') {
+    renderAiShortlist();
+  }
+}
+
+function renderViewTabs() {
+  if (!elements.viewTabs) return;
+  const tabs = elements.viewTabs.querySelectorAll('.view-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchView(tab.dataset.view);
+    });
+  });
+}
+
+function renderAiShortlist() {
+  const briefingPanel = elements.aiShortlistBriefing;
+  const callsPanel = elements.aiShortlistCalls;
+  if (!briefingPanel || !callsPanel) return;
+
+  if (state.aiSummary) {
+    briefingPanel.hidden = false;
+    const summary = state.aiSummary;
+    briefingPanel.innerHTML = `
+      <div class="ai-briefing__header">
+        <h3 class="ai-briefing__title">Management Briefing</h3>
+        <span class="ai-briefing__badge">AI Shortlist Samenvatting</span>
+      </div>
+      <div class="ai-briefing__content">
+        <section class="ai-briefing__section">
+          <h4>Executive Summary</h4>
+          <p class="ai-briefing__text">${escapeHtml(summary.executiveSummary || 'Geen samenvatting beschikbaar.')}</p>
+        </section>
+        <section class="ai-briefing__section">
+          <h4>Overall Advice</h4>
+          <p class="ai-briefing__text ai-briefing__text--advice">${escapeHtml(summary.overallAdvice || 'Geen advies beschikbaar.')}</p>
+        </section>
+        <section class="ai-briefing__section">
+          <h4>Top 3 Opportunities</h4>
+          <div class="ai-briefing__opportunities">
+            ${summary.topOpportunities && summary.topOpportunities.length > 0
+              ? summary.topOpportunities.slice(0, 3).map((opp, idx) => `
+                  <div class="ai-briefing__opportunity">
+                    <span class="ai-briefing__opportunity-rank">#${idx + 1}</span>
+                    <div class="ai-briefing__opportunity-content">
+                      <strong class="ai-briefing__opportunity-title">${escapeHtml(opp.title || opp.identifier || 'Onbekend')}</strong>
+                      <p class="ai-briefing__opportunity-rationale">${escapeHtml(opp.rationale || '')}</p>
+                      <span class="ai-briefing__opportunity-score">Score: ${opp.score || 'N/A'}/100</span>
+                    </div>
+                  </div>
+                `).join('')
+              : '<p class="ai-briefing__text">Geen top opportuniteiten geïdentificeerd.</p>'
+            }
+          </div>
+        </section>
+        <section class="ai-briefing__section">
+          <h4>Notable Exclusions</h4>
+          <p class="ai-briefing__text">${escapeHtml(summary.notableExclusions || 'Geen belangrijke exclusies gemeld.')}</p>
+        </section>
+        <section class="ai-briefing__section">
+          <h4>Recommended Next Steps</h4>
+          <ul class="ai-briefing__steps">
+            ${summary.recommendedNextSteps && summary.recommendedNextSteps.length > 0
+              ? summary.recommendedNextSteps.map(step => `<li class="ai-briefing__step">${escapeHtml(step)}</li>`).join('')
+              : '<li class="ai-briefing__step">Geen aanbevolen stappen beschikbaar.</li>'
+            }
+          </ul>
+        </section>
+        <section class="ai-briefing__section ai-briefing__section--rag">
+          <h4>Gebruikte RAG Context</h4>
+          <div class="ai-briefing__rag-tags">
+            ${summary.ragContextUsed && summary.ragContextUsed.length > 0
+              ? summary.ragContextUsed.map(tag => `<span class="ai-briefing__rag-tag">${escapeHtml(tag)}</span>`).join('')
+              : '<span class="ai-briefing__text">Geen RAG context gebruikt.</span>'
+            }
+          </div>
+        </section>
+      </div>
+    `;
+  } else {
+    briefingPanel.hidden = true;
+  }
+
+  if (state.aiReviews.size > 0) {
+    const sortedReviews = Array.from(state.aiReviews.values())
+      .map(normalizeAiReviewForDisplay)
+      .sort((a, b) => b.score - a.score);
+    callsPanel.innerHTML = sortedReviews.map(review => {
+      const scoreClass = review.score >= 70 ? 'ai-score--high' : review.score >= 40 ? 'ai-score--mid' : 'ai-score--low';
+      return `
+        <div class="ai-shortlist-call">
+          <div class="ai-shortlist-call__header">
+            <span class="ai-score ${scoreClass}">${review.score}/100</span>
+            <strong class="ai-shortlist-call__id">${escapeHtml(review.identifier || 'Onbekend')}</strong>
+          </div>
+          <p class="ai-shortlist-call__rationale">${escapeHtml(review.rationale || 'Geen toelichting beschikbaar.')}</p>
+          <dl class="ai-shortlist-call__facts">
+            <div><dt>Projectfit</dt><dd>${escapeHtml(review.projectFit || 'Niet gespecificeerd')}</dd></div>
+            <div><dt>RWS-rol</dt><dd>${escapeHtml(review.possibleRwsRole || 'Niet gespecificeerd')}</dd></div>
+            <div><dt>Thema</dt><dd>${escapeHtml(review.theme || 'Niet gespecificeerd')}</dd></div>
+          </dl>
+        </div>
+      `;
+    }).join('');
+  } else {
+    callsPanel.innerHTML = '<p class="ai-shortlist__empty">Geen AI-geanalyseerde calls beschikbaar. Voer eerst een AI-analyse uit op de Radar-tab.</p>';
+  }
 }
 
 function renderResults() {
@@ -2822,6 +2949,8 @@ async function init() {
   renderMetrics();
   syncControls();
   wireEvents();
+  renderViewTabs();
+  switchView(state.activeView);
   update();
 }
 
