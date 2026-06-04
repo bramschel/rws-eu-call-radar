@@ -2035,3 +2035,54 @@ body::before {
   margin: 0 0 12px;
   color: var(--rws-blue);
 }
+
+/* Shortlist Call Styles */
+.shortlist-content {
+  display: grid;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.shortlist-call {
+  padding: 20px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(21, 66, 115, 0.04);
+}
+
+.shortlist-call__title {
+  margin: 0 0 16px;
+  color: var(--rws-blue);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.shortlist-call__details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.shortlist-call__detail {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--panel-alt);
+  border: 1px solid var(--line);
+}
+
+.shortlist-call__detail dt {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.shortlist-call__detail dd {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--ink);
+}

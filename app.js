@@ -1253,8 +1253,6 @@ const elements = {
   resultsList: document.querySelector('#results-list'),
   loadMoreButton: document.querySelector('#load-more-button'),
   aiBriefingPanel: document.querySelector('#ai-briefing-panel'),
-  aiShortlistBriefing: document.querySelector('#ai-shortlist-briefing'),
-  aiShortlistCalls: document.querySelector('#ai-shortlist-calls'),
   savedCallsCount: document.querySelector('#saved-calls-count'),
   savedCallsList: document.querySelector('#saved-calls-list'),
   exportSavedButton: document.querySelector('#export-saved-button'),
@@ -2034,97 +2032,49 @@ function renderViewTabs() {
 }
 
 function renderAiShortlist() {
-  const briefingPanel = elements.aiShortlistBriefing;
-  const callsPanel = elements.aiShortlistCalls;
-  if (!briefingPanel || !callsPanel) return;
+  const container = document.querySelector('#shortlist-content');
+  if (!container) return;
 
-  if (state.aiSummary) {
-    briefingPanel.hidden = false;
-    const summary = state.aiSummary;
-    briefingPanel.innerHTML = `
-      <div class="ai-briefing__header">
-        <h3 class="ai-briefing__title">Management Briefing</h3>
-        <span class="ai-briefing__badge">AI Shortlist Samenvatting</span>
-      </div>
-      <div class="ai-briefing__content">
-        <section class="ai-briefing__section">
-          <h4>Executive Summary</h4>
-          <p class="ai-briefing__text">${escapeHtml(summary.executiveSummary || 'Geen samenvatting beschikbaar.')}</p>
-        </section>
-        <section class="ai-briefing__section">
-          <h4>Overall Advice</h4>
-          <p class="ai-briefing__text ai-briefing__text--advice">${escapeHtml(summary.overallAdvice || 'Geen advies beschikbaar.')}</p>
-        </section>
-        <section class="ai-briefing__section">
-          <h4>Top 3 Opportunities</h4>
-          <div class="ai-briefing__opportunities">
-            ${summary.topOpportunities && summary.topOpportunities.length > 0
-              ? summary.topOpportunities.slice(0, 3).map((opp, idx) => `
-                  <div class="ai-briefing__opportunity">
-                    <span class="ai-briefing__opportunity-rank">#${idx + 1}</span>
-                    <div class="ai-briefing__opportunity-content">
-                      <strong class="ai-briefing__opportunity-title">${escapeHtml(opp.title || opp.identifier || 'Onbekend')}</strong>
-                      <p class="ai-briefing__opportunity-rationale">${escapeHtml(opp.rationale || '')}</p>
-                      <span class="ai-briefing__opportunity-score">Score: ${opp.score || 'N/A'}/100</span>
-                    </div>
-                  </div>
-                `).join('')
-              : '<p class="ai-briefing__text">Geen top opportuniteiten geïdentificeerd.</p>'
-            }
-          </div>
-        </section>
-        <section class="ai-briefing__section">
-          <h4>Notable Exclusions</h4>
-          <p class="ai-briefing__text">${escapeHtml(summary.notableExclusions || 'Geen belangrijke exclusies gemeld.')}</p>
-        </section>
-        <section class="ai-briefing__section">
-          <h4>Recommended Next Steps</h4>
-          <ul class="ai-briefing__steps">
-            ${summary.recommendedNextSteps && summary.recommendedNextSteps.length > 0
-              ? summary.recommendedNextSteps.map(step => `<li class="ai-briefing__step">${escapeHtml(step)}</li>`).join('')
-              : '<li class="ai-briefing__step">Geen aanbevolen stappen beschikbaar.</li>'
-            }
-          </ul>
-        </section>
-        <section class="ai-briefing__section ai-briefing__section--rag">
-          <h4>Gebruikte RAG Context</h4>
-          <div class="ai-briefing__rag-tags">
-            ${summary.ragContextUsed && summary.ragContextUsed.length > 0
-              ? summary.ragContextUsed.map(tag => `<span class="ai-briefing__rag-tag">${escapeHtml(tag)}</span>`).join('')
-              : '<span class="ai-briefing__text">Geen RAG context gebruikt.</span>'
-            }
-          </div>
-        </section>
-      </div>
-    `;
-  } else {
-    briefingPanel.hidden = true;
+  if (!state.aiSummary || state.aiReviews.size === 0) {
+    container.innerHTML = '<p>Geen AI-geanalyseerde calls beschikbaar. Voer eerst een AI-analyse uit op de Radar-tab.</p>';
+    return;
   }
 
-  if (state.aiReviews.size > 0) {
-    const sortedReviews = Array.from(state.aiReviews.values())
-      .map(normalizeAiReviewForDisplay)
-      .sort((a, b) => b.score - a.score);
-    callsPanel.innerHTML = sortedReviews.map(review => {
-      const scoreClass = review.score >= 70 ? 'ai-score--high' : review.score >= 40 ? 'ai-score--mid' : 'ai-score--low';
-      return `
-        <div class="ai-shortlist-call">
-          <div class="ai-shortlist-call__header">
-            <span class="ai-score ${scoreClass}">${review.score}/100</span>
-            <strong class="ai-shortlist-call__id">${escapeHtml(review.identifier || 'Onbekend')}</strong>
+  const sortedReviews = Array.from(state.aiReviews.values())
+    .map(normalizeAiReviewForDisplay)
+    .sort((a, b) => b.score - a.score);
+
+  const top3 = sortedReviews.slice(0, 3);
+
+  container.innerHTML = `
+    ${top3.map((review, idx) => `
+      <div class="shortlist-call">
+        <h4 class="shortlist-call__title">#${idx + 1}: ${escapeHtml(review.identifier)}</h4>
+        <div class="shortlist-call__details">
+          <div class="shortlist-call__detail">
+            <dt>AI-score</dt>
+            <dd>${review.score}/100</dd>
           </div>
-          <p class="ai-shortlist-call__rationale">${escapeHtml(review.rationale || 'Geen toelichting beschikbaar.')}</p>
-          <dl class="ai-shortlist-call__facts">
-            <div><dt>Projectfit</dt><dd>${escapeHtml(review.projectFit || 'Niet gespecificeerd')}</dd></div>
-            <div><dt>RWS-rol</dt><dd>${escapeHtml(review.possibleRwsRole || 'Niet gespecificeerd')}</dd></div>
-            <div><dt>Thema</dt><dd>${escapeHtml(review.theme || 'Niet gespecificeerd')}</dd></div>
-          </dl>
+          <div class="shortlist-call__detail">
+            <dt>Projectfit</dt>
+            <dd>${escapeHtml(review.projectFit || 'Niet gespecificeerd')}</dd>
+          </div>
+          <div class="shortlist-call__detail">
+            <dt>Motivatie</dt>
+            <dd>${escapeHtml(review.rationale || 'Geen motivatie beschikbaar')}</dd>
+          </div>
+          <div class="shortlist-call__detail">
+            <dt>Onzekerheden</dt>
+            <dd>${escapeHtml(review.uncertainties || 'Geen onzekerheden gemeld')}</dd>
+          </div>
+          <div class="shortlist-call__detail">
+            <dt>Volgende stap</dt>
+            <dd>${escapeHtml(review.recommendedNextStep || 'Niet gespecificeerd')}</dd>
+          </div>
         </div>
-      `;
-    }).join('');
-  } else {
-    callsPanel.innerHTML = '<p class="ai-shortlist__empty">Geen AI-geanalyseerde calls beschikbaar. Voer eerst een AI-analyse uit op de Radar-tab.</p>';
-  }
+      </div>
+    `).join('')}
+`;
 }
 
 function renderResults() {
