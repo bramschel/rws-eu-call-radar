@@ -1930,6 +1930,10 @@ body::before {
   display: none;
 }
 
+.view-pane[hidden] {
+  display: none !important;
+}
+
 .view-pane:not([hidden]) {
   display: block;
 }

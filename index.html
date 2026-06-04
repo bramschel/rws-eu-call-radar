@@ -61,7 +61,14 @@
         </div>
       </header>
 
-      <section class="panel intro-panel">
+      <nav class="view-tabs">
+        <button id="tab-radar" class="view-tab is-active">Radar</button>
+        <button id="tab-shortlist" class="view-tab">AI Shortlist</button>
+        <button id="tab-pipeline" class="view-tab">Pipeline</button>
+      </nav>
+
+      <section id="radar-view" class="view-pane">
+        <section class="panel intro-panel">
         <div>
           <p class="sidebar__label">Office for European Programmes</p>
           <p>
@@ -238,8 +245,9 @@
           </div>
         </section>
       </main>
+      </section>
 
-      <section class="view-pane" id="ai-shortlist-view" hidden>
+      <section id="shortlist-view" class="view-pane" hidden>
         <div class="panel ai-shortlist-panel">
           <div class="ai-shortlist__header">
             <h2>AI Shortlist</h2>
@@ -253,7 +261,7 @@
         </div>
       </section>
 
-      <section class="view-pane" id="pipeline-view" hidden>
+      <section id="pipeline-view" class="view-pane" hidden>
         <div class="panel pipeline-panel">
           <h2>Pipeline</h2>
           <p>Pipeline komt in volgende stap.</p>

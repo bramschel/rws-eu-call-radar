@@ -1263,8 +1263,11 @@ const elements = {
   grantCardTemplate: document.querySelector('#grant-card-template'),
   viewTabs: document.querySelector('.view-tabs'),
   radarView: document.querySelector('#radar-view'),
-  aiShortlistView: document.querySelector('#ai-shortlist-view'),
-  pipelineView: document.querySelector('#pipeline-view')
+  shortlistView: document.querySelector('#shortlist-view'),
+  pipelineView: document.querySelector('#pipeline-view'),
+  tabRadar: document.querySelector('#tab-radar'),
+  tabShortlist: document.querySelector('#tab-shortlist'),
+  tabPipeline: document.querySelector('#tab-pipeline')
 };
 
 const compactNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
@@ -2007,28 +2010,27 @@ function createFact(label, value) {
 
 function switchView(viewName) {
   state.activeView = viewName;
-  if (elements.viewTabs) {
-    const tabs = elements.viewTabs.querySelectorAll('.view-tab');
-    tabs.forEach(tab => {
-      tab.classList.toggle('is-active', tab.dataset.view === viewName);
-    });
-  }
+  if (elements.tabRadar) elements.tabRadar.classList.toggle('is-active', viewName === 'radar');
+  if (elements.tabShortlist) elements.tabShortlist.classList.toggle('is-active', viewName === 'shortlist');
+  if (elements.tabPipeline) elements.tabPipeline.classList.toggle('is-active', viewName === 'pipeline');
   if (elements.radarView) elements.radarView.hidden = viewName !== 'radar';
-  if (elements.aiShortlistView) elements.aiShortlistView.hidden = viewName !== 'ai-shortlist';
+  if (elements.shortlistView) elements.shortlistView.hidden = viewName !== 'shortlist';
   if (elements.pipelineView) elements.pipelineView.hidden = viewName !== 'pipeline';
-  if (viewName === 'ai-shortlist') {
+  if (viewName === 'shortlist') {
     renderAiShortlist();
   }
 }
 
 function renderViewTabs() {
-  if (!elements.viewTabs) return;
-  const tabs = elements.viewTabs.querySelectorAll('.view-tab');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      switchView(tab.dataset.view);
-    });
-  });
+  if (elements.tabRadar) {
+    elements.tabRadar.addEventListener('click', () => switchView('radar'));
+  }
+  if (elements.tabShortlist) {
+    elements.tabShortlist.addEventListener('click', () => switchView('shortlist'));
+  }
+  if (elements.tabPipeline) {
+    elements.tabPipeline.addEventListener('click', () => switchView('pipeline'));
+  }
 }
 
 function renderAiShortlist() {
