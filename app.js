@@ -2031,50 +2031,158 @@ function renderViewTabs() {
   }
 }
 
+function getCallByIdentifier(identifier) {
+  if (!state.data?.grants || !identifier) return null;
+  return state.data.grants.find(g => g.identifier === identifier) || null;
+}
+
 function renderAiShortlist() {
   const container = document.querySelector('#shortlist-content');
   if (!container) return;
-
-  if (!state.aiSummary || state.aiReviews.size === 0) {
-    container.innerHTML = '<p>Geen AI-geanalyseerde calls beschikbaar. Voer eerst een AI-analyse uit op de Radar-tab.</p>';
-    return;
-  }
 
   const sortedReviews = Array.from(state.aiReviews.values())
     .map(normalizeAiReviewForDisplay)
     .sort((a, b) => b.score - a.score);
 
-  const top3 = sortedReviews.slice(0, 3);
+  if (sortedReviews.length === 0) {
+    container.innerHTML = '<p>Draai eerst een AI-analyse in de Radar-tab.</p>';
+    return;
+  }
 
-  container.innerHTML = `
-    ${top3.map((review, idx) => `
-      <div class="shortlist-call">
-        <h4 class="shortlist-call__title">#${idx + 1}: ${escapeHtml(review.identifier)}</h4>
-        <div class="shortlist-call__details">
-          <div class="shortlist-call__detail">
-            <dt>AI-score</dt>
-            <dd>${review.score}/100</dd>
+  const top3 = sortedReviews.slice(0, 3);
+  const others = sortedReviews.slice(3);
+
+  let html = '';
+
+  // Summary section
+  if (state.aiSummary) {
+    const s = state.aiSummary;
+    html += `
+      <div class="shortlist-summary">
+        <div class="shortlist-summary__section">
+          <h4>Kernbeeld</h4>
+          <p>${escapeHtml(s.executiveSummary || 'Geen kernbeeld beschikbaar.')}</p>
+        </div>
+        <div class="shortlist-summary__section">
+          <h4>Advies</h4>
+          <p class="shortlist-summary__advice">${escapeHtml(s.overallAdvice || 'Geen advies beschikbaar.')}</p>
+        </div>
+        <div class="shortlist-summary__section">
+          <h4>Kansrijke lijnen</h4>
+          <div class="shortlist-opportunities">
+            ${s.topOpportunities && s.topOpportunities.length > 0
+              ? s.topOpportunities.slice(0, 5).map((opp, idx) => `
+                  <div class="shortlist-opportunity">
+                    <span class="shortlist-opportunity__rank">#${idx + 1}</span>
+                    <span class="shortlist-opportunity__title">${escapeHtml(opp.title || opp.identifier || 'Onbekend')}</span>
+                    <span class="shortlist-opportunity__score">${opp.score ? escapeHtml(String(opp.score)) + '/100' : ''}</span>
+                  </div>
+                `).join('')
+              : '<p>Geen kansrijke lijnen geïdentificeerd.</p>'
+            }
           </div>
-          <div class="shortlist-call__detail">
+        </div>
+        <div class="shortlist-summary__section">
+          <h4>Aandachtspunten</h4>
+          <p>${escapeHtml(s.notableExclusions || 'Geen specifieke aandachtspunten gemeld.')}</p>
+        </div>
+        <div class="shortlist-summary__section">
+          <h4>Vervolgstappen</h4>
+          <ul class="shortlist-steps">
+            ${s.recommendedNextSteps && s.recommendedNextSteps.length > 0
+              ? s.recommendedNextSteps.map(step => `<li>${escapeHtml(step)}</li>`).join('')
+              : '<li>Geen vervolgstappen gespecificeerd.</li>'
+            }
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+
+  // Top 3 section
+  html += '<h3 class="shortlist-section-title">Top 3 kansrijke calls</h3>';
+  html += '<div class="shortlist-top3">';
+  
+  for (const review of top3) {
+    const call = getCallByIdentifier(review.identifier);
+    const euText = call?.destination || call?.summary || call?.abstract || 'De call vraagt om voorstellen rond: onbekend onderwerp.';
+    const rwsText = review.projectFit 
+      ? `${review.projectFit}${review.possibleRwsRole ? ' — ' + review.possibleRwsRole : ''}${review.rationale ? '. ' + review.rationale : ''}`
+      : 'Nog te concretiseren op basis van de officiële calltekst.';
+
+    const scoreClass = review.score >= 70 ? 'score-high' : review.score >= 40 ? 'score-mid' : 'score-low';
+
+    html += `
+      <article class="shortlist-top3__call">
+        <div class="shortlist-top3__header">
+          <h4 class="shortlist-top3__title">${escapeHtml(call?.title || review.identifier)}</h4>
+          <span class="shortlist-top3__id">${escapeHtml(review.identifier)}</span>
+          <span class="shortlist-score ${scoreClass}">${review.score}/100</span>
+        </div>
+        <div class="shortlist-top3__body">
+          <div class="shortlist-top3__block">
             <dt>Projectfit</dt>
-            <dd>${escapeHtml(review.projectFit || 'Niet gespecificeerd')}</dd>
+            <dd>${escapeHtml(review.projectFit || 'Niet gespecificeerd')}${review.projectFitScore ? ` <span class="shortlist-score score-mid">${review.projectFitScore}/100</span>` : ''}</dd>
           </div>
-          <div class="shortlist-call__detail">
+          <div class="shortlist-top3__block">
             <dt>Motivatie</dt>
-            <dd>${escapeHtml(review.rationale || 'Geen motivatie beschikbaar')}</dd>
+            <dd>${escapeHtml(review.rationale || 'Geen motivatie beschikbaar.')}</dd>
           </div>
-          <div class="shortlist-call__detail">
+          <div class="shortlist-top3__block">
+            <dt>RWS-rol</dt>
+            <dd>${escapeHtml(review.possibleRwsRole || 'Niet gespecificeerd')}</dd>
+          </div>
+          <div class="shortlist-top3__block">
             <dt>Onzekerheden</dt>
-            <dd>${escapeHtml(review.uncertainties || 'Geen onzekerheden gemeld')}</dd>
+            <dd>${escapeHtml(review.uncertainties || 'Geen onzekerheden gemeld.')}</dd>
           </div>
-          <div class="shortlist-call__detail">
+          <div class="shortlist-top3__block">
             <dt>Volgende stap</dt>
             <dd>${escapeHtml(review.recommendedNextStep || 'Niet gespecificeerd')}</dd>
           </div>
+          <div class="shortlist-top3__block shortlist-top3__block--eu">
+            <dt>Wat vraagt de EU?</dt>
+            <dd>${escapeHtml(euText)}</dd>
+          </div>
+          <div class="shortlist-top3__block shortlist-top3__block--rws">
+            <dt>Mogelijk RWS-project</dt>
+            <dd>${escapeHtml(rwsText)}</dd>
+          </div>
         </div>
-      </div>
-    `).join('')}
-`;
+        ${call?.url ? `<a class="shortlist-top3__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
+      </article>
+    `;
+  }
+
+  html += '</div>';
+
+  // Others section
+  if (others.length > 0) {
+    html += '<h3 class="shortlist-section-title">Overige geanalyseerde calls</h3>';
+    html += '<div class="shortlist-others">';
+    
+    for (const review of others) {
+      const call = getCallByIdentifier(review.identifier);
+      const scoreClass = review.score >= 70 ? 'score-high' : review.score >= 40 ? 'score-mid' : 'score-low';
+      const uncertaintyText = review.uncertainties ? escapeHtml(review.uncertainties.slice(0, 60) + (review.uncertainties.length > 60 ? '...' : '')) : 'Geen';
+      
+      html += `
+        <article class="shortlist-others__call">
+          <div class="shortlist-others__header">
+            <h5 class="shortlist-others__title">${escapeHtml(call?.title || review.identifier)}</h5>
+            <span class="shortlist-score ${scoreClass}">${review.score}/100</span>
+          </div>
+          <p class="shortlist-others__fit">${escapeHtml(review.projectFit || 'Geen projectfit beschikbaar')}</p>
+          <p class="shortlist-others__uncertainty">⚠ ${uncertaintyText}</p>
+          ${call?.url ? `<a class="shortlist-others__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
+        </article>
+      `;
+    }
+    
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
 }
 
 function renderResults() {

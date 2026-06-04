@@ -2036,53 +2036,313 @@ body::before {
   color: var(--rws-blue);
 }
 
-/* Shortlist Call Styles */
+/* Shortlist Styles */
 .shortlist-content {
   display: grid;
-  gap: 18px;
+  gap: 24px;
   margin-top: 16px;
 }
 
-.shortlist-call {
+/* Summary Section */
+.shortlist-summary {
   padding: 20px;
   border-radius: var(--radius-md);
-  background: #ffffff;
-  border: 1px solid var(--line);
-  box-shadow: 0 2px 8px rgba(21, 66, 115, 0.04);
+  background: linear-gradient(135deg, #fff8df 0%, #ffffff 100%);
+  border-left: 6px solid var(--rws-yellow);
+  border: 1px solid #ead68a;
 }
 
-.shortlist-call__title {
-  margin: 0 0 16px;
+.shortlist-summary__section {
+  margin-bottom: 18px;
+}
+
+.shortlist-summary__section:last-child {
+  margin-bottom: 0;
+}
+
+.shortlist-summary__section h4 {
+  margin: 0 0 10px;
   color: var(--rws-blue);
-  font-size: 1.15rem;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shortlist-summary__section p {
+  margin: 0;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.shortlist-summary__advice {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: #eef8ff;
+  border-left: 4px solid var(--rws-blue-3);
+}
+
+.shortlist-opportunities {
+  display: grid;
+  gap: 10px;
+}
+
+.shortlist-opportunity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: 1px solid #d7e3ec;
+  font-size: 0.95rem;
+}
+
+.shortlist-opportunity__rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--rws-blue);
+  color: #ffffff;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.shortlist-opportunity__title {
+  flex: 1;
+  color: var(--rws-blue);
+  font-weight: 600;
+}
+
+.shortlist-opportunity__score {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef8ff;
+  color: var(--rws-blue);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.shortlist-steps {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: grid;
+  gap: 8px;
+}
+
+.shortlist-steps li {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--ink);
+  position: relative;
+  padding-left: 12px;
+}
+
+.shortlist-steps li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rws-blue);
+}
+
+/* Section Titles */
+.shortlist-section-title {
+  margin: 0;
+  color: var(--rws-blue);
+  font-size: 1.35rem;
+  font-weight: 700;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--rws-yellow);
+}
+
+/* Top 3 Calls */
+.shortlist-top3 {
+  display: grid;
+  gap: 20px;
+}
+
+.shortlist-top3__call {
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(21, 66, 115, 0.08);
+  position: relative;
+}
+
+.shortlist-top3__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.shortlist-top3__title {
+  margin: 0;
+  flex: 1;
+  min-width: 300px;
+  color: var(--rws-blue);
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.25;
 }
 
-.shortlist-call__details {
+.shortlist-top3__id {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.shortlist-top3__body {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
 }
 
-.shortlist-call__detail {
+.shortlist-top3__block {
   padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--panel-alt);
   border: 1px solid var(--line);
 }
 
-.shortlist-call__detail dt {
+.shortlist-top3__block dt {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
-.shortlist-call__detail dd {
+.shortlist-top3__block dd {
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--ink);
+}
+
+.shortlist-top3__block--eu {
+  border-left: 4px solid var(--rws-yellow);
+  background: #fff8df;
+}
+
+.shortlist-top3__block--rws {
+  border-left: 4px solid var(--rws-blue);
+  background: #eef8ff;
+}
+
+.shortlist-top3__open {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--rws-yellow);
+  color: var(--rws-blue);
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 150ms ease;
+}
+
+.shortlist-top3__open:hover {
+  background: #ffd45c;
+  transform: translateY(-1px);
+}
+
+/* Other Calls */
+.shortlist-others {
+  display: grid;
+  gap: 12px;
+}
+
+.shortlist-others__call {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: 1px solid var(--line);
+}
+
+.shortlist-others__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.shortlist-others__title {
+  margin: 0;
+  flex: 1;
+  color: var(--rws-blue);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.shortlist-others__fit {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.shortlist-others__uncertainty {
+  margin: 0 0 10px;
+  color: var(--rws-orange);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.shortlist-others__open {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--panel-alt);
+  color: var(--rws-blue);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  transition: all 150ms ease;
+}
+
+.shortlist-others__open:hover {
+  background: #eef8ff;
+  border-color: var(--rws-blue-3);
+}
+
+/* Score Badge */
+.shortlist-score {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+
+.score-high {
+  background: #e5f4e0;
+  color: #275937;
+}
+
+.score-mid {
+  background: #fff1c2;
+  color: #6d4b00;
+}
+
+.score-low {
+  background: #fbe1de;
+  color: #8f1f16;
 }
