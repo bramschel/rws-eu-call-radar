@@ -49,6 +49,37 @@ const RWS_CONTEXT_FALLBACK = `
 Rijkswaterstaat is de Nederlandse uitvoeringsorganisatie voor rijkswegen, vaarwegen, waterbeheer, verkeersmanagement en infrastructuur. Beoordeel EU-calls niet op algemene EU-relevantie, maar op concrete relevantie voor RWS als uitvoeringsorganisatie. Een call scoort alleen hoog als er een duidelijke uitvoerings-, beheer-, innovatie-, pilot-, implementatie- of demonstratierol voor RWS mogelijk is.
 `.trim();
 
+// Stopwords voor filtering van generieke termen
+const STOPWORDS = new Set([
+  // Engels
+  'the', 'and', 'or', 'for', 'with', 'from', 'into', 'onto', 'of', 'in', 'on', 'at', 'by', 'as', 'to',
+  'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+  'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might', 'must',
+  'this', 'that', 'these', 'those', 'it', 'its', 'as', 'if', 'then', 'else', 'but',
+  // Nederlands
+  'de', 'het', 'een', 'en', 'of', 'van', 'voor', 'met', 'in', 'op', 'aan', 'door', 'om', 'te',
+  'is', 'zijn', 'wordt', 'worden', 'heeft', 'hebben', 'had', 'hadden', 'kan', 'kunnen',
+  'moet', 'moeten', 'zou', 'zouden', 'als', 'dan', 'maar', 'dat', 'wat', 'welke',
+  // Generieke project/ call termen
+  'relevant', 'relevance', 'project', 'projects', 'call', 'calls', 'european', 'europe',
+  'support', 'programme', 'program', 'topic', 'objective', 'expected', 'outcome',
+  'outcomes', 'scope', 'aim', 'goal', 'purpose', 'activity', 'activities', 'action',
+  'actions', 'measure', 'measures', 'solution', 'solutions', 'approach', 'result',
+  'results', 'target', 'targets', 'focus', 'area', 'areas', 'field', 'fields',
+  'sector', 'sectors', 'context', 'framework', 'objectives', 'goals',
+  // Voeg betekenisvolle acroniemen toe die WEL moeten worden meegenomen
+]);
+
+// Betekenisvolle acroniemen die niet gefilterd mogen worden
+const MEANINGFUL_ACRONYMS = new Set([
+  'its', 'cis', 'ris', 'cef', 'ten', 'tent', 'nwe', 'nsr', 'eu', 'rws', 'brussel',
+  'interreg', 'horizon', 'digitas', 'beproact', 'comex', 'epics', 'intercor',
+  'twentekanalen', 'zuidasdok', 'krammersluizen', 'maasroute', 'venr',
+  'stars4water', 'water4all', 'manabas', 'resiriver', 'immerse', 'bonsai',
+  'flashfloodbreaker', 'collibri', 'r4im', 'remac', 'merlin', 'napsea',
+  'citytex', 'circular', 'digitrans', 'sustainability', 'climate'
+]);
+
 function selectRagEntries(selectedTheme) {
   const theme = selectedTheme || 'all';
   const entries = RAG_CONTEXT.filter((entry) => {
@@ -81,52 +112,93 @@ function normalizeText(text) {
   return String(text || '').toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function isMeaningfulTerm(term) {
+  // Acroniemen van 3-4 letters die in MEANINGFUL_ACRONYMS zitten mogen door
+  if (MEANINGFUL_ACRONYMS.has(term)) {
+    return true;
+  }
+  // Alfanumerieke termen van 4+ karakters mogen door
+  if (term.length >= 4) {
+    return true;
+  }
+  // Acroniemen van 3 letters die beginnend met hoofdletter (bv. ITS, CEF) mogen door
+  if (term.length === 3 && /^[A-Z]{3}$/.test(term)) {
+    return true;
+  }
+  return false;
+}
+
+function splitTerms(value) {
+  return normalizeText(value)
+    .split(/[\s,;]+/)
+    .map((term) => term.trim())
+    .filter((term) => {
+      if (!term) return false;
+      // Filter stopwords
+      if (STOPWORDS.has(term)) return false;
+      // Filter op betekenisvolle lengte/acroniemen
+      return isMeaningfulTerm(term);
+    });
+}
+
 function scoreRelevanceExample(example, projectIdea, keywords, selectedTheme, calls) {
   let score = 0;
   const matchedKeywords = [];
 
   // Bonus voor hetzelfde themeId als selectedTheme
   if (example.themeId === selectedTheme) {
-    score += 25;
+    score += 30;
   }
 
-  // Keyword overlap met example.keywords
+  // Keyword overlap met example.keywords (hoogste gewicht: 15 per match)
   const userKeywords = new Set([...splitTerms(keywords), ...splitTerms(projectIdea)]);
   const exampleKeywords = new Set(example.keywords?.map(normalizeText) || []);
   
+  let keywordMatches = 0;
   for (const kw of userKeywords) {
     if (exampleKeywords.has(kw)) {
+      score += 15;
+      keywordMatches++;
+      if (!matchedKeywords.includes(kw)) {
+        matchedKeywords.push(kw);
+      }
+    }
+  }
+
+  // Overlap met projectName en call (middelgewicht: 10 per match)
+  const exampleNameAndCall = normalizeText([example.projectName, example.call].join(' '));
+  for (const term of userKeywords) {
+    if (exampleNameAndCall.includes(` ${term} `) || exampleNameAndCall.startsWith(`${term} `) || exampleNameAndCall.endsWith(` ${term}`)) {
       score += 10;
-      matchedKeywords.push(kw);
+      if (!matchedKeywords.includes(term)) {
+        matchedKeywords.push(term);
+      }
     }
   }
 
-  // Overlap met projectIdea en keywords in example.pattern, projectName, call
-  const searchText = normalizeText([example.pattern, example.projectName, example.call, example.lesson].join(' '));
-  const userSearchText = normalizeText([projectIdea, keywords].join(' '));
-  
-  // Check overlap tussen user input en example velden
-  const userTerms = splitTerms(userSearchText);
-  for (const term of userTerms) {
-    if (searchText.includes(term) && !matchedKeywords.includes(term)) {
+  // Overlap met pattern en lesson (laag gewicht: 5 per match)
+  const examplePatternAndLesson = normalizeText([example.pattern, example.lesson].join(' '));
+  for (const term of userKeywords) {
+    if (examplePatternAndLesson.includes(` ${term} `) || examplePatternAndLesson.startsWith(`${term} `) || examplePatternAndLesson.endsWith(` ${term}`)) {
       score += 5;
-      matchedKeywords.push(term);
+      if (!matchedKeywords.includes(term)) {
+        matchedKeywords.push(term);
+      }
     }
   }
 
-  // Overlap met call titels/summaries/abstracts
+  // Overlap met call titels/summaries/abstracts (bonus: 8 per match)
   for (const call of calls) {
     const callText = normalizeText([call.title, call.summary, call.destination, call.abstract].join(' '));
     const exampleText = normalizeText([example.projectName, example.call, example.pattern].join(' '));
     
-    // Check of call lijkt op example
     const callTerms = splitTerms(callText);
     const exampleTerms = splitTerms(exampleText);
     
     for (const ct of callTerms) {
       for (const et of exampleTerms) {
-        if (ct === et && ct.length > 2) {
-          score += 3;
+        if (ct === et) {
+          score += 8;
           if (!matchedKeywords.includes(ct)) {
             matchedKeywords.push(ct);
           }
@@ -137,17 +209,10 @@ function scoreRelevanceExample(example, projectIdea, keywords, selectedTheme, ca
 
   // Bonus als useAs is positive_example
   if (example.useAs === 'positive_example') {
-    score += 5;
+    score += 10;
   }
 
-  return { score, matchedKeywords };
-}
-
-function splitTerms(value) {
-  return normalizeText(value)
-    .split(/[\s,;]+/)
-    .map((term) => term.trim())
-    .filter((term) => term.length >= 3 && !/^\d+$/.test(term));
+  return { score, matchedKeywords, keywordMatches };
 }
 
 function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
@@ -165,29 +230,52 @@ function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
   // Sorteer op score (hoog naar laag)
   scoredExamples.sort((a, b) => b.score - a.score);
 
-  // Selecteer top 5
-  const selected = scoredExamples.slice(0, 5);
+  // Selecteer examples: prioriteer hetzelfde thema, cross-theme alleen bij sterke match
+  const sameThemeExamples = scoredExamples.filter((ex) => ex.themeId === selectedTheme);
+  const otherThemeExamples = scoredExamples.filter((ex) => ex.themeId !== selectedTheme);
 
-  // Als er te weinig matches zijn, vul aan met voorbeelden uit hetzelfde thema
-  if (selected.length < 5) {
-    const remaining = scoredExamples.slice(5).filter((ex) => ex.themeId === selectedTheme);
-    const needed = 5 - selected.length;
-    selected.push(...remaining.slice(0, needed));
-  }
-
-  // Filter out duplicates en ensure we have max 5
-  const uniqueSelected = [];
+  const selected = [];
   const seenIds = new Set();
-  for (const ex of selected) {
+
+  // Eerst: selecteer uit hetzelfde thema (max 5)
+  for (const ex of sameThemeExamples) {
+    if (seenIds.size >= 5) break;
     if (!seenIds.has(ex.id)) {
       seenIds.add(ex.id);
-      uniqueSelected.push(ex);
+      selected.push(ex);
+    }
+  }
+
+  // Als we nog ruimte hebben: vul aan met cross-theme examples die minimaal 2 keyword matches hebben
+  if (seenIds.size < 5) {
+    const strongCrossTheme = otherThemeExamples.filter((ex) => ex.keywordMatches >= 2);
+    // Sorteer op score
+    strongCrossTheme.sort((a, b) => b.score - a.score);
+    
+    for (const ex of strongCrossTheme) {
+      if (seenIds.size >= 5) break;
+      if (!seenIds.has(ex.id)) {
+        seenIds.add(ex.id);
+        selected.push(ex);
+      }
+    }
+  }
+
+  // Als we nog steeds niet genoeg hebben: neem beste cross-theme regardless
+  if (seenIds.size < 5) {
+    otherThemeExamples.sort((a, b) => b.score - a.score);
+    for (const ex of otherThemeExamples) {
+      if (seenIds.size >= 5) break;
+      if (!seenIds.has(ex.id)) {
+        seenIds.add(ex.id);
+        selected.push(ex);
+      }
     }
   }
 
   return {
-    examples: uniqueSelected,
-    metadata: uniqueSelected.map((ex) => ({
+    examples: selected,
+    metadata: selected.map((ex) => ({
       id: ex.id,
       projectName: ex.projectName,
       call: ex.call,
@@ -216,7 +304,7 @@ ${rwsContext}${relevanceExamplesText}
 
 Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-relevantie, maar op concrete RWS-relevantie, uitvoerbaarheid en toepasbaarheid voor Rijkswaterstaat als uitvoeringsorganisatie.
 
-IMPORTANT: Als een call sterk lijkt op de historische voorbeelden (op basis van titel, scope, doel, keywords, thema en mogelijke RWS-rol), benoem dat dan expliciet in projectFit of rationale. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen.
+IMPORTANT: De historische voorbeelden mogen alleen zwaar meewegen als de nieuwe call inhoudelijk lijkt op titel, scope, doel, keywords of RWS-rol van het historische voorbeeld. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen. Als een call sterk lijkt op een voorbeeld, benoem dat dan expliciet in projectFit of rationale.
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
@@ -398,8 +486,7 @@ function normalizeAiReviews(parsed) {
       ? parsed.reviews
       : [];
 
-  return {
-  reviews: reviews.map((review) => ({
+  const normalized = reviews.map((review) => ({
     identifier: review.identifier || review.callId || '',
     aiRelevanceScore: Number(
       review.aiRelevanceScore ??
@@ -427,8 +514,17 @@ function normalizeAiReviews(parsed) {
     possibleRwsRole: review.possibleRwsRole || review.rws_role || review.rwsRole || '',
     uncertainties: review.uncertainties || review.onzekerheden || '',
     recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || ''
-  }))
-};
+  }));
+
+  // Sorteer reviews op aiRelevanceScore (hoog naar laag)
+  // Calls zonder score (0) komen onderaan
+  normalized.sort((a, b) => {
+    const scoreA = a.aiRelevanceScore || 0;
+    const scoreB = b.aiRelevanceScore || 0;
+    return scoreB - scoreA;
+  });
+
+  return { reviews: normalized };
 }
 
 export default async function handler(req, res) {

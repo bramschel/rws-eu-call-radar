@@ -2056,7 +2056,12 @@ function renderAiShortlist() {
 
   const sortedReviews = Array.from(state.aiReviews.values())
     .map(normalizeAiReviewForDisplay)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      // Sorteer op aiRelevanceScore (hoog naar laag)
+      const scoreA = a.aiRelevanceScore ?? a.score ?? 0;
+      const scoreB = b.aiRelevanceScore ?? b.score ?? 0;
+      return scoreB - scoreA;
+    });
 
   if (sortedReviews.length === 0) {
     container.innerHTML = '<p>Draai eerst een AI-analyse in de Radar-tab.</p>';
@@ -2613,6 +2618,7 @@ function normalizeAiReviewForDisplay(review) {
   return {
   identifier: review.identifier || review.callId || '',
   score: Number(score) || 0,
+  aiRelevanceScore: review.aiRelevanceScore ? Number(review.aiRelevanceScore) : undefined,
   projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
   projectFitScore: Number(
     review.projectFitScore ??
