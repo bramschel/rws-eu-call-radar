@@ -2365,7 +2365,7 @@ if (aiReview) {
   const aiBlock = document.createElement('div');
   aiBlock.className = 'grant-card__ai-review';
 
-  const aiScore = normalizedAiReview.score;
+  const aiScore = normalizedAiReview.aiRelevanceScore ?? 0;
   const scoreClass = aiScore >= 61
     ? 'ai-score--high'
     : aiScore >= 41
@@ -2595,12 +2595,8 @@ async function runAiReview() {
 
 function normalizeAiReviewForDisplay(review) {
   // aiRelevanceScore is the canonical field from the server.
-  // Never fall back to projectFitScore as that is a different metric.
-  const score =
-    review.aiRelevanceScore != null ? Number(review.aiRelevanceScore) :
-    review.score != null ? Number(review.score) :
-    review.relevanceScore != null ? Number(review.relevanceScore) :
-    0;
+  // Never fall back to projectFitScore, score, relevanceScore or any local score.
+  const score = review.aiRelevanceScore != null ? Number(review.aiRelevanceScore) : 0;
 
   const themeValue =
     review.themeFit ??
@@ -2612,8 +2608,8 @@ function normalizeAiReviewForDisplay(review) {
 
   return {
   identifier: review.identifier || review.callId || '',
-  score: Number(score) || 0,
-  aiRelevanceScore: review.aiRelevanceScore ? Number(review.aiRelevanceScore) : undefined,
+  score: score,
+  aiRelevanceScore: score,
   projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
   projectFitScore: Number(
     review.projectFitScore ??
@@ -2658,23 +2654,24 @@ function renderAiResults() {
   list.innerHTML = '';
 
   const sorted = Array.from(state.aiReviews.values())
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => (b.aiRelevanceScore ?? 0) - (a.aiRelevanceScore ?? 0));
 
   for (const review of sorted) {
     const item = document.createElement('div');
     item.className = 'ai-review-item';
 
+    const aiScore = review.aiRelevanceScore ?? 0;
     const scoreClass =
-      review.score >= 70
+      aiScore >= 70
         ? 'ai-score--high'
-        : review.score >= 40
+        : aiScore >= 40
           ? 'ai-score--mid'
           : 'ai-score--low';
 
    
 item.innerHTML = `
   <div class="ai-review-item__header">
-    <span class="ai-score ${scoreClass}">${escapeHtml(String(review.score))}/100</span>
+    <span class="ai-score ${scoreClass}">${escapeHtml(String(aiScore))}/100</span>
     <strong class="ai-review-item__id">${escapeHtml(review.identifier || 'Onbekende call')}</strong>
   </div>
 
@@ -2863,10 +2860,10 @@ async function scoreTopResultsWithAI() {
     // Sla de management summary op
     state.aiSummary = summary;
 
-    // Sorteer: AI-gescoorde calls bovenaan, rest onderaan op bestaande volgorde
+    // Sorteer: AI-gescoorde calls bovenaan op aiRelevanceScore, rest onderaan
     state.filtered.sort((a, b) => {
-      const left  = state.aiReviews.get(a.identifier)?.score ?? -1;
-      const right = state.aiReviews.get(b.identifier)?.score ?? -1;
+      const left  = state.aiReviews.get(a.identifier)?.aiRelevanceScore ?? -1;
+      const right = state.aiReviews.get(b.identifier)?.aiRelevanceScore ?? -1;
       return right - left;
     });
 

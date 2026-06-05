@@ -488,12 +488,7 @@ function normalizeAiReviews(parsed) {
 
   const normalized = reviews.map((review) => ({
     identifier: review.identifier || review.callId || '',
-    aiRelevanceScore: Number(
-      review.aiRelevanceScore ??
-      review.score ??
-      review.relevanceScore ??
-      0
-    ),
+    aiRelevanceScore: Number(review.aiRelevanceScore ?? 0),
     projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
     projectFitScore: Number(
       review.projectFitScore ??
