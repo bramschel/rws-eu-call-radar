@@ -2055,13 +2055,7 @@ function renderAiShortlist() {
   if (!container) return;
 
   const sortedReviews = Array.from(state.aiReviews.values())
-    .map(normalizeAiReviewForDisplay)
-    .sort((a, b) => {
-      // Sorteer op aiRelevanceScore (hoog naar laag)
-      const scoreA = a.aiRelevanceScore ?? a.score ?? 0;
-      const scoreB = b.aiRelevanceScore ?? b.score ?? 0;
-      return scoreB - scoreA;
-    });
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
   if (sortedReviews.length === 0) {
     container.innerHTML = '<p>Draai eerst een AI-analyse in de Radar-tab.</p>';
@@ -2366,7 +2360,7 @@ const existingRelevanceBlock = card.querySelector('.grant-card__relevance');
 const aiReview = state.aiReviews.get(grant.identifier);
 
 if (aiReview) {
-  const normalizedAiReview = normalizeAiReviewForDisplay(aiReview);
+  const normalizedAiReview = aiReview; // already normalized when stored
 
   const aiBlock = document.createElement('div');
   aiBlock.className = 'grant-card__ai-review';
@@ -2600,11 +2594,12 @@ async function runAiReview() {
 }
 
 function normalizeAiReviewForDisplay(review) {
+  // aiRelevanceScore is the canonical field from the server.
+  // Never fall back to projectFitScore as that is a different metric.
   const score =
-    review.aiRelevanceScore ??
-    review.score ??
-    review.relevanceScore ??
-    review.projectFitScore ??
+    review.aiRelevanceScore != null ? Number(review.aiRelevanceScore) :
+    review.score != null ? Number(review.score) :
+    review.relevanceScore != null ? Number(review.relevanceScore) :
     0;
 
   const themeValue =
@@ -2663,7 +2658,6 @@ function renderAiResults() {
   list.innerHTML = '';
 
   const sorted = Array.from(state.aiReviews.values())
-    .map(normalizeAiReviewForDisplay)
     .sort((a, b) => b.score - a.score);
 
   for (const review of sorted) {
@@ -2862,7 +2856,8 @@ async function scoreTopResultsWithAI() {
     if (!reviews.length) throw new Error('Geen beoordelingen ontvangen.');
 
     for (const review of reviews) {
-      state.aiReviews.set(review.identifier, review);
+      const normalized = normalizeAiReviewForDisplay(review);
+      state.aiReviews.set(normalized.identifier, normalized);
     }
 
     // Sla de management summary op
@@ -2870,8 +2865,8 @@ async function scoreTopResultsWithAI() {
 
     // Sorteer: AI-gescoorde calls bovenaan, rest onderaan op bestaande volgorde
     state.filtered.sort((a, b) => {
-      const left  = state.aiReviews.get(a.identifier)?.aiRelevanceScore ?? -1;
-      const right = state.aiReviews.get(b.identifier)?.aiRelevanceScore ?? -1;
+      const left  = state.aiReviews.get(a.identifier)?.score ?? -1;
+      const right = state.aiReviews.get(b.identifier)?.score ?? -1;
       return right - left;
     });
 
