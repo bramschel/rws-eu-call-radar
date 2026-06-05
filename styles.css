@@ -2234,11 +2234,6 @@ body::before {
   color: var(--ink);
 }
 
-.shortlist-top3__block--eu {
-  border-left: 4px solid var(--rws-yellow);
-  background: #fff8df;
-}
-
 .shortlist-top3__block--rws {
   border-left: 4px solid var(--rws-blue);
   background: #eef8ff;

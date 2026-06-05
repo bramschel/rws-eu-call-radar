@@ -2105,7 +2105,6 @@ function renderAiShortlist() {
   
   for (const review of top3) {
     const call = getCallByIdentifier(review.identifier);
-    const euText = call?.destination || call?.summary || call?.abstract || 'De call vraagt om voorstellen rond: onbekend onderwerp.';
     const rwsText = review.projectFit 
       ? `${review.projectFit}${review.possibleRwsRole ? ' — ' + review.possibleRwsRole : ''}${review.rationale ? '. ' + review.rationale : ''}`
       : 'Nog te concretiseren op basis van de officiële calltekst.';
@@ -2139,10 +2138,6 @@ function renderAiShortlist() {
           <div class="shortlist-top3__block">
             <dt>Volgende stap</dt>
             <dd>${escapeHtml(review.recommendedNextStep || 'Niet gespecificeerd')}</dd>
-          </div>
-          <div class="shortlist-top3__block shortlist-top3__block--eu">
-            <dt>Wat vraagt de EU?</dt>
-            <dd>${escapeHtml(euText)}</dd>
           </div>
           <div class="shortlist-top3__block shortlist-top3__block--rws">
             <dt>Mogelijk RWS-project</dt>
