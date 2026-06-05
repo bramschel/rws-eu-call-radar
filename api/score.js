@@ -36,6 +36,15 @@ try {
   console.warn('rws_rag_context.json niet gevonden, RAG uitgeschakeld:', err.message);
 }
 
+// Relevance examples: laad eenmalig bij cold start
+let RELEVANCE_EXAMPLES = [];
+try {
+  const raw = readFileSync(join(__dirname, '../data/relevance_examples.json'), 'utf8');
+  RELEVANCE_EXAMPLES = JSON.parse(raw);
+} catch (err) {
+  console.warn('relevance_examples.json niet gevonden:', err.message);
+}
+
 const RWS_CONTEXT_FALLBACK = `
 Rijkswaterstaat is de Nederlandse uitvoeringsorganisatie voor rijkswegen, vaarwegen, waterbeheer, verkeersmanagement en infrastructuur. Beoordeel EU-calls niet op algemene EU-relevantie, maar op concrete relevantie voor RWS als uitvoeringsorganisatie. Een call scoort alleen hoog als er een duidelijke uitvoerings-, beheer-, innovatie-, pilot-, implementatie- of demonstratierol voor RWS mogelijk is.
 `.trim();
@@ -68,16 +77,146 @@ function getRagContextMetadata(selectedTheme) {
   }));
 }
 
+function normalizeText(text) {
+  return String(text || '').toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function scoreRelevanceExample(example, projectIdea, keywords, selectedTheme, calls) {
+  let score = 0;
+  const matchedKeywords = [];
+
+  // Bonus voor hetzelfde themeId als selectedTheme
+  if (example.themeId === selectedTheme) {
+    score += 25;
+  }
+
+  // Keyword overlap met example.keywords
+  const userKeywords = new Set([...splitTerms(keywords), ...splitTerms(projectIdea)]);
+  const exampleKeywords = new Set(example.keywords?.map(normalizeText) || []);
+  
+  for (const kw of userKeywords) {
+    if (exampleKeywords.has(kw)) {
+      score += 10;
+      matchedKeywords.push(kw);
+    }
+  }
+
+  // Overlap met projectIdea en keywords in example.pattern, projectName, call
+  const searchText = normalizeText([example.pattern, example.projectName, example.call, example.lesson].join(' '));
+  const userSearchText = normalizeText([projectIdea, keywords].join(' '));
+  
+  // Check overlap tussen user input en example velden
+  const userTerms = splitTerms(userSearchText);
+  for (const term of userTerms) {
+    if (searchText.includes(term) && !matchedKeywords.includes(term)) {
+      score += 5;
+      matchedKeywords.push(term);
+    }
+  }
+
+  // Overlap met call titels/summaries/abstracts
+  for (const call of calls) {
+    const callText = normalizeText([call.title, call.summary, call.destination, call.abstract].join(' '));
+    const exampleText = normalizeText([example.projectName, example.call, example.pattern].join(' '));
+    
+    // Check of call lijkt op example
+    const callTerms = splitTerms(callText);
+    const exampleTerms = splitTerms(exampleText);
+    
+    for (const ct of callTerms) {
+      for (const et of exampleTerms) {
+        if (ct === et && ct.length > 2) {
+          score += 3;
+          if (!matchedKeywords.includes(ct)) {
+            matchedKeywords.push(ct);
+          }
+        }
+      }
+    }
+  }
+
+  // Bonus als useAs is positive_example
+  if (example.useAs === 'positive_example') {
+    score += 5;
+  }
+
+  return { score, matchedKeywords };
+}
+
+function splitTerms(value) {
+  return normalizeText(value)
+    .split(/[\s,;]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 3 && !/^\d+$/.test(term));
+}
+
+function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
+  if (RELEVANCE_EXAMPLES.length === 0) {
+    return { examples: [], metadata: [] };
+  }
+
+  const scoredExamples = RELEVANCE_EXAMPLES.map((example) => {
+    return {
+      ...example,
+      ...scoreRelevanceExample(example, projectIdea, keywords, selectedTheme, calls)
+    };
+  });
+
+  // Sorteer op score (hoog naar laag)
+  scoredExamples.sort((a, b) => b.score - a.score);
+
+  // Selecteer top 5
+  const selected = scoredExamples.slice(0, 5);
+
+  // Als er te weinig matches zijn, vul aan met voorbeelden uit hetzelfde thema
+  if (selected.length < 5) {
+    const remaining = scoredExamples.slice(5).filter((ex) => ex.themeId === selectedTheme);
+    const needed = 5 - selected.length;
+    selected.push(...remaining.slice(0, needed));
+  }
+
+  // Filter out duplicates en ensure we have max 5
+  const uniqueSelected = [];
+  const seenIds = new Set();
+  for (const ex of selected) {
+    if (!seenIds.has(ex.id)) {
+      seenIds.add(ex.id);
+      uniqueSelected.push(ex);
+    }
+  }
+
+  return {
+    examples: uniqueSelected,
+    metadata: uniqueSelected.map((ex) => ({
+      id: ex.id,
+      projectName: ex.projectName,
+      call: ex.call,
+      theme: ex.theme,
+      themeId: ex.themeId,
+      outcome: ex.outcome,
+      matchedKeywords: ex.matchedKeywords
+    }))
+  };
+}
+
 function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
   const rwsContext = buildRwsContext(selectedTheme) || RWS_CONTEXT_FALLBACK;
+  const { examples } = selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls);
+  
+  const relevanceExamplesText = examples.length > 0
+    ? `\nRELEVANTE HISTORISCHE VOORBEELDEN:\n` + examples.map((ex) => `
+## Voorbeeld: ${ex.projectName}\nThema: ${ex.theme} (${ex.themeId})\nCall: ${ex.call}\nKeywords: ${ex.keywords?.join(', ') || 'Niet beschikbaar'}\nPatroon: ${ex.pattern || 'Niet beschikbaar'}\nRWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}\n`).join('\n')
+    : '';
 
   return `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
 
 RELEVANTE RWS- EN BUREAU BRUSSEL-RAG-CONTEXT:
-${rwsContext}
+${rwsContext}${relevanceExamplesText}
 
 Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-relevantie, maar op concrete RWS-relevantie, uitvoerbaarheid en toepasbaarheid voor Rijkswaterstaat als uitvoeringsorganisatie.
+
+IMPORTANT: Als een call sterk lijkt op de historische voorbeelden (op basis van titel, scope, doel, keywords, thema en mogelijke RWS-rol), benoem dat dan expliciet in projectFit of rationale. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen.
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
@@ -160,8 +299,7 @@ De JSON moet exact deze structuur hebben:
       "Concrete aanbeveling 1",
       "Concrete aanbeveling 2",
       "Concrete aanbeveling 3"
-    ],
-    "ragContextUsed": ["lijst van gebruikte RAG context titels"]
+    ]
   },
   "reviews": [
     {
@@ -179,14 +317,13 @@ De JSON moet exact deze structuur hebben:
 }
 
 Veldinstructies:
-- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker.
+- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benem expliciet als de call lijkt op historische voorbeelden.
 - projectFitScore: score 0-100 voor aansluiting op het projectidee, los van algemene RWS-relevantie.
-- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit.
+- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit. Vermeld als historische patronen herkend zijn.
 - summary.executiveSummary: management samenvatting van de top resultaten
 - summary.topOpportunities: top 3 meest relevante calls met korte toelichting
 - summary.notableExclusions: importante calls die net buiten de top 10 vallen
 - summary.recommendedNextSteps: 3 concrete actiepunten voor RWS
-- summary.ragContextUsed: titels van de RAG context documenten die gebruikt zijn
 
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen tekst buiten JSON.
@@ -321,6 +458,14 @@ export default async function handler(req, res) {
 
     const batch = calls.slice(0, 10);
 
+    // Selecteer relevante historische voorbeelden
+    const { metadata: relevanceExamplesUsed } = selectRelevanceExamples(
+      projectIdea, 
+      keywords, 
+      selectedTheme, 
+      batch
+    );
+
     const prompt = buildPrompt({
       projectIdea,
       keywords,
@@ -381,22 +526,22 @@ export default async function handler(req, res) {
       overallAdvice: '',
       topOpportunities: [],
       notableExclusions: '',
-      recommendedNextSteps: [],
-      ragContextUsed: []
+      recommendedNextSteps: []
     };
 
-    // Ensure ragContextUsed is populated
+    // Ensure we don't include ragContextUsed in summary
+    delete responseSummary.ragContextUsed;
+
+    // Get ragContext metadata for backend
     const ragContext = getRagContextMetadata(selectedTheme);
-    if (!responseSummary.ragContextUsed || responseSummary.ragContextUsed.length === 0) {
-      responseSummary.ragContextUsed = ragContext.map(entry => entry.title);
-    }
 
 return res.status(200).json({
   ...normalized,
   summary: responseSummary,
   provider: 'mistral',
   model: MISTRAL_MODEL,
-  ragContextUsed: ragContext
+  ragContextUsed: ragContext,
+  relevanceExamplesUsed: relevanceExamplesUsed
 });
   } catch (error) {
     console.error('Fout in /api/score:', error);

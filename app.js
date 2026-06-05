@@ -1890,6 +1890,20 @@ if (
 return true;
     })
     .sort((left, right) => {
+      // Als AI-reranking actief is, sorteer op AI-score
+      if (state.aiRerankActive) {
+        const leftScore = state.aiReviews.get(left.identifier)?.aiRelevanceScore ?? -1;
+        const rightScore = state.aiReviews.get(right.identifier)?.aiRelevanceScore ?? -1;
+        // Calls met AI-score bovenaan, gesorteerd op score (hoog naar laag)
+        if (leftScore !== -1 && rightScore !== -1) {
+          return rightScore - leftScore;
+        }
+        if (leftScore !== -1) return -1;
+        if (rightScore !== -1) return 1;
+        // Beide zonder AI-score: gebruik lokale relevance score als fallback
+        return (right.relevance?.score || 0) - (left.relevance?.score || 0);
+      }
+      
       switch (state.filters.sort) {
         case 'relevance-desc': {
           return (right.relevance?.score || 0) - (left.relevance?.score || 0);
