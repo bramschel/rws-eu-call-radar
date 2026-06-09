@@ -2341,3 +2341,41 @@ body::before {
   background: #fbe1de;
   color: #8f1f16;
 }
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 12px;
+}
+
+.pagination__button {
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--rws-blue);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.pagination__button:hover:not(:disabled) {
+  background: #eef8ff;
+  border-color: var(--rws-blue-3);
+}
+
+.pagination__button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination__page-info {
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-family: var(--font-mono);
+}

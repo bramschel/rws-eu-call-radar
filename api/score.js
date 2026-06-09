@@ -9,8 +9,13 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
+const AI_PROVIDER   = (process.env.AI_PROVIDER || 'mistral').toLowerCase();
+
 const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
-const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
+const MISTRAL_URL   = 'https://api.mistral.ai/v1/chat/completions';
+
+const GEMINI_MODEL  = process.env.GEMINI_MODEL  || 'gemini-2.5-flash';
+const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
@@ -522,25 +527,98 @@ function normalizeAiReviews(parsed) {
   return { reviews: normalized };
 }
 
+// ── Provider-specifieke LLM-aanroepen ────────────────────────
+
+async function callMistral(prompt) {
+  const apiKey = process.env.MISTRAL_API_KEY;
+  if (!apiKey) throw new Error('MISTRAL_API_KEY is niet ingesteld');
+
+  const response = await fetch(MISTRAL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: MISTRAL_MODEL,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
+        },
+        { role: 'user', content: prompt }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Mistral-fout ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    rawText: data.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}',
+    provider: 'mistral',
+    model: MISTRAL_MODEL
+  };
+}
+
+async function callGemini(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is niet ingesteld');
+
+  const url = `${GEMINI_URL}?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{
+          text: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug. Geen markdown, geen code fences, geen tekst buiten JSON.'
+        }]
+      },
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json'
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    const msg = err.error?.message || `Gemini-fout ${response.status}`;
+    throw new Error(msg);
+  }
+
+  const data = await response.json();
+
+  // Haal tekst op uit candidates[0].content.parts (kan meerdere parts zijn)
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const rawText = parts.map(p => p.text || '').join('') || '{"reviews":[],"summary":{}}';
+
+  return {
+    rawText,
+    provider: 'gemini',
+    model: GEMINI_MODEL
+  };
+}
+
+// ── Handler ───────────────────────────────────────────────────
+
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const apiKey = process.env.MISTRAL_API_KEY;
-
-    if (!apiKey) {
-      console.error('MISTRAL_API_KEY is niet ingesteld');
-      return res.status(500).json({ error: 'Backend niet geconfigureerd' });
-    }
-
     const { projectIdea, keywords, selectedTheme, calls } = req.body || {};
 
     if (!Array.isArray(calls) || calls.length === 0) {
@@ -551,67 +629,32 @@ export default async function handler(req, res) {
 
     // Selecteer relevante historische voorbeelden
     const { metadata: relevanceExamplesUsed } = selectRelevanceExamples(
-      projectIdea, 
-      keywords, 
-      selectedTheme, 
-      batch
-    );
-
-    const prompt = buildPrompt({
       projectIdea,
       keywords,
       selectedTheme,
-      calls: batch
-    });
+      batch
+    );
 
-    const mistralResponse = await fetch(MISTRAL_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: MISTRAL_MODEL,
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      })
-    });
+    const prompt = buildPrompt({ projectIdea, keywords, selectedTheme, calls: batch });
 
-    if (!mistralResponse.ok) {
-      const err = await mistralResponse.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Mistral-fout ${mistralResponse.status}`);
+    // Dispatch naar de geconfigureerde provider
+    let rawText, provider, model;
+    if (AI_PROVIDER === 'gemini') {
+      ({ rawText, provider, model } = await callGemini(prompt));
+    } else {
+      ({ rawText, provider, model } = await callMistral(prompt));
     }
 
-    const mistralData = await mistralResponse.json();
-    const rawText = mistralData.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}';
-
     let parsed;
-
     try {
       parsed = extractJsonFromText(rawText);
     } catch (parseError) {
-      console.error('Kon Mistral-output niet parsen:', rawText);
-
-      return res.status(502).json({
-        error: 'AI gaf geen geldige JSON terug',
-        rawText
-      });
+      console.error(`Kon ${provider}-output niet parsen:`, rawText);
+      return res.status(502).json({ error: 'AI gaf geen geldige JSON terug', rawText });
     }
 
-    const normalized = normalizeAiReviews(parsed);
-    const summary = extractSummaryFromData(parsed);
-
-    // Build summary from AI response or create default
+    const normalized     = normalizeAiReviews(parsed);
+    const summary        = extractSummaryFromData(parsed);
     const responseSummary = summary || {
       executiveSummary: '',
       overallAdvice: '',
@@ -620,20 +663,20 @@ export default async function handler(req, res) {
       recommendedNextSteps: []
     };
 
-    // Ensure we don't include ragContextUsed in summary
+    // ragContextUsed hoort niet in summary-output
     delete responseSummary.ragContextUsed;
 
-    // Get ragContext metadata for backend
     const ragContext = getRagContextMetadata(selectedTheme);
 
-return res.status(200).json({
-  ...normalized,
-  summary: responseSummary,
-  provider: 'mistral',
-  model: MISTRAL_MODEL,
-  ragContextUsed: ragContext,
-  relevanceExamplesUsed: relevanceExamplesUsed
-});
+    return res.status(200).json({
+      ...normalized,
+      summary: responseSummary,
+      provider,
+      model,
+      ragContextUsed: ragContext,
+      relevanceExamplesUsed
+    });
+
   } catch (error) {
     console.error('Fout in /api/score:', error);
     return res.status(500).json({ error: error.message });
