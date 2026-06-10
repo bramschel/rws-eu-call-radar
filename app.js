@@ -561,8 +561,19 @@ function filterGrants() {
   const combined = [query, idea].filter(Boolean).join(' ');
   const statusOpt = getStatusOption(state.filters.status);
   const now       = Date.now();
-  const recentMo  = state.filters.recentMonths === 'all' ? null : Number(state.filters.recentMonths);
-  const cutoff    = recentMo && Number.isFinite(recentMo) ? subtractMonths(new Date(), recentMo).getTime() : null;
+  let cutoff = null;
+
+if (state.filters.recentMonths === '14d') {
+  cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+} else {
+  const recentMo = state.filters.recentMonths === 'all'
+    ? null
+    : Number(state.filters.recentMonths);
+
+  cutoff = recentMo && Number.isFinite(recentMo)
+    ? subtractMonths(new Date(), recentMo).getTime()
+    : null;
+}
 
   state.filtered = state.data.grants
     .filter(grant => {
@@ -571,7 +582,12 @@ function filterGrants() {
       if (state.filters.programme !== 'all') {
         if (!new Set(grant.frameworkProgrammes.map(p => p.id)).has(state.filters.programme)) return false;
       }
-      if (cutoff && grant.startDate && new Date(grant.startDate).getTime() < cutoff) return false;
+      const openingDate = grant.startDate || grant.plannedOpeningDate;
+const openingTime = openingDate ? new Date(openingDate).getTime() : null;
+
+if (cutoff && (!openingTime || openingTime < cutoff)) {
+  return false;
+}
 
       // Action type filter
       if (state.filters.actionType !== 'all') {
@@ -823,20 +839,30 @@ function renderResults() {
     const aiReview = state.aiReviews.get(grant.identifier);
     if (aiReview) {
       const aiScore    = aiReview.aiRelevanceScore ?? 0;
+      const pfScore    = aiReview.projectFitScore ?? 0;
       const scoreCls   = aiScore >= 61 ? 'ai-score--high' : aiScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
+      const pfCls      = pfScore >= 61 ? 'ai-score--high' : pfScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
       const aiBlock    = document.createElement('div');
       aiBlock.className = 'grant-card__ai-review';
       aiBlock.innerHTML =
-        '<p class="grant-card__relevance-title">AI-analyse voor RWS ' +
-          '<span class="ai-score ' + scoreCls + '" style="margin-left:.5rem">' + escapeHtml(String(aiScore)) + '/100</span></p>' +
-        (aiReview.projectFit ? '<p><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) +
-          (aiReview.projectFitScore ? ' <span class="ai-score ai-score--mid" style="margin-left:.35rem">' + aiReview.projectFitScore + '/100</span>' : '') + '</p>' : '') +
+        '<div class="grant-card__ai-scores">' +
+          '<div class="grant-card__ai-score-item">' +
+            '<span class="grant-card__ai-score-label">AI-analyse RWS</span>' +
+            '<span class="ai-score ' + scoreCls + '">' + escapeHtml(String(aiScore)) + '/100</span>' +
+          '</div>' +
+          '<div class="grant-card__ai-score-item">' +
+            '<span class="grant-card__ai-score-label">Projectfit</span>' +
+            '<span class="ai-score ' + pfCls + '">' + escapeHtml(String(pfScore)) + '/100</span>' +
+          '</div>' +
+        '</div>' +
+        (aiReview.projectFit ? '<p><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
         '<p>' + escapeHtml(aiReview.rationale || 'Geen toelichting beschikbaar.') + '</p>' +
         '<dl class="grant-card__facts" style="margin-top:.5rem">' +
           (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
           (aiReview.possibleRwsRole  ? '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(aiReview.possibleRwsRole)  + '</dd></div>' : '') +
           (aiReview.uncertainties    ? '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(aiReview.uncertainties)    + '</dd></div>' : '') +
           (aiReview.recommendedNextStep ? '<div><dt>Volgende stap</dt><dd>' + escapeHtml(aiReview.recommendedNextStep) + '</dd></div>' : '') +
+          (aiReview.ragMatchedItems?.length ? '<div><dt>RAG-context</dt><dd>' + escapeHtml(aiReview.ragMatchedItems.join(', ')) + '</dd></div>' : '') +
         '</dl>';
       relBlock.insertAdjacentElement('afterend', aiBlock);
     }
@@ -1145,7 +1171,8 @@ function normalizeAiReviewForDisplay(review) {
     rationale:           review.rationale || review.uitleg || review.explanation || '',
     possibleRwsRole:     review.possibleRwsRole || review.possibleRWSRole || review.rwsRole || review.rws_role || '',
     uncertainties:       review.uncertainties || review.onzekerheden || '',
-    recommendedNextStep: review.recommendedNextStep || review.nextStep || review.next_step || ''
+    recommendedNextStep: review.recommendedNextStep || review.nextStep || review.next_step || '',
+    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : []
   };
 }
 
@@ -1214,9 +1241,8 @@ function toAiCallPayload(grant) {
     actionType:          grant.actionType || grant.kind?.label || '',
     frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
     programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
-    matchedThemes:       grant.relevance?.matchedThemes?.map(t => t.label) || [],
-    matchedTerms:        grant.relevance?.matchedTerms || [],
-    localRelevanceScore: grant.relevance?.score || 0
+    matchedThemes: grant.relevance?.matchedThemes?.map(t => t.label) || [],
+    matchedTerms:  grant.relevance?.matchedTerms || []
   };
 }
 
@@ -1297,8 +1323,7 @@ async function runAiReview() {
       budget:              g.budget?.totalBudgetEur || null,
       deadline:            g.deadlineDate || null,
       matchedThemes:       g.relevance?.matchedThemes?.map(t => t.label) || [],
-      matchedTerms:        g.relevance?.matchedTerms || [],
-      localRelevanceScore: g.relevance?.score || 0
+      matchedTerms:        g.relevance?.matchedTerms || []
     }))
   };
 

@@ -9,7 +9,7 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-const AI_PROVIDER = (process.env.AI_PROVIDER || 'gemini').trim().toLowerCase();
+const AI_PROVIDER   = (process.env.AI_PROVIDER || 'gemini').trim().toLowerCase();
 
 const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
 const MISTRAL_URL   = 'https://api.mistral.ai/v1/chat/completions';
@@ -294,14 +294,21 @@ function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
 
 function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
   const rwsContext = buildRwsContext(selectedTheme) || RWS_CONTEXT_FALLBACK;
-  const { examples } = selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls);
+  const { examples, metadata: examplesMetadata } = selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls);
   
   const relevanceExamplesText = examples.length > 0
     ? `\nRELEVANTE HISTORISCHE VOORBEELDEN:\n` + examples.map((ex) => `
-## Voorbeeld: ${ex.projectName}\nThema: ${ex.theme} (${ex.themeId})\nCall: ${ex.call}\nKeywords: ${ex.keywords?.join(', ') || 'Niet beschikbaar'}\nPatroon: ${ex.pattern || 'Niet beschikbaar'}\nRWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}\n`).join('\n')
+## Voorbeeld: ${ex.projectName}
+Type: ${ex.useAs === 'positive_example' ? 'POSITIEF VOORBEELD — als een call hier sterk op lijkt, verhoog aiRelevanceScore met 5–10 punten' : 'Referentie'}
+Thema: ${ex.theme} (${ex.themeId})
+Call: ${ex.call}
+Keywords: ${ex.keywords?.join(', ') || 'Niet beschikbaar'}
+Patroon: ${ex.pattern || 'Niet beschikbaar'}
+RWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}
+`).join('\n')
     : '';
 
-  return `
+  const prompt = `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
 
 RELEVANTE RWS- EN BUREAU BRUSSEL-RAG-CONTEXT:
@@ -350,20 +357,31 @@ Beoordeel per call:
 5. Mate van onzekerheid, bijvoorbeeld als scope te breed is of eligibility onduidelijk is.
 
 
-SCORING:
-Beoordeel streng. Een call is alleen hoog relevant als er zowel projectfit als RWS-fit is.
+SCORING — twee samenhangende maar onafhankelijk berekende scores per call:
 
-0-20 = niet relevant voor RWS
-21-40 = zwakke RWS-fit of vooral buiten RWS-domein
-41-60 = mogelijk relevant, maar RWS-rol is onzeker of indirect
-61-80 = relevant, duidelijke link met RWS-domeinen en mogelijke RWS-rol
-81-100 = sterk relevant, duidelijke projectfit, duidelijke RWS-rol en passend Bureau Brussel-thema
+aiRelevanceScore (0–100): de totale beoordeling op basis van ALLE beschikbare informatie:
+- Inhoudelijke aansluiting op het projectidee en de opgegeven keywords.
+- Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie (asset owner, beheerder, kennispartner, pilotlocatie, consortiumdeelnemer).
+- Aansluiting op de RWS RAG-context hierboven (domeinen, lopende projecten, prioriteiten van RWS).
+- Gelijkenis met historische positieve voorbeelden uit de RAG.
+Scorebonussen (cumuleerbaar, max +20 totaal op aiRelevanceScore):
++5 tot +15 als de call inhoudelijk aansluit op een of meer RAG-context items — benoem de titel(s) in ragMatchedItems.
++5 tot +10 als de call sterk lijkt op een POSITIEF VOORBEELD uit de historische voorbeelden.
+0–20 = geen RWS-domein, geen uitvoeringsrol denkbaar
+21–40 = zwakke of indirecte RWS-fit
+41–60 = mogelijk relevant, RWS-rol onzeker of indirect
+61–80 = duidelijke RWS-domeinlink, plausibele uitvoeringsrol, aansluiting op projectidee
+81–100 = sterke RWS-fit, duidelijk projectidee-match, RAG-context bevestigt relevantie
 
-Scorebeperkingen:
-- Primair landbouw/boeren/voedsel/gewassen/veeteelt zonder RWS-waterbeheer of infrastructuurcomponent: maximaal 35.
-- Primair gemeentelijk/stedelijk zonder rol voor nationale infrastructuur, waterbeheer of corridors: maximaal 45.
+projectFitScore (0–100): de specifieke aansluiting op het projectidee van de gebruiker, los berekend van de bredere RWS-fit.
+Kijk alleen naar: komen de kernbegrippen, doelen en aanpak van het projectidee terug in de scope van de call?
+Een call kan een hoge projectFitScore hebben met een lage aiRelevanceScore (bijv. goed projectidee-match maar RWS speelt geen rol), of omgekeerd.
+
+Scorebeperkingen voor aiRelevanceScore:
+- Landbouw-, boeren-, voedsel- of rurale termen zijn niet automatisch lage RWS-fit. Beoordeel alleen lager als er geen concrete koppeling is met RWS-taken zoals waterbeheer, droogte, overstromingsrisico, infrastructuur, assetmanagement, klimaatadaptatie of gebiedsgerichte uitvoering: maximaal 35.
+- Primair gemeentelijk/stedelijk zonder nationale infrastructuur, waterbeheer of corridors: maximaal 45.
 - Puur academisch of individuele onderzoeker zonder implementatie/pilot/asset owner rol: maximaal 40.
-- Algemene klimaatadaptatie zonder RWS-specifieke toepassing: maximaal 45.
+
 
 CALLS:
 ${JSON.stringify(calls, null, 2)}
@@ -404,15 +422,17 @@ De JSON moet exact deze structuur hebben:
       "rationale": "...",
       "possibleRwsRole": "...",
       "uncertainties": "...",
-      "recommendedNextStep": "..."
+      "recommendedNextStep": "...",
+      "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"]
     }
   ]
 }
 
-Veldinstructies:
-- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benem expliciet als de call lijkt op historische voorbeelden.
-- projectFitScore: score 0-100 voor aansluiting op het projectidee, los van algemene RWS-relevantie.
-- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit. Vermeld als historische patronen herkend zijn.
+- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden.
+- aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches en gelijkenis met positieve voorbeelden. Dit is de hoofdscore.
+- projectFitScore: score 0-100 UITSLUITEND op hoe goed de call aansluit bij het projectidee van de gebruiker, los van de bredere RWS-fit. Kan afwijken van aiRelevanceScore.
+- ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
+- rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom.
 - summary.executiveSummary: management samenvatting van de top resultaten
 - summary.topOpportunities: top 3 meest relevante calls met korte toelichting
 - summary.notableExclusions: importante calls die net buiten de top 10 vallen
@@ -421,6 +441,8 @@ Veldinstructies:
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen tekst buiten JSON.
 `.trim();
+
+  return { prompt, examplesMetadata };
 }
 
 function extractJsonFromText(text) {
@@ -511,9 +533,10 @@ function normalizeAiReviews(parsed) {
             ? [review.thema]
             : [],
     rationale: review.rationale || review.uitleg || review.explanation || '',
-    possibleRwsRole: review.possibleRwsRole || review.rws_role || review.rwsRole || '',
-    uncertainties: review.uncertainties || review.onzekerheden || '',
-    recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || ''
+    possibleRwsRole:     review.possibleRwsRole || review.rws_role || review.rwsRole || '',
+    uncertainties:       review.uncertainties || review.onzekerheden || '',
+    recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || '',
+    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : []
   }));
 
   // Sorteer reviews op aiRelevanceScore (hoog naar laag)
@@ -627,20 +650,13 @@ export default async function handler(req, res) {
 
     const batch = calls.slice(0, 10);
 
-    // Selecteer relevante historische voorbeelden
-    const { metadata: relevanceExamplesUsed } = selectRelevanceExamples(
-      projectIdea,
-      keywords,
-      selectedTheme,
-      batch
-    );
+    const { prompt, examplesMetadata: relevanceExamplesUsed } = buildPrompt({
+      projectIdea, keywords, selectedTheme, calls: batch
+    });
 
-    const prompt = buildPrompt({ projectIdea, keywords, selectedTheme, calls: batch });
-
-// Dispatch naar de geconfigureerde provider
-let rawText, provider, model;
-
-if (AI_PROVIDER === 'gemini') {
+    // Dispatch naar de geconfigureerde provider
+    let rawText, provider, model;
+    if (AI_PROVIDER === 'gemini') {
   ({ rawText, provider, model } = await callGemini(prompt));
 } else if (AI_PROVIDER === 'mistral') {
   ({ rawText, provider, model } = await callMistral(prompt));
