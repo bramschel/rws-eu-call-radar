@@ -5,6 +5,8 @@ const PAGE_SIZE = 25;
 const SAVED_CALLS_KEY    = 'rws-eu-call-radar-saved-calls';
 const PIPELINE_KEY       = 'rws-eu-call-radar-pipeline';
 
+const TRACKING_BASELINE_DATE = '2026-01-01T00:00:00.000Z';
+
 const STATUS_OPTIONS = [
   { id: 'live',     label: 'Live',        matches: new Set(['31094501', '31094502']) },
   { id: '31094502', label: 'Open',        matches: new Set(['31094502']) },
@@ -278,6 +280,26 @@ function subtractMonths(date, months) {
   d.setMonth(d.getMonth() - months);
   if (d.getDate() !== day) d.setDate(0);
   return d;
+}
+
+function isBaselineTrackingDate(value) {
+  if (!value) return false;
+
+  const time = new Date(value).getTime();
+  const baselineTime = new Date(TRACKING_BASELINE_DATE).getTime();
+
+  return Number.isFinite(time) && time === baselineTime;
+}
+
+function getGrantRecencyTimes(grant) {
+  return [
+    !isBaselineTrackingDate(grant.firstSeenAt) ? grant.firstSeenAt : null,
+    grant.statusChangedAt,
+    grant.firstOpenSeenAt
+  ]
+    .filter(Boolean)
+    .map((value) => new Date(value).getTime())
+    .filter((time) => Number.isFinite(time));
 }
 
 function getGrantRecencyDate(grant) {
@@ -600,8 +622,10 @@ if (state.filters.recentMonths === '14d') {
         if (!new Set(grant.frameworkProgrammes.map(p => p.id)).has(state.filters.programme)) return false;
       }
      if (cutoff) {
-  const recencyDate = getGrantRecencyDate(grant);
-  if (recencyDate === null || recencyDate < cutoff) return false;
+  const recencyTimes = getGrantRecencyTimes(grant);
+  if (recencyTimes.length === 0) return false;
+  const hasRecentActivity = recencyTimes.some(time => time >= cutoff && time <= now);
+  if (!hasRecentActivity) return false;
 }
 
       // Action type filter

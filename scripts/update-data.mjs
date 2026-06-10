@@ -1,8 +1,10 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
 const PORTAL_CONFIG_URL = 'https://ec.europa.eu/info/funding-tenders/opportunities/portal/assets/openid-login-config.json';
 const OUTPUT_DIR = new URL('../data/', import.meta.url);
 const OUTPUT_FILE = new URL('../data/grants.json', import.meta.url);
+const STATE_FILE = new URL('../data/grants_seen_state.json', import.meta.url);
 const PAGE_SIZE = 100;
 const SEARCH_TEXT = '***';
 const MAX_API_WINDOW = 10000;
@@ -27,6 +29,9 @@ const DISPLAY_FIELDS = [
   'summary'
 ];
 
+// Status ID for "Open for submission"
+const OPEN_STATUS_ID = '31094502';
+
 const BASE_FILTERS = {
   type: ['1', '2', '8'],
   status: ['31094501', '31094502']
@@ -43,6 +48,121 @@ const TYPE_FALLBACKS = {
   '2': 'Calls for proposals',
   '8': 'Cascade funding calls'
 };
+
+// Baseline date for first-run migration (2026-01-01)
+const BASELINE_DATE = '2026-01-01T00:00:00.000Z';
+
+/**
+ * Load or initialize the state tracking file
+ * State is keyed by grant.identifier
+ * 
+ * State structure for each grant:
+ * {
+ *   firstSeenAt: string|null,      // When this grant was first seen by the radar
+ *   lastSeenAt: string,            // When this grant was last seen
+ *   lastStatusId: string|null,     // Last known status.id
+ *   statusFirstSeenAt: string|null, // When this status was first seen
+ *   statusChangedAt: string|null,   // When status last changed
+ *   firstOpenSeenAt: string|null    // When this grant first became "Open" status
+ * }
+ */
+async function loadOrInitializeState() {
+  let state = {};
+  
+  // Try to load existing state
+  if (existsSync(STATE_FILE)) {
+    try {
+      const stateContent = await readFile(STATE_FILE, 'utf8');
+      state = JSON.parse(stateContent);
+      console.log(`Loaded existing state with ${Object.keys(state).length} tracked grants`);
+    } catch (error) {
+      console.warn('Could not read existing state file, initializing new state:', error.message);
+      state = {};
+    }
+  } else {
+    console.log('No existing state file found, will initialize on first run');
+  }
+  
+  return state;
+}
+
+/**
+ * Save state to file
+ */
+async function saveState(state) {
+  await writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+  console.log(`Saved state with ${Object.keys(state).length} tracked grants`);
+}
+
+/**
+ * Update tracking state for a grant
+ * Returns the updated grant with tracking metadata
+ */
+function updateGrantTracking(grant, stateEntry) {
+  const now = new Date().toISOString();
+  const grantStatusId = grant.status?.id;
+  
+  // Initialize tracking fields if not present
+  const tracking = {
+    firstSeenAt: stateEntry.firstSeenAt || null,
+    lastSeenAt: stateEntry.lastSeenAt || now,
+    statusFirstSeenAt: stateEntry.statusFirstSeenAt || null,
+    statusChangedAt: stateEntry.statusChangedAt || null,
+    lastStatusId: stateEntry.lastStatusId || null,
+    firstOpenSeenAt: stateEntry.firstOpenSeenAt || null
+  };
+  
+  // Check if this is a new grant
+  const isNewGrant = !stateEntry.firstSeenAt;
+  
+  if (isNewGrant) {
+    tracking.firstSeenAt = now;
+    tracking.statusFirstSeenAt = now;
+    tracking.lastStatusId = grantStatusId;
+    
+    // If grant is already open, set firstOpenSeenAt
+    if (grantStatusId === OPEN_STATUS_ID) {
+      tracking.firstOpenSeenAt = now;
+    }
+  } else {
+    // Update lastSeenAt for existing grant
+    tracking.lastSeenAt = now;
+    tracking.lastStatusId = grantStatusId;
+    
+    // Check if status changed
+    const statusChanged = stateEntry.lastStatusId !== grantStatusId;
+    
+    if (statusChanged) {
+      tracking.statusChangedAt = now;
+      tracking.statusFirstSeenAt = now;
+      
+      // If new status is open and we haven't seen it open before, record it
+      if (grantStatusId === OPEN_STATUS_ID && !stateEntry.firstOpenSeenAt) {
+        tracking.firstOpenSeenAt = now;
+      }
+    }
+    
+    // For baseline tracking entries (migrated from 2026-01-01), preserve original values
+    // and don't set firstOpenSeenAt just because the grant is currently Open
+    if (stateEntry.firstSeenAt === BASELINE_DATE) {
+      // Keep firstSeenAt unchanged
+      // Keep firstOpenSeenAt unchanged (don't set it just because status is Open)
+      // Keep statusChangedAt unchanged unless status actually changed
+      tracking.firstSeenAt = stateEntry.firstSeenAt;
+      tracking.firstOpenSeenAt = stateEntry.firstOpenSeenAt;
+      tracking.statusChangedAt = statusChanged ? now : stateEntry.statusChangedAt;
+    }
+  }
+  
+  return {
+    ...grant,
+    firstSeenAt: tracking.firstSeenAt,
+    lastSeenAt: tracking.lastSeenAt,
+    statusFirstSeenAt: tracking.statusFirstSeenAt,
+    statusChangedAt: tracking.statusChangedAt,
+    firstOpenSeenAt: tracking.firstOpenSeenAt
+  };
+}
 
 function first(values) {
   return Array.isArray(values) && values.length ? values[0] : null;
@@ -512,7 +632,7 @@ async function main() {
   ]);
 
   const lookups = buildFacetLookups(facets);
-  const grants = dedupeResults(search.results)
+  let grants = dedupeResults(search.results)
     .map((result) => normalizeResult(result, lookups))
     .filter((grant) => !grant.deadlineDate || new Date(grant.deadlineDate).getTime() >= now)
     .sort((left, right) => {
@@ -521,6 +641,30 @@ async function main() {
       return rightDate - leftDate;
     });
 
+  // Load or initialize state tracking
+  const state = await loadOrInitializeState();
+  
+  // Apply state tracking to each grant
+  const grantsWithTracking = grants.map((grant) => {
+    const stateEntry = state[grant.identifier] || {};
+    return updateGrantTracking(grant, stateEntry);
+  });
+  
+  // Update state with new grants
+  grantsWithTracking.forEach((grant) => {
+    state[grant.identifier] = {
+      firstSeenAt: grant.firstSeenAt,
+      lastSeenAt: grant.lastSeenAt,
+      lastStatusId: grant.status?.id,
+      statusFirstSeenAt: grant.statusFirstSeenAt,
+      statusChangedAt: grant.statusChangedAt,
+      firstOpenSeenAt: grant.firstOpenSeenAt
+    };
+  });
+  
+  // Save updated state
+  await saveState(state);
+
   const output = {
     generatedAt: refresh.refreshedAt,
     source: {
@@ -528,16 +672,16 @@ async function main() {
       searchUrl: endpoints.searchUrl,
       facetUrl: endpoints.facetUrl,
       reportedTotalResults: search.totalResults,
-      storedResults: grants.length,
+      storedResults: grantsWithTracking.length,
       workflow: refresh
     },
     facets,
-    summary: buildSummary(grants),
-    grants
+    summary: buildSummary(grantsWithTracking),
+    grants: grantsWithTracking
   };
 
   await writeFile(OUTPUT_FILE, JSON.stringify(output));
-  console.log(`Wrote ${grants.length} grants to ${OUTPUT_FILE.pathname}`);
+  console.log(`Wrote ${grantsWithTracking.length} grants to ${OUTPUT_FILE.pathname}`);
 }
 
 main().catch((error) => {
