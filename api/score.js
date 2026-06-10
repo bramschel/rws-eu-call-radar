@@ -14,7 +14,7 @@ const AI_PROVIDER   = (process.env.AI_PROVIDER || 'mistral').toLowerCase();
 const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
 const MISTRAL_URL   = 'https://api.mistral.ai/v1/chat/completions';
 
-const GEMINI_MODEL  = process.env.GEMINI_MODEL  || 'gemini-2.5-flash';
+const GEMINI_MODEL  = process.env.GEMINI_MODEL  || 'gemini-2.5-flash-lite';
 const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function setCorsHeaders(req, res) {
