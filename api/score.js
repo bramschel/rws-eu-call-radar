@@ -9,7 +9,7 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-const AI_PROVIDER   = (process.env.AI_PROVIDER || 'mistral').toLowerCase();
+const AI_PROVIDER = (process.env.AI_PROVIDER || 'gemini').trim().toLowerCase();
 
 const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
 const MISTRAL_URL   = 'https://api.mistral.ai/v1/chat/completions';
@@ -637,13 +637,16 @@ export default async function handler(req, res) {
 
     const prompt = buildPrompt({ projectIdea, keywords, selectedTheme, calls: batch });
 
-    // Dispatch naar de geconfigureerde provider
-    let rawText, provider, model;
-    if (AI_PROVIDER === 'gemini') {
-      ({ rawText, provider, model } = await callGemini(prompt));
-    } else {
-      ({ rawText, provider, model } = await callMistral(prompt));
-    }
+// Dispatch naar de geconfigureerde provider
+let rawText, provider, model;
+
+if (AI_PROVIDER === 'gemini') {
+  ({ rawText, provider, model } = await callGemini(prompt));
+} else if (AI_PROVIDER === 'mistral') {
+  ({ rawText, provider, model } = await callMistral(prompt));
+} else {
+  throw new Error(`Onbekende AI_PROVIDER: ${AI_PROVIDER}`);
+}
 
     let parsed;
     try {
