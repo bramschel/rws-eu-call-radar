@@ -280,6 +280,23 @@ function subtractMonths(date, months) {
   return d;
 }
 
+function getGrantRecencyDate(grant) {
+  const isForthcoming = grant.status?.id === '31094501';
+  const candidates = isForthcoming
+    ? [grant.publicationDate, grant.publishedDate, grant.firstPublishedDate,
+       grant.createdAt, grant.createdDate, grant.lastModifiedDate, grant.updatedAt]
+    : [grant.publicationDate, grant.publishedDate, grant.firstPublishedDate,
+       grant.createdAt, grant.createdDate, grant.startDate,
+       grant.lastModifiedDate, grant.updatedAt];
+  for (const d of candidates) {
+    if (d) {
+      const t = new Date(d).getTime();
+      if (!isNaN(t)) return t;
+    }
+  }
+  return null;
+}
+
 const getPrimaryProgramme = g =>
   g.frameworkProgrammes[0]?.label || g.programmeDivisions[0]?.label ||
   g.callIdentifier?.split('-')[0] || 'Programme unavailable';
@@ -582,11 +599,9 @@ if (state.filters.recentMonths === '14d') {
       if (state.filters.programme !== 'all') {
         if (!new Set(grant.frameworkProgrammes.map(p => p.id)).has(state.filters.programme)) return false;
       }
-      const openingDate = grant.startDate || grant.plannedOpeningDate;
-const openingTime = openingDate ? new Date(openingDate).getTime() : null;
-
-if (cutoff && (!openingTime || openingTime < cutoff)) {
-  return false;
+     if (cutoff) {
+  const recencyDate = getGrantRecencyDate(grant);
+  if (recencyDate === null || recencyDate < cutoff) return false;
 }
 
       // Action type filter
