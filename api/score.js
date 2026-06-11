@@ -318,6 +318,18 @@ Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-
 
 IMPORTANT: De historische voorbeelden mogen alleen zwaar meewegen als de nieuwe call inhoudelijk lijkt op titel, scope, doel, keywords of RWS-rol van het historische voorbeeld. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen. Als een call sterk lijkt op een voorbeeld, benoem dat dan expliciet in projectFit of rationale.
 
+RAG INSTRUCTIES:
+- RAG context is optional supporting context, not mandatory evidence.
+- Do not force a RWS connection because RAG contains a related theme.
+- Use RAG only when the call text itself supports a concrete match.
+- If RAG context is broad or generic, say so and do not increase the score much.
+
+HISTORISCHE VOORBEELDEN INSTRUCTIES:
+- All examples in data/relevance_examples.json are positive relevance examples.
+- They are pattern examples only, not proof of relevance.
+- Do not assign a high score solely because a call resembles a past positive example.
+- Generic similarity, such as both mentioning climate, AI, logistics or digitalisation, is weak evidence.
+
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
 ${projectIdea || 'Niet opgegeven'}
@@ -344,7 +356,7 @@ Als het projectidee Nederlandstalige RWS-termen bevat, interpreteer deze in EU-c
 - instandhouding = maintenance, renovation, replacement, lifecycle management, asset management;
 - kunstwerken = bridges, tunnels, locks, sluices, civil structures.
 
-Geef een hoge score alleen als de call zowel inhoudelijk aansluit op het projectidee als een duidelijke RWS-rol heeft.
+Geef een hoge score alleen als de call zowel inhoudelijk aansluit op het projectidee als een duidelijke RWS-rol heeft. Wees conservatief in scoring en expliciet over onzekerheden.
 
 Rangschik de calls van meest naar minst relevant.
 
@@ -364,14 +376,29 @@ aiRelevanceScore (0–100): de totale beoordeling op basis van ALLE beschikbare 
 - Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie (asset owner, beheerder, kennispartner, pilotlocatie, consortiumdeelnemer).
 - Aansluiting op de RWS RAG-context hierboven (domeinen, lopende projecten, prioriteiten van RWS).
 - Gelijkenis met historische positieve voorbeelden uit de RAG.
-Scorebonussen (cumuleerbaar, max +20 totaal op aiRelevanceScore):
-+5 tot +15 als de call inhoudelijk aansluit op een of meer RAG-context items — benoem de titel(s) in ragMatchedItems.
-+5 tot +10 als de call sterk lijkt op een POSITIEF VOORBEELD uit de historische voorbeelden.
+
+CONSERVATIEVE SCORECAPS (verplicht):
+- Generic sustainability, climate, AI or digitalisation link only: MAX 70
+- RWS only as possible stakeholder or knowledge partner: MAX 75
+- No concrete RWS asset, network, water system, road, waterway, bridge, lock, tunnel, corridor or operational management role: MAX 78
+- Relevance mainly comes from RAG context rather than the call text: MAX 72
+- Relevance mainly comes from historical examples: MAX 75
+- Scores above 85 require direct evidence from the call text plus a concrete RWS role
+- Scores above 90 require exceptional fit with RWS core tasks and realistic implementation or pilot potential
+
+Scorebonussen (cumuleerbaar, max +15 totaal op aiRelevanceScore):
++3 tot +8 als de call inhoudelijk aansluit op een of meer RAG-context items — benoem de titel(s) in ragMatchedItems
++3 tot +7 als de call sterk lijkt op een POSITIEF VOORBEELD uit de historische voorbeelden
+
+CONSERVATIEVE SCORE RANGES:
 0–20 = geen RWS-domein, geen uitvoeringsrol denkbaar
 21–40 = zwakke of indirecte RWS-fit
 41–60 = mogelijk relevant, RWS-rol onzeker of indirect
-61–80 = duidelijke RWS-domeinlink, plausibele uitvoeringsrol, aansluiting op projectidee
-81–100 = sterke RWS-fit, duidelijk projectidee-match, RAG-context bevestigt relevantie
+61–70 = duidelijke RWS-domeinlink maar generieke aansluiting (sustainability, climate, AI, digitalisation)
+71–78 = concrete RWS-domeinlink maar indirecte of onzekere uitvoeringsrol
+79–85 = sterke RWS-domeinlink met plausibele uitvoeringsrol, direct call-text evidence
+86–90 = uitstekende RWS-fit met concrete RWS rol en direct call-text evidence
+91–100 = exceptionele RWS-fit met RWS core tasks en realistisch implementatie/pilot potentieel
 
 projectFitScore (0–100): de specifieke aansluiting op het projectidee van de gebruiker, los berekend van de bredere RWS-fit.
 Kijk alleen naar: komen de kernbegrippen, doelen en aanpak van het projectidee terug in de scope van de call?
@@ -428,11 +455,11 @@ De JSON moet exact deze structuur hebben:
   ]
 }
 
-- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden.
+- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden. Voor onzekere calls, benoem de onzekerheid expliciet.
 - aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches en gelijkenis met positieve voorbeelden. Dit is de hoofdscore.
 - projectFitScore: score 0-100 UITSLUITEND op hoe goed de call aansluit bij het projectidee van de gebruiker, los van de bredere RWS-fit. Kan afwijken van aiRelevanceScore.
 - ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
-- rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom.
+- rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd phrases like "perfect match", "excellent fit" of "highly relevant" tenzij de score boven 85 is en het bewijs concreet is. Voor onzekere calls, benoem de onzekerheid expliciet.
 - summary.executiveSummary: management samenvatting van de top resultaten
 - summary.topOpportunities: top 3 meest relevante calls met korte toelichting
 - summary.notableExclusions: importante calls die net buiten de top 10 vallen
