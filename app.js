@@ -319,6 +319,29 @@ function getGrantRecencyDate(grant) {
   return null;
 }
 
+function getGrantDateFilterTime(grant) {
+  // New status-based date filtering logic
+  const statusId = grant.status?.id;
+  
+  if (statusId === '31094502') { // Open for submission
+    // Use startDate for Open calls
+    if (grant.startDate) {
+      const time = new Date(grant.startDate).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+  } else if (statusId === '31094501') { // Forthcoming
+    // Use firstSeenAt for Forthcoming calls, excluding baseline
+    if (grant.firstSeenAt && grant.firstSeenAt !== TRACKING_BASELINE_DATE) {
+      const time = new Date(grant.firstSeenAt).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+  }
+  // For other statuses, fall back to current radar activity behavior
+  // This preserves existing behavior for any unexpected status values
+  const recencyTimes = getGrantRecencyTimes(grant);
+  return recencyTimes.length > 0 ? recencyTimes[0] : null;
+}
+
 const getPrimaryProgramme = g =>
   g.frameworkProgrammes[0]?.label || g.programmeDivisions[0]?.label ||
   g.callIdentifier?.split('-')[0] || 'Programme unavailable';
@@ -622,10 +645,9 @@ if (state.filters.recentMonths === '14d') {
         if (!new Set(grant.frameworkProgrammes.map(p => p.id)).has(state.filters.programme)) return false;
       }
      if (cutoff) {
-  const recencyTimes = getGrantRecencyTimes(grant);
-  if (recencyTimes.length === 0) return false;
-  const hasRecentActivity = recencyTimes.some(time => time >= cutoff && time <= now);
-  if (!hasRecentActivity) return false;
+  const filterTime = getGrantDateFilterTime(grant);
+  if (!filterTime) return false;
+  if (filterTime < cutoff || filterTime > now) return false;
 }
 
       // Action type filter
