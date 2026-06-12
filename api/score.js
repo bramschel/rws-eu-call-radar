@@ -298,7 +298,7 @@ function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
   
   const relevanceExamplesText = examples.length > 0
     ? `\nRELEVANTE HISTORISCHE VOORBEELDEN:\n` + examples.map((ex) => `
-## Voorbeeld: ${ex.projectName}
+## Voorbeeld: ${ex.projectName}${ex.projectAbbreviation ? ` (${ex.projectAbbreviation})` : ''}
 Type: ${ex.useAs === 'positive_example' ? 'POSITIEF VOORBEELD — als een call hier sterk op lijkt, verhoog aiRelevanceScore met 5–10 punten' : 'Referentie'}
 Thema: ${ex.theme} (${ex.themeId})
 Call: ${ex.call}
@@ -317,6 +317,14 @@ ${rwsContext}${relevanceExamplesText}
 Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-relevantie, maar op concrete RWS-relevantie, uitvoerbaarheid en toepasbaarheid voor Rijkswaterstaat als uitvoeringsorganisatie.
 
 IMPORTANT: De historische voorbeelden mogen alleen zwaar meewegen als de nieuwe call inhoudelijk lijkt op titel, scope, doel, keywords of RWS-rol van het historische voorbeeld. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen. Als een call sterk lijkt op een voorbeeld, benoem dat dan expliciet in projectFit of rationale.
+
+COMPACTE REFERENTIES INSTRUCTIE:
+- Wanneer je historische voorbeelden of RAG-context items vermeldt in projectFit, rationale of andere tekstvelden, gebruik dan compacte, mensvriendelijke referenties uit de data in plaats van de volledige lange titels.
+- Voor historische voorbeelden: gebruik projectAbbreviation waar beschikbaar (bijv. "MANABAS COAST" in plaats van "MAinstreaming Nature Based Solutions through COASTal Systems").
+- Voor RAG-context: gebruik een beknopte mensvriendelijke korte titel of themalabel waar beschikbaar (bijv. "Klimaatadaptatie" in plaats van "Focuspunt Klimaatadaptatie"). Gebruik de technische id alleen als er geen mensvriendelijke korte titel beschikbaar is.
+- Verzin geen labels of afkortingen — gebruik alleen bestaande referenties uit de data.
+- Houd projectFit en rationale beknopt en laat referenties niet domineren.
+- Als geen korte referentie beschikbaar is, gebruik dan de volledige titel maar herhaal deze niet meerdere keren.
 
 RAG INSTRUCTIES:
 - RAG context is optional supporting context, not mandatory evidence.
@@ -455,11 +463,11 @@ De JSON moet exact deze structuur hebben:
   ]
 }
 
-- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden. Voor onzekere calls, benoem de onzekerheid expliciet.
+- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
 - aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches en gelijkenis met positieve voorbeelden. Dit is de hoofdscore.
 - projectFitScore: score 0-100 UITSLUITEND op hoe goed de call aansluit bij het projectidee van de gebruiker, los van de bredere RWS-fit. Kan afwijken van aiRelevanceScore.
 - ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
-- rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd phrases like "perfect match", "excellent fit" of "highly relevant" tenzij de score boven 85 is en het bewijs concreet is. Voor onzekere calls, benoem de onzekerheid expliciet.
+- rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd phrases like "perfect match", "excellent fit" of "highly relevant" tenzij de score boven 85 is en het bewijs concreet is. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden of RAG-context vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
 - summary.executiveSummary: management samenvatting van de top resultaten
 - summary.topOpportunities: top 3 meest relevante calls met korte toelichting
 - summary.notableExclusions: importante calls die net buiten de top 10 vallen
