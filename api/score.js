@@ -356,7 +356,10 @@ De zoekvraag van de gebruiker is leidend. Leg per call expliciet uit:
 2. welke onderdelen van het projectidee terugkomen in de call;
 3. welke onderdelen ontbreken of onzeker zijn;
 4. of Rijkswaterstaat een logische rol kan hebben als uitvoeringsorganisatie;
-5. hoe de call past binnen het gekozen Bureau Brussel-thema.
+5. hoe de call past binnen het gekozen Bureau Brussel-thema;
+6. of de call substantiële overlap heeft met het geselecteerde thema of filtercontext.
+
+Beoordeel user intent fit als een aparte, cruciale dimensie. Een call kan algemene RWS-relevantie hebben, maar als deze niet past bij het geselecteerde thema, keywords of projectidee van de gebruiker, mag deze niet hoog scoren.
 
 Als het projectidee Nederlandstalige RWS-termen bevat, interpreteer deze in EU-call context. Bijvoorbeeld:
 - bruggenmonitoring = bridge monitoring, bridge inspection, structural health monitoring, condition monitoring;
@@ -393,6 +396,26 @@ CONSERVATIEVE SCORECAPS (verplicht):
 - Relevance mainly comes from historical examples: MAX 75
 - Scores above 85 require direct evidence from the call text plus a concrete RWS role
 - Scores above 90 require exceptional fit with RWS core tasks and realistic implementation or pilot potential
+
+USER INTENT / ACTIVE FILTER FIT (verplicht):
+- Beoordeel "user intent fit" apart van algemene RWS-fit.
+- Als een actief thema/filter aanwezig is, moet de call substantiële overlap hebben met dat thema om hoog te scoren.
+- RAG-context mag relevantie ondersteunen, maar mag geen mismatch met het gekozen thema of gebruikersintentie overschrijven.
+
+THEMA-SPECIFIEKE FIT CAPS:
+- Als actief thema/filter aanwezig is EN de call heeft geen substantiële overlap met dat thema: MAX 65
+- Als actief thema/filter aanwezig is EN overlap zwak of alleen indirect is: MAX 75
+- Als relevantie vooral komt uit RAG-context buiten het geselecteerde thema: MAX 70
+- Als gebruikerskeywords of projectidee zijn opgegeven EN de call daar niet op aansluit: MAX 70
+- Scores boven 80 vereisen zowel RWS-relevantie als duidelijke fit met het actieve thema/gebruikersintentie
+- Scores boven 85 vereisen direct call-text bewijs voor zowel RWS-fit als actieve thema/gebruikersintentie fit
+- RAG-context mag deze caps niet omzeilen
+- Pas caps toe NA eventuele RAG- of historische-voorbeeld bonussen
+- Als meerdere caps van toepassing zijn, gebruik dan de laagste cap
+
+THEMA-SPECIFIEKE RICHTLIJNEN:
+- Als geselecteerd thema "Corridor Management" is, scoort een call alleen hoog als de call-tekst concrete overlap heeft met corridors, corridorbeheer, netwerkbeheer, transportcorridors, logistieke corridors, multimodale netwerken, TEN-T, verkeersmanagement, vaarwegcorridors, goederen-/passagiersstromen, ITS/C-ITS, RIS, of operationeel corridor-niveau infrastructuurbeheer.
+- Een generieke match met klimaatadaptatie, duurzaamheid, digitalisering of RWS RAG-context is onvoldoende voor een hoge score als het geselecteerde thema "Corridor Management" is.
 
 Scorebonussen (cumuleerbaar, max +15 totaal op aiRelevanceScore):
 +3 tot +8 als de call inhoudelijk aansluit op een of meer RAG-context items — benoem de titel(s) in ragMatchedItems
@@ -464,7 +487,7 @@ De JSON moet exact deze structuur hebben:
 }
 
 - projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
-- aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches en gelijkenis met positieve voorbeelden. Dit is de hoofdscore.
+- aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches, gelijkenis met positieve voorbeelden, EN fit met het geselecteerde thema/filtercontext. Dit is de hoofdscore. User intent fit is een cruciale factor - een call met lage thema-fit kan niet hoog scoren, zelfs niet met sterke RAG-ondersteuning.
 - projectFitScore: score 0-100 UITSLUITEND op hoe goed de call aansluit bij het projectidee van de gebruiker, los van de bredere RWS-fit. Kan afwijken van aiRelevanceScore.
 - ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
 - rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd phrases like "perfect match", "excellent fit" of "highly relevant" tenzij de score boven 85 is en het bewijs concreet is. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden of RAG-context vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
