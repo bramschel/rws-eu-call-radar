@@ -1059,88 +1059,452 @@ function renderViewTabs() {
 
 const getCallByIdentifier = id => state.data?.grants?.find(g => g.identifier === id) || null;
 
+// ── Helper functions for meeting-ready briefing ─────────────────
+
+function getActivePeriodLabel() {
+  const period = state.filters.recentMonths;
+  const periodMap = {
+    '14d': 'Laatste 2 weken',
+    '1': 'Laatste 1 maand',
+    '2': 'Laatste 2 maanden',
+    '3': 'Laatste 3 maanden',
+    '6': 'Laatste 6 maanden',
+    'all': 'Alle perioden'
+  };
+  return periodMap[period] || 'Alle perioden';
+}
+
+function getPrimaryThemeForGrant(grant) {
+  const themes = grant.relevance?.matchedThemes?.map(t => t.label) || [];
+  if (themes.length) return themes[0];
+  
+  const frameworkThemes = grant.frameworkProgrammes?.flatMap(p => 
+    p.themes?.map(t => t.label) || []
+  ) || [];
+  
+  if (frameworkThemes.length) return frameworkThemes[0];
+  
+  return 'Niet gespecificeerd';
+}
+
+function getThemeOverview(reviews) {
+  const themeCounts = {
+    'Corridor Management': 0,
+    'Climate Adaptation': 0,
+    'Sustainability / Duurzame Leefomgeving': 0,
+    'Digitalisation': 0,
+    'Network Governance': 0
+  };
+  
+  const themeScores = {
+    'Corridor Management': [],
+    'Climate Adaptation': [],
+    'Sustainability / Duurzame Leefomgeving': [],
+    'Digitalisation': [],
+    'Network Governance': []
+  };
+  
+  const themeActions = {
+    'Corridor Management': {'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0},
+    'Climate Adaptation': {'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0},
+    'Sustainability / Duurzame Leefomgeving': {'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0},
+    'Digitalisation': {'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0},
+    'Network Governance': {'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0}
+  };
+  
+  reviews.forEach(review => {
+    const call = getCallByIdentifier(review.identifier);
+    if (!call) return;
+    
+    const primaryTheme = getPrimaryThemeForGrant(call);
+    if (themeCounts.hasOwnProperty(primaryTheme)) {
+      themeCounts[primaryTheme]++;
+      themeScores[primaryTheme].push(review.aiRelevanceScore);
+      
+      const actionLabel = clampActionLabel(review, call);
+      if (themeActions[primaryTheme][actionLabel] !== undefined) {
+        themeActions[primaryTheme][actionLabel]++;
+      }
+    }
+  });
+  
+  return { themeCounts, themeScores, themeActions };
+}
+
+function getTopCallsForBriefing(reviews) {
+  return reviews
+    .filter(r => r.aiRelevanceScore != null)
+    .sort((a, b) => {
+      // Primary sort: aiRelevanceScore desc
+      if (b.aiRelevanceScore !== a.aiRelevanceScore) {
+        return b.aiRelevanceScore - a.aiRelevanceScore;
+      }
+      // Secondary sort: projectFitScore desc
+      if (b.projectFitScore !== a.projectFitScore) {
+        return b.projectFitScore - a.projectFitScore;
+      }
+      // Tertiary sort: deadlineDate asc (earliest first)
+      const callA = getCallByIdentifier(a.identifier);
+      const callB = getCallByIdentifier(b.identifier);
+      const deadlineA = callA?.deadlineDate ? new Date(callA.deadlineDate).getTime() : Infinity;
+      const deadlineB = callB?.deadlineDate ? new Date(callB.deadlineDate).getTime() : Infinity;
+      return deadlineA - deadlineB;
+    })
+    .slice(0, 5);
+}
+
+function getCallVanDeWeek(topCalls) {
+  if (!topCalls.length) return null;
+  
+  const scoredCalls = topCalls.map(call => {
+    const combinedScore = 0.7 * call.aiRelevanceScore + 0.3 * call.projectFitScore;
+    const callData = getCallByIdentifier(call.identifier);
+    const deadline = callData?.deadlineDate ? new Date(callData.deadlineDate).getTime() : Infinity;
+    return { call, combinedScore, deadline };
+  });
+  
+  // Sort by combined score desc, then by deadline asc
+  scoredCalls.sort((a, b) => {
+    if (b.combinedScore !== a.combinedScore) {
+      return b.combinedScore - a.combinedScore;
+    }
+    return a.deadline - b.deadline;
+  });
+  
+  return scoredCalls[0].call;
+}
+
+function getWatchlistCalls(reviews) {
+  const topCalls = getTopCallsForBriefing(reviews);
+  const topCallIds = new Set(topCalls.map(c => c.identifier));
+  
+  return reviews
+    .filter(r => !topCallIds.has(r.identifier))
+    .filter(r => {
+      // Heuristic 1: aiRelevanceScore between 45 and 70
+      const scoreInRange = r.aiRelevanceScore >= 45 && r.aiRelevanceScore <= 70;
+      // Heuristic 2: projectFitScore meaningfully higher than aiRelevanceScore
+      const fitHigher = r.projectFitScore >= r.aiRelevanceScore + 15;
+      // Heuristic 3: Check if it would be Monitoren or Nader toetsen
+      const call = getCallByIdentifier(r.identifier);
+      const actionLabel = clampActionLabel(r, call);
+      const isMonitorType = actionLabel === 'Monitoren' || actionLabel === 'Nader toetsen';
+      
+      return scoreInRange || fitHigher || isMonitorType;
+    })
+    .sort((a, b) => {
+      // Sort by action priority: Actief verkennen > Nader toetsen > Monitoren > Niet prioriteren
+      const callA = getCallByIdentifier(a.identifier);
+      const callB = getCallByIdentifier(b.identifier);
+      const actionA = clampActionLabel(a, callA);
+      const actionB = clampActionLabel(b, callB);
+      
+      const priorityOrder = {
+        'Actief verkennen': 1,
+        'Nader toetsen': 2,
+        'Monitoren': 3,
+        'Niet prioriteren': 4
+      };
+      
+      const priorityA = priorityOrder[actionA] || 4;
+      const priorityB = priorityOrder[actionB] || 4;
+      
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      if (b.projectFitScore !== a.projectFitScore) return b.projectFitScore - a.projectFitScore;
+      return b.aiRelevanceScore - a.aiRelevanceScore;
+    })
+    .slice(0, 5);
+}
+
+function getDeduplicatedNextActions(reviews) {
+  const actions = new Map();
+  const topCalls = getTopCallsForBriefing(reviews);
+  
+  topCalls.forEach(review => {
+    const call = getCallByIdentifier(review.identifier);
+    if (call && review.recommendedNextStep) {
+      const actionText = `${call.identifier}: ${review.recommendedNextStep}`;
+      if (!actions.has(actionText)) {
+        actions.set(actionText, { callId: call.identifier, action: review.recommendedNextStep });
+      }
+    }
+  });
+  
+  return Array.from(actions.values());
+}
+
+function clampActionLabel(review, call) {
+  if (!review || !call) return 'Niet prioriteren';
+  
+  // If AI provided an action label, use it but clamp to our allowed labels
+  const aiAction = review.actielabelVoorstel || review.actionLabel;
+  
+  // Determine based on scores if no AI action or if we need to clamp
+  if (review.aiRelevanceScore >= 80 && review.projectFitScore >= 60) {
+    return aiAction === 'Actief verkennen' ? 'Actief verkennen' : 'Actief verkennen';
+  } else if (review.aiRelevanceScore >= 65 && review.projectFitScore >= 45) {
+    return aiAction === 'Nader toetsen' ? 'Nader toetsen' : 'Nader toetsen';
+  } else if (review.aiRelevanceScore >= 45) {
+    return aiAction === 'Monitoren' ? 'Monitoren' : 'Monitoren';
+  } else {
+    return 'Niet prioriteren';
+  }
+}
+
+function getDeterministicSummary(reviews, filteredCount) {
+  if (reviews.length === 0) {
+    return [
+      `Geen AI-analyses beschikbaar voor ${filteredCount} calls in scope.`,
+      'Voer eerst een AI-analyse uit op het Radar-tabblad.',
+      'Kies maximaal 10 calls voor beoordeling.'
+    ];
+  }
+  
+  const themeOverview = getThemeOverview(reviews);
+  const dominantTheme = Object.entries(themeOverview.themeCounts)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'geen dominant thema';
+  
+  const topCall = getTopCallsForBriefing(reviews)[0];
+  const topCallData = topCall ? getCallByIdentifier(topCall.identifier) : null;
+  
+  const summary = [
+    `${reviews.length} calls geanalyseerd van ${filteredCount} in scope (${getActivePeriodLabel()}, ${themeOverview.themeCounts[dominantTheme]} in ${dominantTheme}).`,
+    `Topcall: ${topCallData?.title || 'geen'} (${topCall?.aiRelevanceScore || 0}/100, ${getPrimaryThemeForGrant(topCallData || {})}).`,
+    `Actieverdeling: ${JSON.stringify(themeOverview.themeActions[dominantTheme])}`
+  ];
+  
+  return summary;
+}
+
 // ── Render: AI shortlist view ─────────────────────────────────
 function renderAiShortlist() {
   const container = document.querySelector('#shortlist-content');
   if (!container) return;
 
-  // FIX: sort on aiRelevanceScore, not .score
-  const sorted = Array.from(state.aiReviews.values()).sort((a, b) => (b.aiRelevanceScore ?? 0) - (a.aiRelevanceScore ?? 0));
-  if (!sorted.length) { container.innerHTML = '<p>Draai eerst een AI-analyse in de Radar-tab.</p>'; return; }
-
-  const top3   = sorted.slice(0, 3);
-  const others = sorted.slice(3);
-  let html = '';
-
-  if (state.aiSummary) {
-    const s = state.aiSummary;
-    html +=
-      '<div class="shortlist-summary">' +
-        '<div class="shortlist-summary__section"><h4>Kernbeeld</h4><p>' + escapeHtml(s.executiveSummary || 'Geen kernbeeld beschikbaar.') + '</p></div>' +
-        '<div class="shortlist-summary__section"><h4>Advies</h4><p class="shortlist-summary__advice">' + escapeHtml(s.overallAdvice || 'Geen advies beschikbaar.') + '</p></div>' +
-        '<div class="shortlist-summary__section"><h4>Kansrijke lijnen</h4><div class="shortlist-opportunities">' +
-          (s.topOpportunities?.length
-            ? s.topOpportunities.slice(0, 5).map((o, i) =>
-                '<div class="shortlist-opportunity">' +
-                  '<span class="shortlist-opportunity__rank">#' + (i + 1) + '</span>' +
-                  '<span class="shortlist-opportunity__title">' + escapeHtml(o.title || o.identifier || 'Onbekend') + '</span>' +
-                  (o.score ? '<span class="shortlist-opportunity__score">' + escapeHtml(String(o.score)) + '/100</span>' : '') +
-                '</div>').join('')
-            : '<p>Geen kansrijke lijnen.</p>') +
-        '</div></div>' +
-        '<div class="shortlist-summary__section"><h4>Aandachtspunten</h4><p>' + escapeHtml(s.notableExclusions || 'Geen aandachtspunten.') + '</p></div>' +
-        '<div class="shortlist-summary__section"><h4>Vervolgstappen</h4><ul class="shortlist-steps">' +
-          (s.recommendedNextSteps?.length
-            ? s.recommendedNextSteps.map(st => '<li>' + escapeHtml(st) + '</li>').join('')
-            : '<li>Geen vervolgstappen.</li>') +
-        '</ul></div>' +
-      '</div>';
+  const reviews = Array.from(state.aiReviews.values());
+  if (!reviews.length) { 
+    container.innerHTML = '<p>Voer eerst een AI-analyse uit op het Radar-tabblad om de shortlist te vullen.</p>'; 
+    return; 
   }
 
-  html += '<h3 class="shortlist-section-title">Top 3 kansrijke calls</h3><div class="shortlist-top3">';
-  for (const r of top3) {
-    const call  = getCallByIdentifier(r.identifier);
-    const sc    = r.aiRelevanceScore >= 70 ? 'score-high' : r.aiRelevanceScore >= 40 ? 'score-mid' : 'score-low';
-    const rwsTxt = r.projectFit
-      ? r.projectFit + (r.possibleRwsRole ? ' \u2014 ' + r.possibleRwsRole : '') + (r.rationale ? '. ' + r.rationale : '')
-      : 'Nog te concretiseren op basis van de offici\xEBle calltekst.';
-    html +=
-      '<article class="shortlist-top3__call">' +
-        '<div class="shortlist-top3__header">' +
-          '<h4 class="shortlist-top3__title">' + escapeHtml(call?.title || r.identifier) + '</h4>' +
-          '<span class="shortlist-top3__id">' + escapeHtml(r.identifier) + '</span>' +
-          '<span class="shortlist-score ' + sc + '">' + (r.aiRelevanceScore ?? 0) + '/100</span>' +
-        '</div>' +
-        '<div class="shortlist-top3__body">' +
-          '<div class="shortlist-top3__block"><dt>Projectfit</dt><dd>' + escapeHtml(r.projectFit || 'Niet gespecificeerd') + (r.projectFitScore ? ' <span class="shortlist-score score-mid">' + r.projectFitScore + '/100</span>' : '') + '</dd></div>' +
-          '<div class="shortlist-top3__block"><dt>Motivatie</dt><dd>' + escapeHtml(r.rationale || 'Geen motivatie beschikbaar.') + '</dd></div>' +
-          '<div class="shortlist-top3__block"><dt>RWS-rol</dt><dd>' + escapeHtml(r.possibleRwsRole || 'Niet gespecificeerd') + '</dd></div>' +
-          '<div class="shortlist-top3__block"><dt>Onzekerheden</dt><dd>' + escapeHtml(r.uncertainties || 'Geen onzekerheden gemeld.') + '</dd></div>' +
-          '<div class="shortlist-top3__block"><dt>Volgende stap</dt><dd>' + escapeHtml(r.recommendedNextStep || 'Niet gespecificeerd') + '</dd></div>' +
-          '<div class="shortlist-top3__block shortlist-top3__block--rws"><dt>Mogelijk RWS-project</dt><dd>' + escapeHtml(rwsTxt) + '</dd></div>' +
-        '</div>' +
-        (call?.url ? '<a class="shortlist-top3__open" href="' + call.url + '" target="_blank" rel="noreferrer">Open call</a>' : '') +
-      '</article>';
-  }
-  html += '</div>';
+  const filteredCount = state.filtered.length;
+  const activePeriod = getActivePeriodLabel();
+  const activeStatus = state.filters.status === 'live' ? 'Live (Open + Forthcoming)' : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
+  const activeTheme = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
 
-  if (others.length) {
-    html += '<h3 class="shortlist-section-title">Overige geanalyseerde calls</h3><div class="shortlist-others">';
-    for (const r of others) {
-      const call = getCallByIdentifier(r.identifier);
-      const sc   = r.aiRelevanceScore >= 70 ? 'score-high' : r.aiRelevanceScore >= 40 ? 'score-mid' : 'score-low';
-      const unc  = r.uncertainties ? escapeHtml(r.uncertainties.slice(0, 60) + (r.uncertainties.length > 60 ? '\u2026' : '')) : 'Geen';
-      html +=
-        '<article class="shortlist-others__call">' +
-          '<div class="shortlist-others__header"><h5 class="shortlist-others__title">' + escapeHtml(call?.title || r.identifier) + '</h5>' +
-          '<span class="shortlist-score ' + sc + '">' + (r.aiRelevanceScore ?? 0) + '/100</span></div>' +
-          '<p class="shortlist-others__fit">' + escapeHtml(r.projectFit || 'Geen projectfit beschikbaar') + '</p>' +
-          '<p class="shortlist-others__uncertainty">\u26A0 ' + unc + '</p>' +
-          (call?.url ? '<a class="shortlist-others__open" href="' + call.url + '" target="_blank" rel="noreferrer">Open call</a>' : '') +
-        '</article>';
+  // 1. Header
+  let html = `
+    <div class="briefing-header">
+      <h2 class="briefing-title">Shortlist</h2>
+      <div class="briefing-meta">
+        <span class="briefing-meta__item">Periode: ${activePeriod}</span>
+        <span class="briefing-meta__item">Status: ${activeStatus}</span>
+        <span class="briefing-meta__item">Thema: ${activeTheme}</span>
+        <span class="briefing-meta__item">${filteredCount} calls in scope</span>
+      </div>
+    </div>`;
+
+  // 2. Samenvatting
+  const summary = getDeterministicSummary(reviews, filteredCount);
+  html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Samenvatting</h3>
+      <ul class="briefing-summary">
+        ${summary.map(item => `<li class="briefing-summary__item">${item}</li>`).join('')}
+      </ul>
+    </div>`;
+
+  // 3. Thema-overzicht
+  const themeOverview = getThemeOverview(reviews);
+  html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Thema-overzicht</h3>
+      <div class="theme-overview">`;
+
+  const themes = [
+    'Corridor Management',
+    'Climate Adaptation',
+    'Sustainability / Duurzame Leefomgeving',
+    'Digitalisation',
+    'Network Governance'
+  ];
+
+  themes.forEach(theme => {
+    const count = themeOverview.themeCounts[theme];
+    const scores = themeOverview.themeScores[theme];
+    const scoreRange = scores.length ? `${Math.min(...scores)}-${Math.max(...scores)}` : '—';
+    const actions = themeOverview.themeActions[theme];
+    
+    if (count > 0) {
+      const actionLabels = [];
+      if (actions['Actief verkennen'] > 0) actionLabels.push(`A:${actions['Actief verkennen']}`);
+      if (actions['Nader toetsen'] > 0) actionLabels.push(`N:${actions['Nader toetsen']}`);
+      if (actions['Monitoren'] > 0) actionLabels.push(`M:${actions['Monitoren']}`);
+      if (actions['Niet prioriteren'] > 0) actionLabels.push(`P:${actions['Niet prioriteren']}`);
+      
+      html += `
+        <div class="theme-overview__item">
+          <div class="theme-overview__header">
+            <span class="theme-overview__name">${theme}</span>
+            <span class="theme-overview__count">${count}</span>
+          </div>
+          <div class="theme-overview__details">
+            <span class="theme-overview__scores">${scoreRange}</span>
+            <span class="theme-overview__actions">${actionLabels.join(' ')}</span>
+          </div>
+        </div>`;
     }
-    html += '</div>';
+  });
+
+  html += `
+      </div>
+    </div>`;
+
+  // 4. Top calls voor bespreking
+  const topCalls = getTopCallsForBriefing(reviews);
+  const callVanDeWeek = getCallVanDeWeek(topCalls);
+
+  if (topCalls.length > 0) {
+    html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Top calls voor bespreking</h3>
+      <div class="top-calls">`;
+
+    topCalls.forEach((review, index) => {
+      const call = getCallByIdentifier(review.identifier);
+      if (!call) return;
+
+      const isCallVanDeWeek = callVanDeWeek && callVanDeWeek.identifier === review.identifier;
+      const actionLabel = clampActionLabel(review, call);
+      const primaryTheme = getPrimaryThemeForGrant(call);
+      const deadline = call.deadlineDate ? new Date(call.deadlineDate).toLocaleDateString('nl-NL') : 'Onbekend';
+      
+      // Format why relevant (max 2 bullets from rationale)
+      const whyRelevant = review.rationale ? review.rationale.split('.').slice(0, 2).map(s => s.trim() + '.').filter(s => s.length > 5) : [];
+
+      // Format possible RWS project (avoid duplication)
+      const possibleProject = review.possibleRwsRole && review.possibleRwsRole !== review.projectFit 
+        ? review.possibleRwsRole
+        : 'Concrete RWS-rol nog te bepalen op basis van officiële calltekst.';
+
+      html += `
+        <article class="top-call${isCallVanDeWeek ? ' top-call--featured' : ''}">
+          <div class="top-call__header">
+            ${isCallVanDeWeek ? '<span class="top-call__badge">Call van de week</span>' : ''}
+            <h4 class="top-call__title">${escapeHtml(call.title)}</h4>
+            <div class="top-call__meta">
+              <span class="top-call__id">${call.identifier}</span>
+              <span class="top-call__programme">${call.frameworkProgrammes?.[0]?.label || 'EU'}</span>
+              <span class="top-call__deadline">Deadline: ${deadline}</span>
+              <span class="top-call__status">${call.status?.label || 'Onbekend'}</span>
+            </div>
+          </div>
+          <div class="top-call__scores">
+            <span class="top-call__score top-call__score--ai">AI: ${review.aiRelevanceScore}/100</span>
+            <span class="top-call__score top-call__score--fit">Fit: ${review.projectFitScore}/100</span>
+            <span class="top-call__action-label action-label--${actionLabel.toLowerCase().replace(' ', '-')}">${actionLabel}</span>
+          </div>
+          <div class="top-call__theme">
+            <span class="top-call__theme-label">Thema:</span>
+            <span class="top-call__theme-value">${primaryTheme}</span>
+          </div>
+          <div class="top-call__content">
+            <div class="top-call__section">
+              <h5 class="top-call__section-title">Waarom relevant</h5>
+              <ul class="top-call__bullets">
+                ${whyRelevant.map(item => `<li class="top-call__bullet">${escapeHtml(item)}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="top-call__section">
+              <h5 class="top-call__section-title">Mogelijk RWS-project</h5>
+              <p class="top-call__project">${escapeHtml(possibleProject)}</p>
+            </div>
+            <div class="top-call__section">
+              <h5 class="top-call__section-title">Belangrijkste onzekerheid</h5>
+              <p class="top-call__uncertainty">${escapeHtml(review.uncertainties || 'Geen specifieke onzekerheden geïdentificeerd.')}</p>
+            </div>
+            <div class="top-call__section">
+              <h5 class="top-call__section-title">Volgende stap</h5>
+              <p class="top-call__next-step">${escapeHtml(review.recommendedNextStep || 'Nader analyseren op basis van complete calltekst en RWS-prioriteiten.')}</p>
+            </div>
+          </div>
+          ${call.url ? `<a class="top-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
+        </article>`;
+    });
+
+    html += `
+      </div>
+    </div>`;
   }
+
+  // 5. Watchlist
+  const watchlistCalls = getWatchlistCalls(reviews);
+  if (watchlistCalls.length > 0) {
+    html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Watchlist</h3>
+      <div class="watchlist">`;
+
+    watchlistCalls.forEach(review => {
+      const call = getCallByIdentifier(review.identifier);
+      if (!call) return;
+
+      const actionLabel = clampActionLabel(review, call);
+      const primaryTheme = getPrimaryThemeForGrant(call);
+      
+      // Determine concise reason for watchlist
+      let watchlistReason = '';
+      if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
+        watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100)`;
+      } else if (review.projectFitScore >= review.aiRelevanceScore + 15) {
+        watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore})`;
+      } else {
+        watchlistReason = `Actie: ${actionLabel}`;
+      }
+
+      html += `
+        <article class="watchlist-item">
+          <div class="watchlist-item__header">
+            <h4 class="watchlist-item__title">${escapeHtml(call.title)}</h4>
+            <span class="watchlist-item__id">${call.identifier}</span>
+          </div>
+          <div class="watchlist-item__meta">
+            <span class="watchlist-item__theme">${primaryTheme}</span>
+            <span class="watchlist-item__score">${review.aiRelevanceScore}/100</span>
+          </div>
+          <p class="watchlist-item__reason">${watchlistReason}</p>
+          ${call.url ? `<a class="watchlist-item__open" href="${call.url}" target="_blank" rel="noreferrer">Open</a>` : ''}
+        </article>`;
+    });
+
+    html += `
+      </div>
+    </div>`;
+  }
+
+  // 6. Vervolgacties
+  const nextActions = getDeduplicatedNextActions(reviews);
+  if (nextActions.length > 0) {
+    html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Vervolgacties</h3>
+      <ul class="next-actions">
+        ${nextActions.map(action => `<li class="next-action">${escapeHtml(action.callId)}: ${escapeHtml(action.action)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  // 7. Aannames en beperkingen
+  html += `
+    <div class="briefing-section briefing-disclaimer">
+      <h3 class="briefing-section__title">Aannames en beperkingen</h3>
+      <ul class="briefing-disclaimer__items">
+        <li class="briefing-disclaimer__item">Scores zijn AI-gegenereerd en indicatief.</li>
+        <li class="briefing-disclaimer__item">Thema-toewijzing is automatisch en dient gecontroleerd te worden.</li>
+        <li class="briefing-disclaimer__item">Actieve periode-semantiek: Open calls gefilterd op openingsdatum; Forthcoming calls gefilterd op radar first-seen datum.</li>
+        <li class="briefing-disclaimer__item">Shortlist is een meeting-hulpmiddel, geen definitief subsidiebesluit.</li>
+      </ul>
+    </div>`;
 
   container.innerHTML = html;
 }
