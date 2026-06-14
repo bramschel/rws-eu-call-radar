@@ -1289,11 +1289,49 @@ function getCallScope(grant) {
 }
 
 function getPossibleRwsProject(review) {
-  // Check if there's a specific possibleRwsProject field (though it doesn't seem to exist in current data)
-  if (review.possibleRwsProject) return review.possibleRwsProject;
+  const project = review.possibleRwsProject;
   
-  // Fallback: if no specific project field exists, use conservative message
-  return 'Nog te concretiseren met inhoudelijke eigenaar.';
+  // Reject if empty or too short
+  if (!project || project.length < 20) {
+    return 'Nog te concretiseren met inhoudelijke eigenaar.';
+  }
+  
+  // Reject if it looks like a role list (contains commas and role terms)
+  const roleTerms = ['kennispartner', 'asset owner', 'pilotlocatie', 'data provider', 'coördinator', 'evaluator'];
+  const hasCommas = project.split(',').length > 2;
+  const hasRoleTerms = roleTerms.some(term => project.toLowerCase().includes(term));
+  if (hasCommas && hasRoleTerms) {
+    return 'Nog te concretiseren met inhoudelijke eigenaar.';
+  }
+  
+  // Reject if identical or very similar to other fields
+  const isSimilarToRole = review.possibleRwsRole && project === review.possibleRwsRole;
+  const isSimilarToFit = review.projectFit && project === review.projectFit;
+  const isSimilarToRationale = review.rationale && project === review.rationale;
+  
+  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale) {
+    return 'Nog te concretiseren met inhoudelijke eigenaar.';
+  }
+  
+  // Reject generic phrases
+  const genericPhrases = [
+    'RWS kan bijdragen aan',
+    'deze call is relevant voor',
+    'zeer relevant voor RWS',
+    'goede kans voor RWS',
+    'interessant voor RWS'
+  ];
+  
+  const hasOnlyGeneric = genericPhrases.some(phrase => 
+    project.toLowerCase().includes(phrase.toLowerCase()) 
+  ) && project.length < 50;
+  
+  if (hasOnlyGeneric) {
+    return 'Nog te concretiseren met inhoudelijke eigenaar.';
+  }
+  
+  // If all checks pass, return the project
+  return project;
 }
 
 // ── Render: AI shortlist view ─────────────────────────────────
