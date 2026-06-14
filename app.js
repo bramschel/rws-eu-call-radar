@@ -1276,6 +1276,26 @@ function getDeterministicSummary(reviews, filteredCount) {
   return summary;
 }
 
+// ── Helpers: Field mappings for compact shortlist ───────────
+function getCallScope(grant) {
+  // Priority order: summary -> abstract -> title
+  if (grant.summary) return grant.summary.split('.')[0] + '.'; // First sentence only
+  if (grant.abstract) {
+    // Extract first sentence from abstract, handling "Expected Outcome:" prefix
+    const firstSentence = grant.abstract.split('.')[0].replace('Expected Outcome:', '').trim();
+    return firstSentence + '.';
+  }
+  return grant.title || 'Geen beschrijving beschikbaar.';
+}
+
+function getPossibleRwsProject(review) {
+  // Check if there's a specific possibleRwsProject field (though it doesn't seem to exist in current data)
+  if (review.possibleRwsProject) return review.possibleRwsProject;
+  
+  // Fallback: if no specific project field exists, use conservative message
+  return 'Nog te concretiseren met inhoudelijke eigenaar.';
+}
+
 // ── Render: AI shortlist view ─────────────────────────────────
 function renderAiShortlist() {
   const container = document.querySelector('#shortlist-content');
@@ -1360,75 +1380,90 @@ function renderAiShortlist() {
       </div>
     </div>`;
 
-  // 4. Top calls voor bespreking
-  const topCalls = getTopCallsForBriefing(reviews);
-  const callVanDeWeek = getCallVanDeWeek(topCalls);
+  // 4. Compacte expandable call items
+  const allCalls = reviews.length > 0 ? reviews : [];
 
-  if (topCalls.length > 0) {
+  if (allCalls.length > 0) {
     html += `
     <div class="briefing-section">
-      <h3 class="briefing-section__title">Top calls voor bespreking</h3>
-      <div class="top-calls">`;
+      <h3 class="briefing-section__title">Alle calls</h3>
+      <div class="compact-calls-grid">`;
 
-    topCalls.forEach((review, index) => {
+    allCalls.forEach((review, index) => {
       const call = getCallByIdentifier(review.identifier);
       if (!call) return;
 
-      const isCallVanDeWeek = callVanDeWeek && callVanDeWeek.identifier === review.identifier;
       const actionLabel = clampActionLabel(review, call);
       const primaryTheme = getPrimaryThemeForGrant(call);
       const deadline = call.deadlineDate ? new Date(call.deadlineDate).toLocaleDateString('nl-NL') : 'Onbekend';
-      
-      // Format why relevant (max 2 bullets from rationale)
-      const whyRelevant = review.rationale ? review.rationale.split('.').slice(0, 2).map(s => s.trim() + '.').filter(s => s.length > 5) : [];
+      const beoogdeScope = getCallScope(call);
+      const callId = `call-${index}`;
 
-      // Format possible RWS project (avoid duplication)
-      const possibleProject = review.possibleRwsRole && review.possibleRwsRole !== review.projectFit 
-        ? review.possibleRwsRole
-        : 'Concrete RWS-rol nog te bepalen op basis van officiële calltekst.';
+      // Format expanded content
+      const whyRelevant = review.rationale ? review.rationale.split('.').slice(0, 2).map(s => s.trim() + '.').filter(s => s.length > 5) : [];
+      const possibleProject = getPossibleRwsProject(review);
+      const uncertainty = review.uncertainties || 'Geen specifieke onzekerheden geïdentificeerd.';
+      const nextStep = review.recommendedNextStep || 'Nader analyseren op basis van complete calltekst en RWS-prioriteiten.';
+      // Only show rationale if it's not just repeating the why relevant content
+      const rationale = review.rationale && review.rationale.split('.').length > 2 
+        ? review.rationale.split('.').slice(2, 5).map(s => s.trim() + '.').join(' ') 
+        : '';
 
       html += `
-        <article class="top-call${isCallVanDeWeek ? ' top-call--featured' : ''}">
-          <div class="top-call__header">
-            ${isCallVanDeWeek ? '<span class="top-call__badge">Call van de week</span>' : ''}
-            <h4 class="top-call__title">${escapeHtml(call.title)}</h4>
-            <div class="top-call__meta">
-              <span class="top-call__id">${call.identifier}</span>
-              <span class="top-call__programme">${call.frameworkProgrammes?.[0]?.label || 'EU'}</span>
-              <span class="top-call__deadline">Deadline: ${deadline}</span>
-              <span class="top-call__status">${call.status?.label || 'Onbekend'}</span>
-            </div>
+        <article class="compact-call" id="${callId}">
+          <div class="compact-call__header">
+            <button class="compact-call__toggle" aria-expanded="false" aria-controls="${callId}-content">
+              <span class="compact-call__toggle-icon">▶</span>
+              <span class="compact-call__toggle-text">Details</span>
+            </button>
+            <h4 class="compact-call__title">${escapeHtml(call.title)}</h4>
+            <span class="compact-call__id">${call.identifier}</span>
           </div>
-          <div class="top-call__scores">
-            <span class="top-call__score top-call__score--ai">AI: ${review.aiRelevanceScore}/100</span>
-            <span class="top-call__score top-call__score--fit">Fit: ${review.projectFitScore}/100</span>
-            <span class="top-call__action-label action-label--${actionLabel.toLowerCase().replace(' ', '-')}">${actionLabel}</span>
+          <div class="compact-call__meta">
+            <span class="compact-call__programme">${call.frameworkProgrammes?.[0]?.label || 'EU'}</span>
+            <span class="compact-call__deadline">Deadline: ${deadline}</span>
+            <span class="compact-call__status">${call.status?.label || 'Onbekend'}</span>
           </div>
-          <div class="top-call__theme">
-            <span class="top-call__theme-label">Thema:</span>
-            <span class="top-call__theme-value">${primaryTheme}</span>
+          <div class="compact-call__scores">
+            <span class="compact-call__theme">${primaryTheme}</span>
+            <span class="compact-call__score compact-call__score--ai">AI: ${review.aiRelevanceScore}/100</span>
+            <span class="compact-call__score compact-call__score--fit">Fit: ${review.projectFitScore}/100</span>
+            <span class="compact-call__action-label action-label--${actionLabel.toLowerCase().replace(' ', '-')}">${actionLabel}</span>
           </div>
-          <div class="top-call__content">
-            <div class="top-call__section">
-              <h5 class="top-call__section-title">Waarom relevant</h5>
-              <ul class="top-call__bullets">
-                ${whyRelevant.map(item => `<li class="top-call__bullet">${escapeHtml(item)}</li>`).join('')}
+          <div class="compact-call__scope">
+            <span class="compact-call__scope-label">Beoogde scope:</span>
+            <span class="compact-call__scope-value">${escapeHtml(beoogdeScope)}</span>
+          </div>
+          <div class="compact-call__content" id="${callId}-content" aria-hidden="true">
+            <div class="compact-call__section">
+              <h5 class="compact-call__section-title">Waarom relevant</h5>
+              <ul class="compact-call__bullets">
+                ${whyRelevant.map(item => `<li class="compact-call__bullet">${escapeHtml(item)}</li>`).join('')}
               </ul>
             </div>
-            <div class="top-call__section">
-              <h5 class="top-call__section-title">Mogelijk RWS-project</h5>
-              <p class="top-call__project">${escapeHtml(possibleProject)}</p>
+            <div class="compact-call__section">
+              <h5 class="compact-call__section-title">Mogelijk RWS-project</h5>
+              <p class="compact-call__text">${escapeHtml(possibleProject)}</p>
             </div>
-            <div class="top-call__section">
-              <h5 class="top-call__section-title">Belangrijkste onzekerheid</h5>
-              <p class="top-call__uncertainty">${escapeHtml(review.uncertainties || 'Geen specifieke onzekerheden geïdentificeerd.')}</p>
+            <div class="compact-call__section">
+              <h5 class="compact-call__section-title">RWS rol</h5>
+              <p class="compact-call__text">${escapeHtml(review.possibleRwsRole || 'Nog te bepalen')}</p>
             </div>
-            <div class="top-call__section">
-              <h5 class="top-call__section-title">Volgende stap</h5>
-              <p class="top-call__next-step">${escapeHtml(review.recommendedNextStep || 'Nader analyseren op basis van complete calltekst en RWS-prioriteiten.')}</p>
+            <div class="compact-call__section">
+              <h5 class="compact-call__section-title">Belangrijkste onzekerheid</h5>
+              <p class="compact-call__text">${escapeHtml(uncertainty)}</p>
             </div>
+            <div class="compact-call__section">
+              <h5 class="compact-call__section-title">Volgende stap</h5>
+              <p class="compact-call__text">${escapeHtml(nextStep)}</p>
+            </div>
+            ${rationale ? `
+            <div class="compact-call__section">
+              <h5 class="compact-call__section-title">Context</h5>
+              <p class="compact-call__text compact-call__text--small">${escapeHtml(rationale)}</p>
+            </div>` : ''}
           </div>
-          ${call.url ? `<a class="top-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
+          ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
         </article>`;
     });
 
@@ -1436,6 +1471,29 @@ function renderAiShortlist() {
       </div>
     </div>`;
   }
+
+  // Add expand/collapse functionality
+  setTimeout(() => {
+    const toggleButtons = document.querySelectorAll('.compact-call__toggle');
+    toggleButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const callId = button.closest('.compact-call').id;
+        const content = document.getElementById(`${callId}-content`);
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        
+        button.setAttribute('aria-expanded', !isExpanded);
+        content.setAttribute('aria-hidden', isExpanded);
+        
+        if (isExpanded) {
+          button.querySelector('.compact-call__toggle-icon').textContent = '▶';
+          button.querySelector('.compact-call__toggle-text').textContent = 'Details';
+        } else {
+          button.querySelector('.compact-call__toggle-icon').textContent = '▼';
+          button.querySelector('.compact-call__toggle-text').textContent = 'Minder';
+        }
+      });
+    });
+  }, 100);
 
   // 5. Watchlist
   const watchlistCalls = getWatchlistCalls(reviews);
