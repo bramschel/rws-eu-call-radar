@@ -2511,6 +2511,22 @@ body::before {
   font-weight: 600;
 }
 
+.theme-overview--compact .theme-overview__item {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--panel-alt);
+}
+
+.theme-overview__note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .top-calls {
   display: grid;
   gap: 20px;

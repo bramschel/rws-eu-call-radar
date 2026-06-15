@@ -1288,6 +1288,53 @@ function getCallScope(grant) {
   return grant.title || 'Geen beschrijving beschikbaar.';
 }
 
+function cleanBulletText(text) {
+  return String(text || '').replace(/^[\s•\-*–—]+/, '').trim();
+}
+
+function getSelectedThemeSummary(reviews, selectedTheme) {
+  if (selectedTheme === 'all') return null;
+  
+  const themeReviews = reviews.filter(review => {
+    const call = getCallByIdentifier(review.identifier);
+    return call && getPrimaryThemeForGrant(call) === selectedTheme;
+  });
+  
+  if (themeReviews.length === 0) return null;
+  
+  const scores = themeReviews.map(r => r.aiRelevanceScore);
+  const scoreRange = scores.length ? `${Math.min(...scores)}-${Math.max(...scores)}` : '—';
+  
+  // Count action labels
+  const actionCounts = {
+    'Actief verkennen': 0,
+    'Nader toetsen': 0,
+    'Monitoren': 0,
+    'Niet prioriteren': 0
+  };
+  
+  themeReviews.forEach(review => {
+    const actionLabel = clampActionLabel(review, getCallByIdentifier(review.identifier));
+    if (actionCounts[actionLabel] !== undefined) {
+      actionCounts[actionLabel]++;
+    }
+  });
+  
+  const actionLabels = [];
+  if (actionCounts['Actief verkennen'] > 0) actionLabels.push(`A:${actionCounts['Actief verkennen']}`);
+  if (actionCounts['Nader toetsen'] > 0) actionLabels.push(`N:${actionCounts['Nader toetsen']}`);
+  if (actionCounts['Monitoren'] > 0) actionLabels.push(`M:${actionCounts['Monitoren']}`);
+  if (actionCounts['Niet prioriteren'] > 0) actionLabels.push(`P:${actionCounts['Niet prioriteren']}`);
+  
+  return {
+    theme: selectedTheme,
+    count: themeReviews.length,
+    scoreRange: scoreRange,
+    actionLabels: actionLabels.join(' '),
+    note: 'Deze shortlist toont calls binnen het actieve themafilter.'
+  };
+}
+
 function getPossibleRwsProject(review) {
   const project = review.possibleRwsProject;
   
@@ -1373,34 +1420,38 @@ function renderAiShortlist() {
     </div>`;
 
   // 3. Thema-overzicht
-  const themeOverview = getThemeOverview(reviews);
-  html += `
+  const selectedThemeSummary = getSelectedThemeSummary(reviews, state.filters.theme);
+  
+  if (state.filters.theme === 'all') {
+    // Full theme overview for "all" filter
+    const themeOverview = getThemeOverview(reviews);
+    html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview">`;
 
-  const themes = [
-    'Corridor Management',
-    'Climate Adaptation',
-    'Sustainability / Duurzame Leefomgeving',
-    'Digitalisation',
-    'Network Governance'
-  ];
+    const themes = [
+      'Corridor Management',
+      'Climate Adaptation',
+      'Sustainability / Duurzame Leefomgeving',
+      'Digitalisation',
+      'Network Governance'
+    ];
 
-  themes.forEach(theme => {
-    const count = themeOverview.themeCounts[theme];
-    const scores = themeOverview.themeScores[theme];
-    const scoreRange = scores.length ? `${Math.min(...scores)}-${Math.max(...scores)}` : '—';
-    const actions = themeOverview.themeActions[theme];
-    
-    if (count > 0) {
-      const actionLabels = [];
-      if (actions['Actief verkennen'] > 0) actionLabels.push(`A:${actions['Actief verkennen']}`);
-      if (actions['Nader toetsen'] > 0) actionLabels.push(`N:${actions['Nader toetsen']}`);
-      if (actions['Monitoren'] > 0) actionLabels.push(`M:${actions['Monitoren']}`);
-      if (actions['Niet prioriteren'] > 0) actionLabels.push(`P:${actions['Niet prioriteren']}`);
+    themes.forEach(theme => {
+      const count = themeOverview.themeCounts[theme];
+      const scores = themeOverview.themeScores[theme];
+      const scoreRange = scores.length ? `${Math.min(...scores)}-${Math.max(...scores)}` : '—';
+      const actions = themeOverview.themeActions[theme];
       
-      html += `
+      if (count > 0) {
+        const actionLabels = [];
+        if (actions['Actief verkennen'] > 0) actionLabels.push(`A:${actions['Actief verkennen']}`);
+        if (actions['Nader toetsen'] > 0) actionLabels.push(`N:${actions['Nader toetsen']}`);
+        if (actions['Monitoren'] > 0) actionLabels.push(`M:${actions['Monitoren']}`);
+        if (actions['Niet prioriteren'] > 0) actionLabels.push(`P:${actions['Niet prioriteren']}`);
+        
+        html += `
         <div class="theme-overview__item">
           <div class="theme-overview__header">
             <span class="theme-overview__name">${theme}</span>
@@ -1411,12 +1462,32 @@ function renderAiShortlist() {
             <span class="theme-overview__actions">${actionLabels.join(' ')}</span>
           </div>
         </div>`;
-    }
-  });
+      }
+    });
 
-  html += `
+    html += `
       </div>
     </div>`;
+  } else if (selectedThemeSummary) {
+    // Compact active-theme summary for specific theme filter
+    html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Thema-overzicht</h3>
+      <div class="theme-overview theme-overview--compact">
+        <div class="theme-overview__item">
+          <div class="theme-overview__header">
+            <span class="theme-overview__name">${selectedThemeSummary.theme}</span>
+            <span class="theme-overview__count">${selectedThemeSummary.count}</span>
+          </div>
+          <div class="theme-overview__details">
+            <span class="theme-overview__scores">${selectedThemeSummary.scoreRange}</span>
+            <span class="theme-overview__actions">${selectedThemeSummary.actionLabels}</span>
+          </div>
+          <div class="theme-overview__note">${selectedThemeSummary.note}</div>
+        </div>
+      </div>
+    </div>`;
+  }
 
   // 4. Compacte expandable call items
   const allCalls = reviews.length > 0 ? reviews : [];
@@ -1476,7 +1547,7 @@ function renderAiShortlist() {
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Waarom relevant</h5>
               <ul class="compact-call__bullets">
-                ${whyRelevant.map(item => `<li class="compact-call__bullet">${escapeHtml(item)}</li>`).join('')}
+                ${whyRelevant.map(item => `<li class="compact-call__bullet">${escapeHtml(cleanBulletText(item))}</li>`).join('')}
               </ul>
             </div>
             <div class="compact-call__section">
