@@ -1279,17 +1279,77 @@ function getDeterministicSummary(reviews, filteredCount) {
 // ── Helpers: Field mappings for compact shortlist ───────────
 function getCallScope(grant) {
   // Priority order: summary -> abstract -> title
-  if (grant.summary) return grant.summary.split('.')[0] + '.'; // First sentence only
-  if (grant.abstract) {
-    // Extract first sentence from abstract, handling "Expected Outcome:" prefix
-    const firstSentence = grant.abstract.split('.')[0].replace('Expected Outcome:', '').trim();
-    return firstSentence + '.';
+  // Use summary if it's informative and not just identical to title
+  if (grant.summary) {
+    const summaryFirstSentence = grant.summary.split('.')[0].trim() + '.';
+    // Avoid using summary if it's just the title
+    if (summaryFirstSentence !== grant.title && summaryFirstSentence.length > 30) {
+      return summaryFirstSentence;
+    }
   }
-  return grant.title || 'Geen beschrijving beschikbaar.';
+  
+  // Extract useful content from abstract
+  if (grant.abstract) {
+    // Look for meaningful prefixes and extract content after them
+    const prefixes = ['Expected Outcome:', 'Scope:', 'Expected Impact:', 'Objective:', 'Purpose:'];
+    let abstractContent = grant.abstract;
+    
+    // Find the first meaningful prefix and extract content after it
+    for (const prefix of prefixes) {
+      if (abstractContent.includes(prefix)) {
+        abstractContent = abstractContent.split(prefix)[1].trim();
+        break;
+      }
+    }
+    
+    // Get first sentence of the cleaned content
+    const firstSentence = abstractContent.split('.')[0].trim();
+    
+    // Remove any remaining technical prefixes
+    const cleanedSentence = firstSentence
+      .replace(/^Expected Outcome:/i, '')
+      .replace(/^Scope:/i, '')
+      .replace(/^Objective:/i, '')
+      .replace(/^Purpose:/i, '')
+      .trim();
+    
+    // Return if we have meaningful content
+    if (cleanedSentence.length > 20) {
+      return cleanedSentence + (cleanedSentence.endsWith('.') ? '' : '.');
+    }
+  }
+  
+  // Fallback to title only if no better content
+  if (grant.title && grant.title.length > 10) {
+    return grant.title + '.';
+  }
+  
+  return 'Scope nog niet concreet beschikbaar in de callgegevens.';
 }
 
 function cleanBulletText(text) {
   return String(text || '').replace(/^[\s•\-*–—]+/, '').trim();
+}
+
+function getStatusBadgeClass(status) {
+  if (!status) return 'compact-call__status--neutral';
+  
+  // Normalize status to handle both label and code formats
+  const statusText = status.label ? status.label.toLowerCase() : String(status).toLowerCase();
+  const statusCode = status.id ? String(status.id) : '';
+  
+  // Open for submission (green)
+  if (statusText.includes('open') || statusCode === '31094502') {
+    return 'compact-call__status--open';
+  }
+  
+  // Forthcoming (orange)
+  if (statusText.includes('forthcoming') || statusCode === '31094501') {
+    return 'compact-call__status--forthcoming';
+  }
+  
+  // Default/neutral
+  return 'compact-call__status--neutral';
 }
 
 function getSelectedThemeSummary(reviews, selectedTheme) {
@@ -1531,7 +1591,7 @@ function renderAiShortlist() {
           <div class="compact-call__meta">
             <span class="compact-call__programme">${call.frameworkProgrammes?.[0]?.label || 'EU'}</span>
             <span class="compact-call__deadline">Deadline: ${deadline}</span>
-            <span class="compact-call__status">${call.status?.label || 'Onbekend'}</span>
+            <span class="compact-call__status ${getStatusBadgeClass(call.status)}">${call.status?.label || 'Onbekend'}</span>
           </div>
           <div class="compact-call__scores">
             <span class="compact-call__theme">${primaryTheme}</span>

@@ -3012,9 +3012,22 @@ body::before {
 .compact-call__status {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.compact-call__status--open {
   background: #e8f5e9;
   color: #2e7d32;
-  font-weight: 600;
+}
+
+.compact-call__status--forthcoming {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.compact-call__status--neutral {
+  background: #e0e0e0;
+  color: #616161;
 }
 
 .compact-call__scores {
