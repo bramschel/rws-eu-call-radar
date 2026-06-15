@@ -483,23 +483,22 @@ De JSON moet exact deze structuur hebben:
       "callScopeSummary": "...",
       "uncertainties": "...",
       "recommendedNextStep": "...",
-      "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"]
+      "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"],
+      "snapshotReden": "...",
+      "waaromRelevant": ["...", "..."]
     }
   ]
 }
 
-- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
-- possibleRwsRole: beschrijf de meest passende organisatorische rol voor RWS in deze call, bijvoorbeeld: kennispartner, asset owner, pilotlocatie, data provider, coördinator, evaluator, of een combinatie van maximaal 2 rollen. Gebruik de Nederlandse termen uit de RWS-taaktaxonomie. Vermijd generieke termen als 'partner' of 'deelnemer'.
-- possibleRwsProject: schrijf exact 1 volledige Nederlandse zin met een concreet mogelijk RWS-project, pilot, use case, asset case of implementatierol die logisch volgt uit de calltekst en RWS-context. Formuleer als voorstel, niet als feit. Herhaal niet de rationale, projectFit, possibleRwsRole, recommendedNextStep of callScopeSummary. Gebruik geen losse rollenlijst. Als geen concreet voorstel kan worden afgeleid, gebruik exact: 'Nog te concretiseren met inhoudelijke eigenaar.'
-- callScopeSummary: schrijf exact 1 volledige Nederlandse zin die beschrijft wat de EU met deze call wil bereiken, financieren, ontwikkelen, testen of implementeren. Baseer dit op titel, samenvatting en abstract van de call. Beschrijf niet waarom de call relevant is voor RWS. Herhaal niet simpelweg de titel. Eindig niet met '...'. Als er onvoldoende informatie is, gebruik exact: 'Scope nog niet concreet beschikbaar in de callgegevens.'
-- aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches, gelijkenis met positieve voorbeelden, EN fit met het geselecteerde thema/filtercontext. Dit is de hoofdscore. User intent fit is een cruciale factor - een call met lage thema-fit kan niet hoog scoren, zelfs niet met sterke RAG-ondersteuning.
-- projectFitScore: score 0-100 UITSLUITEND op hoe goed de call aansluit bij het projectidee van de gebruiker, los van de bredere RWS-fit. Kan afwijken van aiRelevanceScore.
+- snapshotReden: exact 1 zin in het NEDERLANDS, max 15 woorden, die uitlegt waarom deze call opvalt voor RWS. Begin met een werkwoord of concreet onderwerp. NIET: "Deze call is relevant voor RWS vanwege..." WEL: "Zoekt uitvoerende partner voor sensorvalidatie op bestaande rijksinfrastructuur." WEL: "Financiert pilots voor klimaatbestendige waterkeringen met asset-owner deelname."
+
+- waaromRelevant: array van exact 2 bullets in het NEDERLANDS, elk max 20 woorden. Bullet 1: concrete link tussen de call en een specifiek RWS-domein of taak. Bullet 2: specifiek element van de call dat aansluit op lopende RWS-programma's of RAG-context. NIET: herhaling van snapshotReden. NIET: generieke zinnen als "is relevant voor RWS vanwege zijn infrastructuurrol."
+
+- possibleRwsProject: exact 1 zin in het NEDERLANDS in de vorm: "RWS zou als [rol] kunnen [concrete actie] binnen [onderdeel van de call], gebruikmakend van [bestaande RWS-asset, locatie, data of lopend programma]." Als geen concrete invulling mogelijk is op basis van de calldata en RAG-context: geef null terug. NOOIT de tekst "Nog te concretiseren" of een variant daarvan. NOOIT een herhaling van waaromRelevant of possibleRwsRole.
+
+- rationale: volledige toelichting in het NEDERLANDS. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd superlatieven ("perfect match", "uitstekende fit") tenzij aiRelevanceScore > 85 met concreet bewijs.
+
 - ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
-- rationale: beschrijf de totale beoordeling. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd phrases like "perfect match", "excellent fit" of "highly relevant" tenzij de score boven 85 is en het bewijs concreet is. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden of RAG-context vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
-- summary.executiveSummary: management samenvatting van de top resultaten
-- summary.topOpportunities: top 3 meest relevante calls met korte toelichting
-- summary.notableExclusions: importante calls die net buiten de top 10 vallen
-- summary.recommendedNextSteps: 3 concrete actiepunten voor RWS
 
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen tekst buiten JSON.
@@ -601,7 +600,9 @@ function normalizeAiReviews(parsed) {
     callScopeSummary:    review.callScopeSummary || '',
     uncertainties:       review.uncertainties || review.onzekerheden || '',
     recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || '',
-    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : []
+    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : [],
+    snapshotReden:       review.snapshotReden || '',
+    waaromRelevant:      Array.isArray(review.waaromRelevant) ? review.waaromRelevant : []
   }));
 
   // Sorteer reviews op aiRelevanceScore (hoog naar laag)

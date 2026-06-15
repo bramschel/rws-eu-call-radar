@@ -1259,21 +1259,36 @@ function getDeterministicSummary(reviews, filteredCount) {
       'Kies maximaal 10 calls voor beoordeling.'
     ];
   }
-  
+ 
   const themeOverview = getThemeOverview(reviews);
   const dominantTheme = Object.entries(themeOverview.themeCounts)
-    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'geen dominant thema';
-  
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'onbekend';
+ 
   const topCall = getTopCallsForBriefing(reviews)[0];
   const topCallData = topCall ? getCallByIdentifier(topCall.identifier) : null;
-  
-  const summary = [
-    `${reviews.length} calls geanalyseerd van ${filteredCount} in scope (${getActivePeriodLabel()}, ${themeOverview.themeCounts[dominantTheme]} in ${dominantTheme}).`,
-    `Topcall: ${topCallData?.title || 'geen'} (${topCall?.aiRelevanceScore || 0}/100, ${getPrimaryThemeForGrant(topCallData || {})}).`,
-    `Actieverdeling: ${JSON.stringify(themeOverview.themeActions[dominantTheme])}`
+ 
+  // Actieverdeling over alle reviews
+  const actionCounts = { 'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0 };
+  reviews.forEach(r => {
+    const call = getCallByIdentifier(r.identifier);
+    const label = clampActionLabel(r, call);
+    if (actionCounts[label] !== undefined) actionCounts[label]++;
+  });
+ 
+  const actieParts = [];
+  if (actionCounts['Actief verkennen'] > 0)  actieParts.push(`${actionCounts['Actief verkennen']}x actief verkennen`);
+  if (actionCounts['Nader toetsen'] > 0)     actieParts.push(`${actionCounts['Nader toetsen']}x nader toetsen`);
+  if (actionCounts['Monitoren'] > 0)          actieParts.push(`${actionCounts['Monitoren']}x monitoren`);
+  if (actionCounts['Niet prioriteren'] > 0)   actieParts.push(`${actionCounts['Niet prioriteren']}x niet prioriteren`);
+ 
+  return [
+    `${reviews.length} van ${filteredCount} calls geanalyseerd — dominant thema: ${dominantTheme} (${themeOverview.themeCounts[dominantTheme] || 0} calls).`,
+    topCallData
+      ? `Topcall: ${topCallData.title} (AI: ${topCall.aiRelevanceScore}/100, ${getPrimaryThemeForGrant(topCallData)}).`
+      : 'Geen topcall bepaald.',
+    actieParts.length ? `Actieverdeling: ${actieParts.join(', ')}.` : 'Geen actielabels bepaald.'
   ];
-  
-  return summary;
 }
 
 // ── Helpers: Field mappings for compact shortlist ───────────
@@ -1466,49 +1481,31 @@ function getSelectedThemeSummary(reviews, selectedTheme) {
 
 function getPossibleRwsProject(review) {
   const project = review.possibleRwsProject;
-  
-  // Reject if empty or too short
-  if (!project || project.length < 20) {
-    return 'Nog te concretiseren met inhoudelijke eigenaar.';
-  }
-  
-  // Reject if it looks like a role list (contains commas and role terms)
+ 
+  if (!project || project.length < 20) return null;
+ 
   const roleTerms = ['kennispartner', 'asset owner', 'pilotlocatie', 'data provider', 'coördinator', 'evaluator'];
   const hasCommas = project.split(',').length > 2;
   const hasRoleTerms = roleTerms.some(term => project.toLowerCase().includes(term));
-  if (hasCommas && hasRoleTerms) {
-    return 'Nog te concretiseren met inhoudelijke eigenaar.';
-  }
-  
-  // Reject if identical or very similar to other fields
-  const isSimilarToRole = review.possibleRwsRole && project === review.possibleRwsRole;
-  const isSimilarToFit = review.projectFit && project === review.projectFit;
-  const isSimilarToRationale = review.rationale && project === review.rationale;
-  const isSimilarToScope = review.callScopeSummary && project === review.callScopeSummary;
-  const isSimilarToNextStep = review.recommendedNextStep && project === review.recommendedNextStep;
-  
-  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale || isSimilarToScope || isSimilarToNextStep) {
-    return 'Nog te concretiseren met inhoudelijke eigenaar.';
-  }
-  
-  // Reject generic phrases
+  if (hasCommas && hasRoleTerms) return null;
+ 
+  const isSimilarToRole      = review.possibleRwsRole  && project === review.possibleRwsRole;
+  const isSimilarToFit       = review.projectFit       && project === review.projectFit;
+  const isSimilarToRationale = review.rationale        && project === review.rationale;
+  const isSimilarToScope     = review.callScopeSummary && project === review.callScopeSummary;
+  const isSimilarToNextStep  = review.recommendedNextStep && project === review.recommendedNextStep;
+  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale || isSimilarToScope || isSimilarToNextStep) return null;
+ 
   const genericPhrases = [
+    'nog te concretiseren',
     'RWS kan bijdragen aan',
     'deze call is relevant voor',
     'zeer relevant voor RWS',
     'goede kans voor RWS',
     'interessant voor RWS'
   ];
-  
-  const hasOnlyGeneric = genericPhrases.some(phrase => 
-    project.toLowerCase().includes(phrase.toLowerCase()) 
-  ) && project.length < 50;
-  
-  if (hasOnlyGeneric) {
-    return 'Nog te concretiseren met inhoudelijke eigenaar.';
-  }
-  
-  // If all checks pass, return the project
+  if (genericPhrases.some(p => project.toLowerCase().includes(p.toLowerCase()))) return null;
+ 
   return project;
 }
 
@@ -1516,51 +1513,52 @@ function getPossibleRwsProject(review) {
 function renderAiShortlist() {
   const container = document.querySelector('#shortlist-content');
   if (!container) return;
-
+ 
   const reviews = Array.from(state.aiReviews.values());
-  if (!reviews.length) { 
-    container.innerHTML = '<p>Voer eerst een AI-analyse uit op het Radar-tabblad om de shortlist te vullen.</p>'; 
-    return; 
+  if (!reviews.length) {
+    container.innerHTML = '<p class="shortlist-empty">Voer eerst een AI-analyse uit op het Radar-tabblad om de shortlist te vullen.</p>';
+    return;
   }
-
-  const filteredCount = state.filtered.length;
-  const activePeriod = getActivePeriodLabel();
-  const activeStatus = state.filters.status === 'live' ? 'Live (Open + Forthcoming)' : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
-  const activeTheme = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
-
+ 
+  const filteredCount  = state.filtered.length;
+  const activePeriod   = getActivePeriodLabel();
+  const activeStatus   = state.filters.status === 'live'
+    ? 'Live (Open + Forthcoming)'
+    : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
+  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
+ 
   // 1. Header
   let html = `
     <div class="briefing-header">
       <h2 class="briefing-title">Shortlist</h2>
       <div class="briefing-meta">
-        <span class="briefing-meta__item">Periode: ${activePeriod}</span>
-        <span class="briefing-meta__item">Status: ${activeStatus}</span>
-        <span class="briefing-meta__item">Thema: ${activeTheme}</span>
+        <span class="briefing-meta__item">Periode: ${escapeHtml(activePeriod)}</span>
+        <span class="briefing-meta__item">Status: ${escapeHtml(activeStatus)}</span>
+        <span class="briefing-meta__item">Thema: ${escapeHtml(activeTheme)}</span>
         <span class="briefing-meta__item">${filteredCount} calls in scope</span>
       </div>
     </div>`;
-
+ 
   // 2. Samenvatting
   const summary = getDeterministicSummary(reviews, filteredCount);
   html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Samenvatting</h3>
       <ul class="briefing-summary">
-        ${summary.map(item => `<li class="briefing-summary__item">${item}</li>`).join('')}
+        ${summary.map(item => `<li class="briefing-summary__item">${escapeHtml(item)}</li>`).join('')}
       </ul>
     </div>`;
-
+ 
   // 3. Thema-overzicht
   const selectedThemeSummary = getSelectedThemeSummary(reviews, state.filters.theme);
-  
+ 
   if (state.filters.theme === 'all') {
-    // Full theme overview for "all" filter
     const themeOverview = getThemeOverview(reviews);
     html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview">`;
-
+ 
     const themes = [
       'Corridor Management',
       'Climate Adaptation',
@@ -1568,24 +1566,24 @@ function renderAiShortlist() {
       'Digitalisation',
       'Network Governance'
     ];
-
+ 
     themes.forEach(theme => {
-      const count = themeOverview.themeCounts[theme];
-      const scores = themeOverview.themeScores[theme];
-      const scoreRange = scores.length ? `${Math.min(...scores)}-${Math.max(...scores)}` : '—';
-      const actions = themeOverview.themeActions[theme];
-      
+      const count   = themeOverview.themeCounts[theme] || 0;
+      const scores  = themeOverview.themeScores[theme] || [];
+      const scoreRange = scores.length ? `${Math.min(...scores)}\u2013${Math.max(...scores)}` : '\u2014';
+      const actions = themeOverview.themeActions[theme] || {};
+ 
       if (count > 0) {
         const actionLabels = [];
-        if (actions['Actief verkennen'] > 0) actionLabels.push(`A:${actions['Actief verkennen']}`);
-        if (actions['Nader toetsen'] > 0) actionLabels.push(`N:${actions['Nader toetsen']}`);
-        if (actions['Monitoren'] > 0) actionLabels.push(`M:${actions['Monitoren']}`);
-        if (actions['Niet prioriteren'] > 0) actionLabels.push(`P:${actions['Niet prioriteren']}`);
-        
+        if (actions['Actief verkennen'] > 0)  actionLabels.push(`A:${actions['Actief verkennen']}`);
+        if (actions['Nader toetsen'] > 0)     actionLabels.push(`N:${actions['Nader toetsen']}`);
+        if (actions['Monitoren'] > 0)          actionLabels.push(`M:${actions['Monitoren']}`);
+        if (actions['Niet prioriteren'] > 0)   actionLabels.push(`P:${actions['Niet prioriteren']}`);
+ 
         html += `
         <div class="theme-overview__item">
           <div class="theme-overview__header">
-            <span class="theme-overview__name">${theme}</span>
+            <span class="theme-overview__name">${escapeHtml(theme)}</span>
             <span class="theme-overview__count">${count}</span>
           </div>
           <div class="theme-overview__details">
@@ -1595,153 +1593,179 @@ function renderAiShortlist() {
         </div>`;
       }
     });
-
-    html += `
-      </div>
-    </div>`;
+ 
+    html += `</div></div>`;
+ 
   } else if (selectedThemeSummary) {
-    // Compact active-theme summary for specific theme filter
     html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview theme-overview--compact">
         <div class="theme-overview__item">
           <div class="theme-overview__header">
-            <span class="theme-overview__name">${selectedThemeSummary.theme}</span>
+            <span class="theme-overview__name">${escapeHtml(selectedThemeSummary.theme)}</span>
             <span class="theme-overview__count">${selectedThemeSummary.count}</span>
           </div>
           <div class="theme-overview__details">
             <span class="theme-overview__scores">${selectedThemeSummary.scoreRange}</span>
             <span class="theme-overview__actions">${selectedThemeSummary.actionLabels}</span>
           </div>
-          <div class="theme-overview__note">${selectedThemeSummary.note}</div>
+          <div class="theme-overview__note">${escapeHtml(selectedThemeSummary.note || '')}</div>
         </div>
       </div>
     </div>`;
   }
-
-  // 4. Compacte expandable call items
+ 
+  // 4. Calls
   const sortedReviews = sortReviewsByAiRelevance(reviews);
-  const allCalls = sortedReviews.length > 0 ? sortedReviews : [];
-
-  if (allCalls.length > 0) {
+ 
+  if (sortedReviews.length > 0) {
     html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Alle calls</h3>
       <div class="compact-calls-grid">`;
-
-    allCalls.forEach((review, index) => {
+ 
+    sortedReviews.forEach((review, index) => {
       const call = getCallByIdentifier(review.identifier);
       if (!call) return;
-
-      const actionLabel = clampActionLabel(review, call);
-      const primaryTheme = getPrimaryThemeForGrant(call);
-      const deadline = call.deadlineDate ? new Date(call.deadlineDate).toLocaleDateString('nl-NL') : 'Onbekend';
-      const beoogdeScope = getDisplayCallScope(review, call);
-      const callId = `call-${index}`;
-
-      // Format expanded content
-      const whyRelevant = review.rationale ? review.rationale.split('.').slice(0, 2).map(s => s.trim() + '.').filter(s => s.length > 5) : [];
-      const possibleProject = getPossibleRwsProject(review);
-      const uncertainty = review.uncertainties || 'Geen specifieke onzekerheden geïdentificeerd.';
-      const nextStep = review.recommendedNextStep || 'Nader analyseren op basis van complete calltekst en RWS-prioriteiten.';
-      // Only show rationale if it's not just repeating the why relevant content
-      const rationale = review.rationale && review.rationale.split('.').length > 2 
-        ? review.rationale.split('.').slice(2, 5).map(s => s.trim() + '.').join(' ') 
-        : '';
-
-      // Only first 6 calls are expandable
+ 
+      const rank         = index + 1;
       const isExpandable = index < 6;
-      
+      const actionLabel  = clampActionLabel(review, call);
+      const primaryTheme = getPrimaryThemeForGrant(call);
+      const deadline     = call.deadlineDate
+        ? new Date(call.deadlineDate).toLocaleDateString('nl-NL')
+        : 'Onbekend';
+      const callId = `call-${index}`;
+ 
+      // Score display: "AI 88 · Fit 90" in één span
+      const aiScore  = review.aiRelevanceScore ?? 0;
+      const fitScore = review.projectFitScore  ?? 0;
+      const scoreCls = aiScore >= 70 ? 'score--high' : aiScore >= 50 ? 'score--mid' : 'score--low';
+ 
+      // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback
+      const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
+        ? review.snapshotReden
+        : getCallScope(call);
+ 
+      // Waarom relevant: gebruik nieuw array-veld, anders rationale splitsen
+      let whyBullets = [];
+      if (Array.isArray(review.waaromRelevant) && review.waaromRelevant.length > 0) {
+        whyBullets = review.waaromRelevant.slice(0, 2);
+      } else if (review.rationale) {
+        whyBullets = review.rationale
+          .split(/(?<=[.!?])\s+/)
+          .slice(0, 2)
+          .map(s => cleanBulletText(s.trim()))
+          .filter(s => s.length > 10);
+      }
+ 
+      // Concreet RWS-project: verberg als placeholder
+      const possibleProject = getPossibleRwsProject(review);
+ 
+      // Context: resterende zin(nen) uit rationale + RAG-items
+      const rationaleResterende = review.rationale
+        ? review.rationale.split(/(?<=[.!?])\s+/).slice(2, 5).map(s => s.trim()).filter(s => s.length > 10).join(' ')
+        : '';
+      const ragTag = review.ragMatchedItems?.length
+        ? `RAG: ${review.ragMatchedItems.join(', ')}.`
+        : '';
+      const contextText = [rationaleResterende, ragTag].filter(Boolean).join(' ');
+ 
+      const uncertainty = review.uncertainties || '';
+      const nextStep    = review.recommendedNextStep || '';
+      const actionCls   = actionLabel.toLowerCase().replace(/\s+/g, '-');
+ 
       html += `
         <article class="compact-call${isExpandable ? '' : ' compact-call--static'}" id="${callId}">
-          <div class="compact-call__header">
-            ${isExpandable ? `
-            <button class="compact-call__toggle" aria-expanded="false" aria-controls="${callId}-content">
-              <span class="compact-call__toggle-icon">▶</span>
-              <span class="compact-call__toggle-text">Details</span>
-            </button>` : ''}
-            <h4 class="compact-call__title">${escapeHtml(call.title)}</h4>
-            <span class="compact-call__id">${call.identifier}</span>
-            ${!isExpandable ? `<span class="compact-call__expand-note">Details beschikbaar voor de eerste 6 calls</span>` : ''}
+ 
+          <!-- Bovenrij: rank + badges -->
+          <div class="compact-call__top">
+            <span class="compact-call__rank">#${rank}</span>
+            <div class="compact-call__badges">
+              <span class="compact-call__theme">${escapeHtml(primaryTheme)}</span>
+              <span class="compact-call__status ${getStatusBadgeClass(call.status)}">${escapeHtml(call.status?.label || 'Onbekend')}</span>
+              <span class="compact-call__action-label action-label--${actionCls}">${escapeHtml(actionLabel)}</span>
+            </div>
           </div>
+ 
+          <!-- Titel -->
+          <h4 class="compact-call__title">${escapeHtml(call.title)}</h4>
+ 
+          <!-- Meta: ID · programma · deadline -->
           <div class="compact-call__meta">
-            <span class="compact-call__programme">${call.frameworkProgrammes?.[0]?.label || 'EU'}</span>
-            <span class="compact-call__deadline">Deadline: ${deadline}</span>
-            <span class="compact-call__status ${getStatusBadgeClass(call.status)}">${call.status?.label || 'Onbekend'}</span>
+            <span class="compact-call__id">${escapeHtml(call.identifier)}</span>
+            <span class="compact-call__sep">&middot;</span>
+            <span class="compact-call__programme">${escapeHtml(call.frameworkProgrammes?.[0]?.label || 'EU')}</span>
+            <span class="compact-call__sep">&middot;</span>
+            <span class="compact-call__deadline">Deadline: ${escapeHtml(deadline)}</span>
           </div>
+ 
+          <!-- Scores: gecombineerd -->
           <div class="compact-call__scores">
-            <span class="compact-call__theme">${primaryTheme}</span>
-            <span class="compact-call__score compact-call__score--ai">AI: ${review.aiRelevanceScore}/100</span>
-            <span class="compact-call__score compact-call__score--fit">Fit: ${review.projectFitScore}/100</span>
-            <span class="compact-call__action-label action-label--${actionLabel.toLowerCase().replace(' ', '-')}">${actionLabel}</span>
+            <span class="compact-call__score-combined ${scoreCls}">AI ${aiScore} &middot; Fit ${fitScore}</span>
           </div>
-          <div class="compact-call__scope">
-            <span class="compact-call__scope-label">Beoogde scope:</span>
-            <span class="compact-call__scope-value">${escapeHtml(beoogdeScope)}</span>
-          </div>
+ 
+          <!-- Snapshot: 1 zin waarom relevant -->
+          <p class="compact-call__snapshot">${escapeHtml(snapshotReden)}</p>
+ 
           ${isExpandable ? `
+          <!-- Expanded content -->
           <div class="compact-call__content" id="${callId}-content" aria-hidden="true">
+ 
+            ${whyBullets.length ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Waarom relevant</h5>
               <ul class="compact-call__bullets">
-                ${whyRelevant.map(item => `<li class="compact-call__bullet">${escapeHtml(cleanBulletText(item))}</li>`).join('')}
+                ${whyBullets.map(b => `<li class="compact-call__bullet">${escapeHtml(cleanBulletText(b))}</li>`).join('')}
               </ul>
-            </div>
+            </div>` : ''}
+ 
+            ${possibleProject ? `
             <div class="compact-call__section">
-              <h5 class="compact-call__section-title">Mogelijk RWS-project</h5>
+              <h5 class="compact-call__section-title">Concreet RWS-project</h5>
               <p class="compact-call__text">${escapeHtml(possibleProject)}</p>
-            </div>
+            </div>` : ''}
+ 
+            ${uncertainty ? `
             <div class="compact-call__section">
-              <h5 class="compact-call__section-title">RWS rol</h5>
-              <p class="compact-call__text">${escapeHtml(review.possibleRwsRole || 'Nog te bepalen')}</p>
-            </div>
-            <div class="compact-call__section">
-              <h5 class="compact-call__section-title">Belangrijkste onzekerheid</h5>
+              <h5 class="compact-call__section-title">Onzekerheid</h5>
               <p class="compact-call__text">${escapeHtml(uncertainty)}</p>
-            </div>
+            </div>` : ''}
+ 
+            ${nextStep ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Volgende stap</h5>
               <p class="compact-call__text">${escapeHtml(nextStep)}</p>
-            </div>
-            ${rationale ? `
-            <div class="compact-call__section">
-              <h5 class="compact-call__section-title">Context</h5>
-              <p class="compact-call__text compact-call__text--small">${escapeHtml(rationale)}</p>
             </div>` : ''}
-          </div>` : ''}
-          ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
+ 
+            ${contextText ? `
+            <div class="compact-call__section compact-call__section--context">
+              <h5 class="compact-call__section-title">Context</h5>
+              <p class="compact-call__text compact-call__text--small">${escapeHtml(contextText)}</p>
+            </div>` : ''}
+ 
+          </div>
+ 
+          <!-- Footer: expand-knop onderaan + open call -->
+          <div class="compact-call__footer">
+            <button class="compact-call__toggle" aria-expanded="false" aria-controls="${callId}-content">
+              <span class="compact-call__toggle-icon">&#9660;</span>
+              <span class="compact-call__toggle-text">Bekijk details</span>
+            </button>
+            ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
+          </div>` : `
+          <!-- Static (rank 7+): alleen open call link -->
+          <div class="compact-call__footer">
+            ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
+          </div>`}
+ 
         </article>`;
     });
-
-    html += `
-      </div>
-    </div>`;
+ 
+    html += `</div></div>`;
   }
-
-  // Add expand/collapse functionality
-  setTimeout(() => {
-    const toggleButtons = document.querySelectorAll('.compact-call__toggle');
-    toggleButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const callId = button.closest('.compact-call').id;
-        const content = document.getElementById(`${callId}-content`);
-        const isExpanded = button.getAttribute('aria-expanded') === 'true';
-        
-        button.setAttribute('aria-expanded', !isExpanded);
-        content.setAttribute('aria-hidden', isExpanded);
-        
-        if (isExpanded) {
-          button.querySelector('.compact-call__toggle-icon').textContent = '▶';
-          button.querySelector('.compact-call__toggle-text').textContent = 'Details';
-        } else {
-          button.querySelector('.compact-call__toggle-icon').textContent = '▼';
-          button.querySelector('.compact-call__toggle-text').textContent = 'Minder';
-        }
-      });
-    });
-  }, 100);
-
+ 
   // 5. Watchlist
   const watchlistCalls = getWatchlistCalls(reviews);
   if (watchlistCalls.length > 0) {
@@ -1749,44 +1773,41 @@ function renderAiShortlist() {
     <div class="briefing-section">
       <h3 class="briefing-section__title">Watchlist</h3>
       <div class="watchlist">`;
-
+ 
     watchlistCalls.forEach(review => {
       const call = getCallByIdentifier(review.identifier);
       if (!call) return;
-
-      const actionLabel = clampActionLabel(review, call);
+ 
+      const actionLabel  = clampActionLabel(review, call);
       const primaryTheme = getPrimaryThemeForGrant(call);
-      
-      // Determine concise reason for watchlist
+ 
       let watchlistReason = '';
-      if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
-        watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100)`;
-      } else if (review.projectFitScore >= review.aiRelevanceScore + 15) {
-        watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore})`;
+      if (review.projectFitScore >= review.aiRelevanceScore + 15) {
+        watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore}) \u2014 relevant als projectidee concreter wordt.`;
+      } else if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
+        watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100) \u2014 ${actionLabel}.`;
       } else {
-        watchlistReason = `Actie: ${actionLabel}`;
+        watchlistReason = `Actie: ${actionLabel}.`;
       }
-
+ 
       html += `
         <article class="watchlist-item">
           <div class="watchlist-item__header">
             <h4 class="watchlist-item__title">${escapeHtml(call.title)}</h4>
-            <span class="watchlist-item__id">${call.identifier}</span>
+            <span class="watchlist-item__id">${escapeHtml(call.identifier)}</span>
           </div>
           <div class="watchlist-item__meta">
-            <span class="watchlist-item__theme">${primaryTheme}</span>
-            <span class="watchlist-item__score">${review.aiRelevanceScore}/100</span>
+            <span class="watchlist-item__theme">${escapeHtml(primaryTheme)}</span>
+            <span class="watchlist-item__score">AI: ${review.aiRelevanceScore}/100</span>
           </div>
-          <p class="watchlist-item__reason">${watchlistReason}</p>
+          <p class="watchlist-item__reason">${escapeHtml(watchlistReason)}</p>
           ${call.url ? `<a class="watchlist-item__open" href="${call.url}" target="_blank" rel="noreferrer">Open</a>` : ''}
         </article>`;
     });
-
-    html += `
-      </div>
-    </div>`;
+ 
+    html += `</div></div>`;
   }
-
+ 
   // 6. Vervolgacties
   const nextActions = getDeduplicatedNextActions(reviews);
   if (nextActions.length > 0) {
@@ -1794,26 +1815,44 @@ function renderAiShortlist() {
     <div class="briefing-section">
       <h3 class="briefing-section__title">Vervolgacties</h3>
       <ul class="next-actions">
-        ${nextActions.map(action => `<li class="next-action">${escapeHtml(action.callId)}: ${escapeHtml(action.action)}</li>`).join('')}
+        ${nextActions.map(a => `<li class="next-action"><strong>${escapeHtml(a.callId)}:</strong> ${escapeHtml(a.action)}</li>`).join('')}
       </ul>
     </div>`;
   }
-
+ 
   // 7. Aannames en beperkingen
   html += `
     <div class="briefing-section briefing-disclaimer">
       <h3 class="briefing-section__title">Aannames en beperkingen</h3>
       <ul class="briefing-disclaimer__items">
-        <li class="briefing-disclaimer__item">Scores zijn AI-gegenereerd en indicatief.</li>
+        <li class="briefing-disclaimer__item">Scores zijn AI-gegenereerd en indicatief, geen garantie op volledigheid.</li>
         <li class="briefing-disclaimer__item">Thema-toewijzing is automatisch en dient gecontroleerd te worden.</li>
-        <li class="briefing-disclaimer__item">Actieve periode-semantiek: Open calls gefilterd op openingsdatum; Forthcoming calls gefilterd op radar first-seen datum.</li>
-        <li class="briefing-disclaimer__item">Shortlist is een meeting-hulpmiddel, geen definitief subsidiebesluit.</li>
+        <li class="briefing-disclaimer__item">Periode &ldquo;${escapeHtml(activePeriod)}&rdquo;: open calls gefilterd op openingsdatum; forthcoming calls op datum eerste signalering door de radar.</li>
+        <li class="briefing-disclaimer__item">Shortlist is een vergaderhulpmiddel, geen definitief subsidiebesluit.</li>
       </ul>
     </div>`;
-
+ 
   container.innerHTML = html;
+ 
+  // Expand/collapse
+  setTimeout(() => {
+    document.querySelectorAll('.compact-call__toggle').forEach(button => {
+      button.addEventListener('click', () => {
+        const callArticle = button.closest('.compact-call');
+        const content     = document.getElementById(`${callArticle.id}-content`);
+        if (!content) return;
+ 
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', String(!isExpanded));
+        content.setAttribute('aria-hidden', String(isExpanded));
+ 
+        button.querySelector('.compact-call__toggle-icon').innerHTML = isExpanded ? '&#9660;' : '&#9650;';
+        button.querySelector('.compact-call__toggle-text').textContent = isExpanded ? 'Bekijk details' : 'Minder';
+      });
+    });
+  }, 100);
 }
-
+ 
 // ── Render: AI briefing panel (geen ragContextUsed) ───────────
 function renderAiBriefing() {
   const panel = elements.aiBriefingPanel;
@@ -1902,7 +1941,9 @@ function normalizeAiReviewForDisplay(review) {
     possibleRwsRole:     review.possibleRwsRole || review.possibleRWSRole || review.rwsRole || review.rws_role || '',
     uncertainties:       review.uncertainties || review.onzekerheden || '',
     recommendedNextStep: review.recommendedNextStep || review.nextStep || review.next_step || '',
-    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : []
+    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : [],
+    snapshotReden:       review.snapshotReden || '',
+    waaromRelevant:      Array.isArray(review.waaromRelevant) ? review.waaromRelevant : []
   };
 }
 

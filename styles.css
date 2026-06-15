@@ -3409,3 +3409,76 @@ body::before {
    // 5. Watchlist[m
    const watchlistCalls = getWatchlistCalls(reviews);[m
    if (watchlistCalls.length > 0) {[m
+
+/* Ranking nummer — groot en subtiel linksboven in de card */
+.compact-call__rank {
+  font-size: 1.4rem;
+  font-weight: 700;
+  opacity: 0.18;
+  line-height: 1;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+  align-self: center;
+}
+ 
+/* Bovenrij: rank + badges naast elkaar */
+.compact-call__top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+ 
+.compact-call__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+ 
+/* Gecombineerde score: "AI 88 · Fit 90" */
+.compact-call__score-combined {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.35rem;
+}
+.compact-call__score-combined.score--high { background: rgba(16,185,129,0.15); color: #10b981; }
+.compact-call__score-combined.score--mid  { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.compact-call__score-combined.score--low  { background: rgba(100,116,139,0.12); color: #94a3b8; }
+ 
+/* Snapshot: 1 zin waarom relevant, licht cursief */
+.compact-call__snapshot {
+  font-size: 0.85rem;
+  font-style: italic;
+  opacity: 0.82;
+  margin: 0.3rem 0 0.5rem;
+  line-height: 1.45;
+}
+ 
+/* Footer: expand-knop links, open call rechts */
+.compact-call__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+ 
+
+ 
+
+ 
+/* Context sectie: iets gedempter dan andere expanded secties */
+.compact-call__section--context .compact-call__section-title {
+  opacity: 0.4;
+}
+.compact-call__section--context .compact-call__text--small {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+ 
