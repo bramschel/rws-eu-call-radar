@@ -1350,7 +1350,54 @@ function getCallScope(grant) {
 }
 
 function cleanBulletText(text) {
-  return String(text || '').replace(/^[\s•\-*–—]+/, '').trim();
+  return String(text || '').replace(/^[\s•\-*–—·▪●]+/, '').trim();
+}
+
+function sortReviewsByAiRelevance(reviews) {
+  // Shortlist order is always aiRelevanceScore descending. Do not replace with local relevance or project fit sorting.
+  return [...reviews].sort((a, b) => {
+    // Primary: aiRelevanceScore descending
+    const scoreA = a.aiRelevanceScore ?? 0;
+    const scoreB = b.aiRelevanceScore ?? 0;
+    if (scoreA !== scoreB) return scoreB - scoreA;
+    
+    // Secondary: projectFitScore descending
+    const fitA = a.projectFitScore ?? 0;
+    const fitB = b.projectFitScore ?? 0;
+    if (fitA !== fitB) return fitB - fitA;
+    
+    // Tertiary: deadlineDate ascending (earliest first)
+    const callA = getCallByIdentifier(a.identifier);
+    const callB = getCallByIdentifier(b.identifier);
+    const deadlineA = callA?.deadlineDate ? new Date(callA.deadlineDate).getTime() : Infinity;
+    const deadlineB = callB?.deadlineDate ? new Date(callB.deadlineDate).getTime() : Infinity;
+    if (deadlineA !== deadlineB) return deadlineA - deadlineB;
+    
+    // Final: identifier ascending for stable tie-breaker
+    return a.identifier.localeCompare(b.identifier);
+  });
+}
+
+function getDisplayCallScope(review, grant) {
+  // Prefer AI-generated Dutch scope if available and valid
+  if (review.callScopeSummary) {
+    const scope = review.callScopeSummary.trim();
+    
+    // Validation: reject if too short, English title repetition, or invalid fallback
+    const isTooShort = scope.length < 30;
+    const isEnglishTitleRepetition = grant.title && 
+                                     scope.toLowerCase().startsWith(grant.title.toLowerCase()) &&
+                                     scope.length < grant.title.length + 20;
+    const isInvalidFallback = scope === 'Scope nog niet concreet beschikbaar in de callgegevens.' && 
+                             grant.summary && grant.summary.length > 50;
+    
+    if (!isTooShort && !isEnglishTitleRepetition && !isInvalidFallback) {
+      return scope;
+    }
+  }
+  
+  // Fallback to deterministic scope extraction
+  return getCallScope(grant);
 }
 
 function getStatusBadgeClass(status) {
@@ -1572,7 +1619,8 @@ function renderAiShortlist() {
   }
 
   // 4. Compacte expandable call items
-  const allCalls = reviews.length > 0 ? reviews : [];
+  const sortedReviews = sortReviewsByAiRelevance(reviews);
+  const allCalls = sortedReviews.length > 0 ? sortedReviews : [];
 
   if (allCalls.length > 0) {
     html += `
@@ -1587,7 +1635,7 @@ function renderAiShortlist() {
       const actionLabel = clampActionLabel(review, call);
       const primaryTheme = getPrimaryThemeForGrant(call);
       const deadline = call.deadlineDate ? new Date(call.deadlineDate).toLocaleDateString('nl-NL') : 'Onbekend';
-      const beoogdeScope = getCallScope(call);
+      const beoogdeScope = getDisplayCallScope(review, call);
       const callId = `call-${index}`;
 
       // Format expanded content
@@ -1600,15 +1648,20 @@ function renderAiShortlist() {
         ? review.rationale.split('.').slice(2, 5).map(s => s.trim() + '.').join(' ') 
         : '';
 
+      // Only first 6 calls are expandable
+      const isExpandable = index < 6;
+      
       html += `
-        <article class="compact-call" id="${callId}">
+        <article class="compact-call${isExpandable ? '' : ' compact-call--static'}" id="${callId}">
           <div class="compact-call__header">
+            ${isExpandable ? `
             <button class="compact-call__toggle" aria-expanded="false" aria-controls="${callId}-content">
               <span class="compact-call__toggle-icon">▶</span>
               <span class="compact-call__toggle-text">Details</span>
-            </button>
+            </button>` : ''}
             <h4 class="compact-call__title">${escapeHtml(call.title)}</h4>
             <span class="compact-call__id">${call.identifier}</span>
+            ${!isExpandable ? `<span class="compact-call__expand-note">Details beschikbaar voor de eerste 6 calls</span>` : ''}
           </div>
           <div class="compact-call__meta">
             <span class="compact-call__programme">${call.frameworkProgrammes?.[0]?.label || 'EU'}</span>
@@ -1625,6 +1678,7 @@ function renderAiShortlist() {
             <span class="compact-call__scope-label">Beoogde scope:</span>
             <span class="compact-call__scope-value">${escapeHtml(beoogdeScope)}</span>
           </div>
+          ${isExpandable ? `
           <div class="compact-call__content" id="${callId}-content" aria-hidden="true">
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Waarom relevant</h5>
@@ -1653,7 +1707,7 @@ function renderAiShortlist() {
               <h5 class="compact-call__section-title">Context</h5>
               <p class="compact-call__text compact-call__text--small">${escapeHtml(rationale)}</p>
             </div>` : ''}
-          </div>
+          </div>` : ''}
           ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
         </article>`;
     });

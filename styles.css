@@ -3144,12 +3144,20 @@ body::before {
   margin: 0;
   padding-left: 1.5rem;
   display: block;
+  list-style: disc;
 }
 
 .compact-call__bullet {
   margin: 0;
   line-height: 1.55;
   color: var(--ink);
+}
+
+/* Ensure no duplicate bullets in Shortlist lists */
+.compact-call__content li::before,
+.compact-call__content ul li::before {
+  content: none !important;
+  display: none !important;
 }
 
 .compact-call__text {
@@ -3180,6 +3188,18 @@ body::before {
 .compact-call__open:hover {
   background: var(--rws-blue-2);
   transform: translateY(-1px);
+}
+
+.compact-call--static {
+  opacity: 0.9;
+}
+
+.compact-call__expand-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-left: auto;
+  padding-left: 12px;
 }
 
 /* Responsive layout */
