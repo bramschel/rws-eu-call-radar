@@ -3142,27 +3142,14 @@ body::before {
 
 .compact-call__bullets {
   margin: 0;
-  padding-left: 1.25rem;
-  display: grid;
-  gap: 6px;
+  padding-left: 1.5rem;
+  display: block;
 }
 
 .compact-call__bullet {
   margin: 0;
   line-height: 1.55;
   color: var(--ink);
-  position: relative;
-  padding-left: 12px;
-}
-
-.compact-call__bullet::before {
-  content: '•';
-  position: absolute;
-  left: 0;
-  top: 0;
-  color: var(--rws-blue);
-  font-size: 0.8rem;
-  line-height: 1;
 }
 
 .compact-call__text {

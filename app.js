@@ -1278,49 +1278,71 @@ function getDeterministicSummary(reviews, filteredCount) {
 
 // ── Helpers: Field mappings for compact shortlist ───────────
 function getCallScope(grant) {
-  // Priority order: summary -> abstract -> title
+  // Priority order: summary -> abstract -> conservative fallback
   // Use summary if it's informative and not just identical to title
   if (grant.summary) {
-    const summaryFirstSentence = grant.summary.split('.')[0].trim() + '.';
-    // Avoid using summary if it's just the title
-    if (summaryFirstSentence !== grant.title && summaryFirstSentence.length > 30) {
-      return summaryFirstSentence;
+    const summaryFirstSentence = grant.summary.split('.')[0].trim();
+    const summaryWithPeriod = summaryFirstSentence + (summaryFirstSentence.endsWith('.') ? '' : '.');
+    
+    // Avoid using summary if it's just the title or too short
+    const isMeaningful = summaryWithPeriod !== grant.title && 
+                         summaryWithPeriod.replace(/\s+/g, ' ').length > 40 &&
+                         !summaryWithPeriod.toLowerCase().startsWith(grant.title?.toLowerCase() || '');
+    
+    if (isMeaningful) {
+      return summaryWithPeriod;
     }
   }
   
   // Extract useful content from abstract
   if (grant.abstract) {
     // Look for meaningful prefixes and extract content after them
-    const prefixes = ['Expected Outcome:', 'Scope:', 'Expected Impact:', 'Objective:', 'Purpose:'];
+    const prefixes = ['Expected Outcome:', 'Scope:', 'Expected Impact:', 'Objective:', 'Purpose:', 'Aim:', 'Goal:'];
     let abstractContent = grant.abstract;
     
     // Find the first meaningful prefix and extract content after it
     for (const prefix of prefixes) {
-      if (abstractContent.includes(prefix)) {
-        abstractContent = abstractContent.split(prefix)[1].trim();
+      const prefixIndex = abstractContent.indexOf(prefix);
+      if (prefixIndex !== -1) {
+        abstractContent = abstractContent.substring(prefixIndex + prefix.length).trim();
         break;
       }
     }
     
     // Get first sentence of the cleaned content
-    const firstSentence = abstractContent.split('.')[0].trim();
+    let firstSentence = abstractContent.split('.')[0].trim();
     
-    // Remove any remaining technical prefixes
-    const cleanedSentence = firstSentence
+    // Remove any remaining technical prefixes or bullet points
+    firstSentence = firstSentence
+      .replace(/^[\.•\-*–—\s]+/, '')
       .replace(/^Expected Outcome:/i, '')
       .replace(/^Scope:/i, '')
       .replace(/^Objective:/i, '')
       .replace(/^Purpose:/i, '')
+      .replace(/^Aim:/i, '')
+      .replace(/^Goal:/i, '')
       .trim();
     
-    // Return if we have meaningful content
-    if (cleanedSentence.length > 20) {
-      return cleanedSentence + (cleanedSentence.endsWith('.') ? '' : '.');
+    // Clean up multiple spaces and ensure proper punctuation
+    firstSentence = firstSentence.replace(/\s+/g, ' ');
+    
+    // Return if we have meaningful content (not just title repetition)
+    const isTitleRepetition = grant.title && firstSentence.toLowerCase().startsWith(grant.title.toLowerCase());
+    const isMeaningfulLength = firstSentence.length > 30;
+    
+    if (!isTitleRepetition && isMeaningfulLength) {
+      // Limit to reasonable length
+      const maxLength = 200;
+      if (firstSentence.length > maxLength) {
+        firstSentence = firstSentence.substring(0, maxLength) + '...';
+      }
+      return firstSentence + (firstSentence.endsWith('.') ? '' : '.');
     }
   }
   
-  // Fallback to title only if no better content
-  if (grant.title && grant.title.length > 10) {
+  // Conservative fallback - avoid repeating title if it's not informative
+  if (grant.title && grant.title.length > 50) {
+    // Long titles might actually be descriptive
     return grant.title + '.';
   }
   
