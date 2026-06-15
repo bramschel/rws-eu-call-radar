@@ -480,6 +480,7 @@ De JSON moet exact deze structuur hebben:
       "rationale": "...",
       "possibleRwsRole": "...",
       "possibleRwsProject": "...",
+      "callScopeSummary": "...",
       "uncertainties": "...",
       "recommendedNextStep": "...",
       "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"]
@@ -490,6 +491,7 @@ De JSON moet exact deze structuur hebben:
 - projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benoem expliciet als de call lijkt op historische voorbeelden. Voor onzekere calls, benoem de onzekerheid expliciet. Wanneer je historische voorbeelden vermeldt, gebruik dan compacte referenties (acronymen, korte labels, IDs) waar beschikbaar.
 - possibleRwsRole: beschrijf de meest passende organisatorische rol voor RWS in deze call, bijvoorbeeld: kennispartner, asset owner, pilotlocatie, data provider, coördinator, evaluator, of een combinatie van maximaal 2 rollen. Gebruik de Nederlandse termen uit de RWS-taaktaxonomie. Vermijd generieke termen als 'partner' of 'deelnemer'.
 - possibleRwsProject: beschrijf in EXACT 1 concrete zin een mogelijk RWS-project, pilot, use case, asset case of implementatierol. Gebruik het Nederlandse formaat: 'RWS kan [concrete actie] binnen [specifiek call scope], bijvoorbeeld met [asset/data/pilot/context].' Vermijd herhaling van rationale, projectFit, possibleRwsRole of recommendedNextStep. Als geen concreet project kan worden afgeleid, gebruik dan EXACT: 'Nog te concretiseren met inhoudelijke eigenaar.' Vermijd generieke frases zoals 'RWS kan bijdragen aan...' tenzij gevolgd door een specifiek asset, pilot, data use case of implementatiecontext.
+- callScopeSummary: beschrijf in EXACT 1 complete Nederlandse zin wat de EU call wil bereiken, financieren, demonstreren of ontwikkelen. Baseer dit op de call titel, summary en abstract. Vermijd herhaling van de titel. Vermijd beschrijving van RWS-relevantie. Als geen concreet EU-scope kan worden afgeleid, gebruik dan EXACT: 'Scope nog niet concreet beschikbaar in de callgegevens.'
 - aiRelevanceScore: score 0-100 op basis van ALLE beschikbare informatie: RWS-domeinfit, uitvoeringsrol, aansluiting op het projectidee en keywords, RAG-context matches, gelijkenis met positieve voorbeelden, EN fit met het geselecteerde thema/filtercontext. Dit is de hoofdscore. User intent fit is een cruciale factor - een call met lage thema-fit kan niet hoog scoren, zelfs niet met sterke RAG-ondersteuning.
 - projectFitScore: score 0-100 UITSLUITEND op hoe goed de call aansluit bij het projectidee van de gebruiker, los van de bredere RWS-fit. Kan afwijken van aiRelevanceScore.
 - ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
@@ -596,6 +598,7 @@ function normalizeAiReviews(parsed) {
     rationale: review.rationale || review.uitleg || review.explanation || '',
     possibleRwsRole:     review.possibleRwsRole || review.rws_role || review.rwsRole || '',
     possibleRwsProject:  review.possibleRwsProject || '',
+    callScopeSummary:    review.callScopeSummary || '',
     uncertainties:       review.uncertainties || review.onzekerheden || '',
     recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || '',
     ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : []
