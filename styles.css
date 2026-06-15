@@ -3110,6 +3110,9 @@ body::before {
 .compact-call__scope-value {
   color: var(--ink);
   flex: 1;
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
 }
 
 .compact-call__content {

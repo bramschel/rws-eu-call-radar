@@ -1484,8 +1484,10 @@ function getPossibleRwsProject(review) {
   const isSimilarToRole = review.possibleRwsRole && project === review.possibleRwsRole;
   const isSimilarToFit = review.projectFit && project === review.projectFit;
   const isSimilarToRationale = review.rationale && project === review.rationale;
+  const isSimilarToScope = review.callScopeSummary && project === review.callScopeSummary;
+  const isSimilarToNextStep = review.recommendedNextStep && project === review.recommendedNextStep;
   
-  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale) {
+  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale || isSimilarToScope || isSimilarToNextStep) {
     return 'Nog te concretiseren met inhoudelijke eigenaar.';
   }
   
