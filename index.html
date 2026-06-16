@@ -152,6 +152,15 @@
           </label>
 
           <button class="ghost-button" id="reset-button" type="button">Reset filters</button>
+          
+          <div class="auth-controls">
+            <div id="auth-status" class="auth-status">
+              <span id="user-greeting">Not signed in</span>
+            </div>
+            <button class="ghost-button" id="sign-in-button" type="button">Sign In</button>
+            <button class="ghost-button" id="sign-up-button" type="button">Sign Up</button>
+            <button class="ghost-button" id="sign-out-button" type="button" hidden>Sign Out</button>
+          </div>
         </div>
       </section>
 
@@ -188,6 +197,9 @@
     <button class="ghost-button" id="clear-saved-button" type="button">Wis selectie</button>
     <button class="ghost-button" id="ai-review-button" type="button" hidden>Beoordeel bewaarde calls</button>
   </div>
+  
+  <!-- Personal Saved Searches Panel -->
+  <div id="saved-searches-container" class="saved-searches-container"></div>
 </aside>
 
 

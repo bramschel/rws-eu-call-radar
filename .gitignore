@@ -7,3 +7,6 @@ portal-main.js
 .Rhistory
 *.backup*
 app.js.backup*
+
+# Supabase config - contains secrets
+supabase-config.js

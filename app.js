@@ -4,8 +4,20 @@ const AI_API_URL = window.location.hostname.includes('vercel.app') ? '/api/score
 const PAGE_SIZE = 25;
 const SAVED_CALLS_KEY    = 'rws-eu-call-radar-saved-calls';
 const PIPELINE_KEY       = 'rws-eu-call-radar-pipeline';
+const SAVED_SEARCHES_KEY = 'rws-eu-call-radar-saved-searches';
 
 const TRACKING_BASELINE_DATE = '2026-01-01T00:00:00.000Z';
+
+// ── Supabase Client ──────────────────────────────────────────
+let supabase;
+try {
+  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+  const { supabaseConfig } = await import('./supabase-config.js');
+  supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+} catch (error) {
+  console.warn('Supabase client initialization failed:', error.message);
+  // App will continue to work without Supabase for anonymous users
+}
 
 const STATUS_OPTIONS = [
   { id: 'live',     label: 'Live',        matches: new Set(['31094501', '31094502']) },
@@ -187,6 +199,13 @@ const state = {
   aiRerankActive: false,
   activeView: 'radar',
   pagination: { page: 1, pageSize: PAGE_SIZE },
+  auth: {
+    user: null,
+    session: null,
+    loading: false,
+    error: null
+  },
+  savedSearches: [],
   filters: {
     query: '', projectIdea: '', status: 'live',
     programme: 'all', theme: 'all', actionType: 'all',
@@ -205,6 +224,14 @@ const elements = {
   recentSelect:       document.querySelector('#recent-select'),
   sortSelect:         document.querySelector('#sort-select'),
   resetButton:        document.querySelector('#reset-button'),
+  
+  // Auth elements
+  signInButton:       document.querySelector('#sign-in-button'),
+  signUpButton:       document.querySelector('#sign-up-button'),
+  signOutButton:      document.querySelector('#sign-out-button'),
+  userGreeting:       document.querySelector('#user-greeting'),
+  authStatus:         document.querySelector('#auth-status'),
+  
   metricTotal:        document.querySelector('#metric-total'),
   metricLive:         document.querySelector('#metric-live'),
   metricBudget:       document.querySelector('#metric-budget'),
@@ -221,6 +248,7 @@ const elements = {
   exportSavedButton:  document.querySelector('#export-saved-button'),
   clearSavedButton:   document.querySelector('#clear-saved-button'),
   topProgrammes:      document.querySelector('#top-programmes'),
+  savedSearchesContainer: document.querySelector('#saved-searches-container'),
   grantCardTemplate:  document.querySelector('#grant-card-template'),
   radarView:          document.querySelector('#radar-view'),
   shortlistView:      document.querySelector('#shortlist-view'),
@@ -434,7 +462,7 @@ function calculateRelevance(grant, query, projectIdea) {
     if (ts > 0) {
       if (state.filters.theme !== 'all' && theme.id === state.filters.theme) ts += 8;
       themeRaw += ts;
-      matchedThemes.push({ id: theme.id, label: theme.label, matches: hits });
+      matchedThemes.push({ id: theme.id, label: theme.label, score: ts, matches: hits });
     }
   }
   const themeScore = Math.min(40, themeRaw);
@@ -460,6 +488,8 @@ function calculateRelevance(grant, query, projectIdea) {
   if (matchedThemes.length)              reasons.push("Thema's: " + matchedThemes.map(t => t.label).join(', '));
   if (phraseResult.matchedPhrases.length) reasons.push('Sleuteltermen: ' + phraseResult.matchedPhrases.slice(0, 5).join(', '));
   if (fields.title && terms.some(t => fields.title.includes(t))) reasons.push('Match in titel.');
+
+  matchedThemes.sort((a, b) => b.score - a.score);
 
   return {
     score: Math.min(100, Math.max(0, score || 1)),
@@ -755,20 +785,28 @@ function renderMetrics() {
 }
 
 function renderSidebar() {
+  // Render top programmes
   elements.topProgrammes.innerHTML = '';
   const programmes = state.data.facets.frameworkProgramme.slice(0, 6);
   if (!programmes.length) {
     const el = document.createElement('div');
     el.className = 'mini-list__item'; el.textContent = 'No programme filters available.';
-    elements.topProgrammes.appendChild(el); return;
+    elements.topProgrammes.appendChild(el);
+  } else {
+    for (const prog of programmes) {
+      const btn = document.createElement('button');
+      btn.className = `mini-filter${state.filters.programme === prog.rawValue ? ' is-active' : ''}`;
+      btn.type = 'button';
+      btn.innerHTML = `<span class="mini-filter__title">${escapeHtml(prog.value)}</span><span class="mini-filter__meta">${fmtCompact.format(prog.count)} calls</span>`;
+      btn.addEventListener('click', () => toggleProgrammeFilter(prog.rawValue));
+      elements.topProgrammes.appendChild(btn);
+    }
   }
-  for (const prog of programmes) {
-    const btn = document.createElement('button');
-    btn.className = `mini-filter${state.filters.programme === prog.rawValue ? ' is-active' : ''}`;
-    btn.type = 'button';
-    btn.innerHTML = `<span class="mini-filter__title">${escapeHtml(prog.value)}</span><span class="mini-filter__meta">${fmtCompact.format(prog.count)} calls</span>`;
-    btn.addEventListener('click', () => toggleProgrammeFilter(prog.rawValue));
-    elements.topProgrammes.appendChild(btn);
+  
+  // Render saved searches panel
+  if (elements.savedSearchesContainer) {
+    elements.savedSearchesContainer.innerHTML = renderSavedSearchesPanel();
+    wireSavedSearchEvents();
   }
 }
 
@@ -2116,6 +2154,562 @@ async function runAiReview() {
   }
 }
 
+// ── Auth Functions ────────────────────────────────────────────
+async function checkAuthSession() {
+  if (!supabase) return;
+  
+  state.auth.loading = true;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      state.auth.session = session;
+      state.auth.user = session.user;
+      state.auth.error = null;
+    }
+  } catch (error) {
+    console.error('Auth check failed:', error.message);
+    state.auth.error = error.message;
+  } finally {
+    state.auth.loading = false;
+    updateAuthUI();
+  }
+}
+
+async function signInWithEmail(email, password) {
+  if (!supabase) {
+    state.auth.error = 'Supabase client not initialized';
+    updateAuthUI();
+    return false;
+  }
+  
+  state.auth.loading = true;
+  state.auth.error = null;
+  
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+    
+    if (error) throw error;
+    
+    state.auth.session = data.session;
+    state.auth.user = data.user;
+    
+    // Create profile if it doesn't exist
+    await createUserProfileIfNotExists();
+    
+    // Load saved searches
+    await loadSavedSearches();
+    
+    updateAuthUI();
+    return true;
+  } catch (error) {
+    console.error('Sign in failed:', error.message);
+    state.auth.error = error.message;
+    updateAuthUI();
+    return false;
+  } finally {
+    state.auth.loading = false;
+  }
+}
+
+async function signUpWithEmail(email, password, displayName) {
+  if (!supabase) {
+    state.auth.error = 'Supabase client not initialized';
+    updateAuthUI();
+    return false;
+  }
+  
+  state.auth.loading = true;
+  state.auth.error = null;
+  
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          display_name: displayName
+        }
+      }
+    });
+    
+    if (error) throw error;
+    
+    state.auth.session = data.session;
+    state.auth.user = data.user;
+    
+    // Create profile
+    await createUserProfileIfNotExists();
+    
+    updateAuthUI();
+    return true;
+  } catch (error) {
+    console.error('Sign up failed:', error.message);
+    state.auth.error = error.message;
+    updateAuthUI();
+    return false;
+  } finally {
+    state.auth.loading = false;
+  }
+}
+
+async function signOut() {
+  if (!supabase) {
+    state.auth.user = null;
+    state.auth.session = null;
+    state.savedSearches = [];
+    updateAuthUI();
+    return;
+  }
+  
+  state.auth.loading = true;
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    
+    state.auth.user = null;
+    state.auth.session = null;
+    state.savedSearches = [];
+    
+    updateAuthUI();
+  } catch (error) {
+    console.error('Sign out failed:', error.message);
+    state.auth.error = error.message;
+    updateAuthUI();
+  } finally {
+    state.auth.loading = false;
+  }
+}
+
+async function createUserProfileIfNotExists() {
+  if (!supabase || !state.auth.user) return;
+  
+  try {
+    // Check if profile exists
+    const { data: existingProfile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', state.auth.user.id)
+      .single();
+    
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      // PGRST116 = no rows found, which is fine
+      console.error('Profile check failed:', fetchError.message);
+      return;
+    }
+    
+    if (!existingProfile) {
+      // Create new profile
+      const displayName = state.auth.user.user_metadata?.display_name ||
+                         state.auth.user.email.split('@')[0];
+      
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: state.auth.user.id,
+          email: state.auth.user.email,
+          display_name: displayName
+        });
+      
+      if (insertError) {
+        console.error('Profile creation failed:', insertError.message);
+      }
+    }
+  } catch (error) {
+    console.error('Profile management failed:', error.message);
+  }
+}
+
+function updateAuthUI() {
+  if (!elements.authStatus || !elements.userGreeting) return;
+  
+  if (state.auth.user) {
+    // Signed in
+    elements.authStatus.classList.add('signed-in');
+    elements.userGreeting.textContent = `Signed in as ${state.auth.user.email}`;
+    elements.signInButton.hidden = true;
+    elements.signUpButton.hidden = true;
+    elements.signOutButton.hidden = false;
+  } else {
+    // Signed out
+    elements.authStatus.classList.remove('signed-in');
+    elements.userGreeting.textContent = 'Not signed in';
+    elements.signInButton.hidden = false;
+    elements.signUpButton.hidden = false;
+    elements.signOutButton.hidden = true;
+  }
+}
+
+function showAuthModal(type = 'signin') {
+  // Remove existing modal if any
+  const existingModal = document.querySelector('.auth-modal');
+  if (existingModal) existingModal.remove();
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'auth-modal';
+  
+  const content = document.createElement('div');
+  content.className = 'auth-modal-content';
+  
+  if (type === 'signin') {
+    content.innerHTML = `
+      <h2>Sign In</h2>
+      ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+      <form class="auth-form">
+        <input type="email" id="email-input" placeholder="Email" required>
+        <input type="password" id="password-input" placeholder="Password" required>
+        <button type="submit" id="confirm-signin">Sign In</button>
+        <button type="button" id="cancel-auth" class="ghost-button">Cancel</button>
+      </form>
+      <p>Don't have an account? <button id="switch-to-signup" class="ghost-button">Sign Up</button></p>
+    `;
+  } else {
+    content.innerHTML = `
+      <h2>Sign Up</h2>
+      ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+      <form class="auth-form">
+        <input type="text" id="display-name-input" placeholder="Display Name" required>
+        <input type="email" id="email-input" placeholder="Email" required>
+        <input type="password" id="password-input" placeholder="Password" required>
+        <button type="submit" id="confirm-signup">Sign Up</button>
+        <button type="button" id="cancel-auth" class="ghost-button">Cancel</button>
+      </form>
+      <p>Already have an account? <button id="switch-to-signin" class="ghost-button">Sign In</button></p>
+    `;
+  }
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Event handlers
+  const form = content.querySelector('.auth-form');
+  const cancelBtn = content.querySelector('#cancel-auth');
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (type === 'signin') {
+      const email = content.querySelector('#email-input').value;
+      const password = content.querySelector('#password-input').value;
+      await signInWithEmail(email, password);
+    } else {
+      const displayName = content.querySelector('#display-name-input').value;
+      const email = content.querySelector('#email-input').value;
+      const password = content.querySelector('#password-input').value;
+      await signUpWithEmail(email, password, displayName);
+    }
+    
+    if (state.auth.user) {
+      modal.remove();
+    }
+  });
+  
+  cancelBtn.addEventListener('click', () => {
+    modal.remove();
+  });
+  
+  const switchToSignup = content.querySelector('#switch-to-signup');
+  if (switchToSignup) {
+    switchToSignup.addEventListener('click', () => {
+      modal.remove();
+      showAuthModal('signup');
+    });
+  }
+  
+  const switchToSignin = content.querySelector('#switch-to-signin');
+  if (switchToSignin) {
+    switchToSignin.addEventListener('click', () => {
+      modal.remove();
+      showAuthModal('signin');
+    });
+  }
+}
+
+// ── Saved Search Functions ──────────────────────────────────
+async function loadSavedSearches() {
+  if (!supabase || !state.auth.user) {
+    state.savedSearches = [];
+    return;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('saved_searches')
+      .select('*')
+      .eq('user_id', state.auth.user.id)
+      .order('updated_at', { ascending: false });
+    
+    if (error) throw error;
+    state.savedSearches = data || [];
+  } catch (error) {
+    console.error('Failed to load saved searches:', error.message);
+    state.savedSearches = [];
+  }
+}
+
+async function saveCurrentSearch(name = null) {
+  if (!supabase || !state.auth.user) {
+    alert('Please sign in to save searches');
+    return false;
+  }
+  
+  // Generate a name if not provided
+  if (!name) {
+    const queryParts = state.filters.query.trim().split(' ').slice(0, 3);
+    const theme = state.filters.theme !== 'all' ? RWS_THEMES.find(t => t.id === state.filters.theme)?.label : null;
+    name = queryParts.length > 0 ? queryParts.join(' ') : (theme || 'Untitled search');
+  }
+  
+  const searchData = {
+    user_id: state.auth.user.id,
+    name: name,
+    query: state.filters.query,
+    project_idea: state.filters.projectIdea,
+    filters: {
+      status: state.filters.status,
+      programme: state.filters.programme,
+      theme: state.filters.theme,
+      actionType: state.filters.actionType,
+      recentMonths: state.filters.recentMonths,
+      sort: state.filters.sort
+    }
+  };
+  
+  try {
+    const { data, error } = await supabase
+      .from('saved_searches')
+      .insert(searchData)
+      .select();
+    
+    if (error) throw error;
+    
+    // Add to local state
+    state.savedSearches.unshift(data[0]);
+    
+    // Record this search run
+    await recordSearchRun(data[0].id);
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to save search:', error.message);
+    alert('Failed to save search: ' + error.message);
+    return false;
+  }
+}
+
+async function recordSearchRun(savedSearchId = null) {
+  if (!supabase || !state.auth.user) return;
+  
+  try {
+    const { error } = await supabase
+      .from('search_runs')
+      .insert({
+        user_id: state.auth.user.id,
+        saved_search_id: savedSearchId,
+        query: state.filters.query,
+        filters: {
+          status: state.filters.status,
+          programme: state.filters.programme,
+          theme: state.filters.theme,
+          actionType: state.filters.actionType,
+          recentMonths: state.filters.recentMonths,
+          sort: state.filters.sort
+        },
+        result_count: state.filtered.length
+      });
+    
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to record search run:', error.message);
+  }
+}
+
+async function applySavedSearch(searchId) {
+  if (!supabase || !state.auth.user) return false;
+  
+  try {
+    const { data, error } = await supabase
+      .from('saved_searches')
+      .select('*')
+      .eq('id', searchId)
+      .eq('user_id', state.auth.user.id)
+      .single();
+    
+    if (error) throw error;
+    if (!data) return false;
+    
+    // Apply the saved search filters
+    state.filters.query = data.query || '';
+    state.filters.projectIdea = data.project_idea || '';
+    state.filters.status = data.filters?.status || 'live';
+    state.filters.programme = data.filters?.programme || 'all';
+    state.filters.theme = data.filters?.theme || 'all';
+    state.filters.actionType = data.filters?.actionType || 'all';
+    state.filters.recentMonths = data.filters?.recentMonths || 'all';
+    state.filters.sort = data.filters?.sort || 'relevance-desc';
+    
+    resetPagination();
+    syncControls();
+    update();
+    
+    // Record this search run
+    await recordSearchRun(searchId);
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to apply saved search:', error.message);
+    alert('Failed to apply saved search: ' + error.message);
+    return false;
+  }
+}
+
+async function deleteSavedSearch(searchId) {
+  if (!supabase || !state.auth.user) return false;
+  
+  try {
+    const { error } = await supabase
+      .from('saved_searches')
+      .delete()
+      .eq('id', searchId)
+      .eq('user_id', state.auth.user.id);
+    
+    if (error) throw error;
+    
+    // Remove from local state
+    state.savedSearches = state.savedSearches.filter(s => s.id !== searchId);
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to delete saved search:', error.message);
+    alert('Failed to delete saved search: ' + error.message);
+    return false;
+  }
+}
+
+function showSaveSearchModal() {
+  if (!state.auth.user) {
+    alert('Please sign in to save searches');
+    return;
+  }
+  
+  // Remove existing modal if any
+  const existingModal = document.querySelector('.save-search-modal');
+  if (existingModal) existingModal.remove();
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'auth-modal save-search-modal';
+  
+  const content = document.createElement('div');
+  content.className = 'auth-modal-content';
+  
+  // Generate default name
+  const queryParts = state.filters.query.trim().split(' ').slice(0, 3);
+  const theme = state.filters.theme !== 'all' ? RWS_THEMES.find(t => t.id === state.filters.theme)?.label : null;
+  const defaultName = queryParts.length > 0 ? queryParts.join(' ') : (theme || 'Untitled search');
+  
+  content.innerHTML = `
+    <h2>Save Current Search</h2>
+    <form class="auth-form">
+      <input type="text" id="search-name-input" placeholder="Search name" value="${defaultName}" required>
+      <button type="submit" id="confirm-save-search">Save Search</button>
+      <button type="button" id="cancel-save-search" class="ghost-button">Cancel</button>
+    </form>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Event handlers
+  const form = content.querySelector('.auth-form');
+  const cancelBtn = content.querySelector('#cancel-save-search');
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = content.querySelector('#search-name-input').value;
+    await saveCurrentSearch(name);
+    modal.remove();
+  });
+  
+  cancelBtn.addEventListener('click', () => {
+    modal.remove();
+  });
+}
+
+function renderSavedSearchesPanel() {
+  if (!state.auth.user) return '';
+  
+  if (state.savedSearches.length === 0) {
+    return `
+      <div class="saved-searches-panel">
+        <h3>Your Saved Searches</h3>
+        <p>No saved searches yet. Save your current search to access it later.</p>
+        <button id="save-current-search" class="ghost-button">Save Current Search</button>
+      </div>
+    `;
+  }
+  
+  const searchItems = state.savedSearches.map(search => {
+    const themeName = search.filters?.theme && search.filters.theme !== 'all'
+      ? RWS_THEMES.find(t => t.id === search.filters.theme)?.label
+      : 'All themes';
+    
+    return `
+      <div class="saved-search-item" data-search-id="${search.id}">
+        <div>
+          <strong>${search.name}</strong>
+          <div class="saved-search-meta">
+            <small>${themeName} • ${search.filters?.status || 'live'}</small>
+          </div>
+        </div>
+        <div class="saved-search-actions">
+          <button class="apply-search-btn ghost-button" data-search-id="${search.id}">Apply</button>
+          <button class="delete-search-btn ghost-button" data-search-id="${search.id}">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  return `
+    <div class="saved-searches-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>Your Saved Searches</h3>
+        <button id="save-current-search" class="ghost-button">Save Current Search</button>
+      </div>
+      <div class="saved-search-list">
+        ${searchItems}
+      </div>
+    </div>
+  `;
+}
+
+function wireSavedSearchEvents() {
+  // Save current search button
+  document.querySelector('#save-current-search')?.addEventListener('click', showSaveSearchModal);
+  
+  // Apply search buttons
+  document.querySelectorAll('.apply-search-btn')?.forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const searchId = e.target.dataset.searchId;
+      await applySavedSearch(searchId);
+    });
+  });
+  
+  // Delete search buttons
+  document.querySelectorAll('.delete-search-btn')?.forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const searchId = e.target.dataset.searchId;
+      if (confirm('Delete this saved search?')) {
+        await deleteSavedSearch(searchId);
+        update(); // Refresh UI
+      }
+    });
+  });
+}
+
 // ── Controls sync & update cycle ─────────────────────────────
 function syncControls() {
   elements.projectInput.value    = state.filters.projectIdea;
@@ -2172,6 +2766,11 @@ function wireEvents() {
 
   document.querySelector('#ai-rerank-button')?.addEventListener('click', scoreTopResultsWithAI);
   document.querySelector('#ai-review-button')?.addEventListener('click', runAiReview);
+  
+  // Auth event handlers
+  elements.signInButton?.addEventListener('click', () => showAuthModal('signin'));
+  elements.signUpButton?.addEventListener('click', () => showAuthModal('signup'));
+  elements.signOutButton?.addEventListener('click', signOut);
   window.addEventListener('hashchange', () => { parseHash(); syncControls(); update(); });
 }
 
@@ -2180,6 +2779,10 @@ async function init() {
   loadSavedCalls();
   loadPipeline();
   parseHash();
+  
+  // Initialize auth
+  await checkAuthSession();
+  
   const res = await fetch(DATA_URL);
   if (!res.ok) throw new Error(`Could not load data: ${res.status}`);
   state.data = await res.json();
