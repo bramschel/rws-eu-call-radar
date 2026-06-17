@@ -21,7 +21,9 @@ CREATE POLICY "Users can insert their own saved searches" ON public.saved_search
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their own saved searches" ON public.saved_searches
-  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id AND user_id = OLD.user_id);
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete their own saved searches" ON public.saved_searches
   FOR DELETE USING (auth.uid() = user_id);

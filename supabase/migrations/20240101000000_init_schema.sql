@@ -1,6 +1,3 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -12,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 -- Create saved_searches table
 CREATE TABLE IF NOT EXISTS public.saved_searches (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name text,
   query text,
@@ -23,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.saved_searches (
 
 -- Create search_runs table
 CREATE TABLE IF NOT EXISTS public.search_runs (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   saved_search_id uuid REFERENCES public.saved_searches(id) ON DELETE SET NULL,
   query text,
