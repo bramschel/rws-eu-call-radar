@@ -17,6 +17,25 @@ try {
 
   if (config?.url && config?.anonKey && supabaseLibrary?.createClient) {
     supabase = supabaseLibrary.createClient(config.url, config.anonKey);
+    
+    // Set up auth listener for password recovery and other auth events
+    supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event);
+      
+      if (event === 'PASSWORD_RECOVERY') {
+        // Show password reset form when user clicks reset link
+        showPasswordResetForm();
+      } else if (event === 'SIGNED_IN') {
+        state.auth.session = session;
+        state.auth.user = session?.user || null;
+        state.auth.error = null;
+        updateAuthUI();
+      } else if (event === 'SIGNED_OUT') {
+        state.auth.session = null;
+        state.auth.user = null;
+        updateAuthUI();
+      }
+    });
   } else {
     console.warn('Supabase config or library not available');
   }
@@ -2364,6 +2383,7 @@ function showAuthModal(type = 'signin') {
     content.innerHTML = `
       <h2>Sign In</h2>
       ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+      ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
       <form class="auth-form">
         <input type="email" id="email-input" placeholder="Email" required>
         <input type="password" id="password-input" placeholder="Password" required>
@@ -2371,6 +2391,7 @@ function showAuthModal(type = 'signin') {
         <button type="button" id="cancel-auth" class="ghost-button">Cancel</button>
       </form>
       <p>Don't have an account? <button id="switch-to-signup" class="ghost-button">Sign Up</button></p>
+      <p><button id="forgot-password" class="ghost-button">Forgot password?</button></p>
     `;
   } else {
     content.innerHTML = `
@@ -2432,6 +2453,191 @@ function showAuthModal(type = 'signin') {
       showAuthModal('signin');
     });
   }
+
+  const forgotPasswordBtn = content.querySelector('#forgot-password');
+  if (forgotPasswordBtn) {
+    forgotPasswordBtn.addEventListener('click', () => {
+      modal.remove();
+      showPasswordResetRequestForm();
+    });
+  }
+}
+
+// Password Reset Functions
+async function requestPasswordReset(email) {
+  if (!supabase) {
+    state.auth.error = 'Supabase client not initialized';
+    updateAuthUI();
+    return false;
+  }
+
+  if (!email) {
+    state.auth.error = 'Please enter your email address';
+    updateAuthUI();
+    return false;
+  }
+
+  try {
+    state.auth.loading = true;
+    state.auth.error = null;
+    updateAuthUI();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}${window.location.pathname}`
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // Show success message
+    state.auth.success = 'Password reset email sent! Check your inbox.';
+    updateAuthUI();
+    return true;
+
+  } catch (error) {
+    console.error('Password reset failed:', error.message);
+    state.auth.error = error.message || 'Failed to send password reset email';
+    updateAuthUI();
+    return false;
+  } finally {
+    state.auth.loading = false;
+    updateAuthUI();
+  }
+}
+
+function showPasswordResetRequestForm() {
+  // Remove existing modal if any
+  const existingModal = document.querySelector('.auth-modal');
+  if (existingModal) existingModal.remove();
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'auth-modal';
+  
+  const content = document.createElement('div');
+  content.className = 'auth-modal-content';
+  
+  content.innerHTML = `
+    <h2>Reset Password</h2>
+    ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+    ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
+    <p>Enter your email address and we'll send you a link to reset your password.</p>
+    <form class="auth-form">
+      <input type="email" id="reset-email-input" placeholder="Email" required>
+      <button type="submit" id="request-reset">Send Reset Link</button>
+      <button type="button" id="cancel-reset-request" class="ghost-button">Cancel</button>
+    </form>
+    <p><button id="back-to-signin" class="ghost-button">Back to Sign In</button></p>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Event handlers
+  const form = content.querySelector('.auth-form');
+  const cancelBtn = content.querySelector('#cancel-reset-request');
+  const backToSignInBtn = content.querySelector('#back-to-signin');
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = content.querySelector('#reset-email-input').value;
+    await requestPasswordReset(email);
+  });
+  
+  cancelBtn.addEventListener('click', () => {
+    modal.remove();
+    state.auth.error = null;
+    state.auth.success = null;
+  });
+  
+  backToSignInBtn.addEventListener('click', () => {
+    modal.remove();
+    state.auth.error = null;
+    state.auth.success = null;
+    showAuthModal('signin');
+  });
+}
+
+function showPasswordResetForm() {
+  // Remove existing modal if any
+  const existingModal = document.querySelector('.auth-modal');
+  if (existingModal) existingModal.remove();
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'auth-modal';
+  
+  const content = document.createElement('div');
+  content.className = 'auth-modal-content';
+  
+  content.innerHTML = `
+    <h2>Set New Password</h2>
+    ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+    ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
+    <form class="auth-form">
+      <input type="password" id="new-password-input" placeholder="New Password" required>
+      <input type="password" id="confirm-password-input" placeholder="Confirm New Password" required>
+      <button type="submit" id="confirm-reset">Set New Password</button>
+      <button type="button" id="cancel-reset" class="ghost-button">Cancel</button>
+    </form>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Event handlers
+  const form = content.querySelector('.auth-form');
+  const cancelBtn = content.querySelector('#cancel-reset');
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const newPassword = content.querySelector('#new-password-input').value;
+    const confirmPassword = content.querySelector('#confirm-password-input').value;
+    
+    if (newPassword !== confirmPassword) {
+      state.auth.error = 'Passwords do not match';
+      updateAuthUI();
+      return;
+    }
+    
+    try {
+      state.auth.loading = true;
+      state.auth.error = null;
+      updateAuthUI();
+      
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      
+      if (error) {
+        throw error;
+      }
+      
+      state.auth.success = 'Password updated successfully! You can now sign in.';
+      updateAuthUI();
+      
+      // Auto-close modal after 2 seconds
+      setTimeout(() => {
+        modal.remove();
+        state.auth.success = null;
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Password update failed:', error.message);
+      state.auth.error = error.message || 'Failed to update password';
+      updateAuthUI();
+    } finally {
+      state.auth.loading = false;
+      updateAuthUI();
+    }
+  });
+  
+  cancelBtn.addEventListener('click', () => {
+    modal.remove();
+    state.auth.error = null;
+    state.auth.success = null;
+  });
 }
 
 // ── Saved Search Functions ──────────────────────────────────
