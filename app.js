@@ -11,9 +11,15 @@ const TRACKING_BASELINE_DATE = '2026-01-01T00:00:00.000Z';
 // ── Supabase Client ──────────────────────────────────────────
 let supabase;
 try {
-  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-  const { supabaseConfig } = await import('./supabase-config.js');
-  supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+  // Use browser globals from CDN script tags
+  const config = window.SUPABASE_CONFIG;
+  const supabaseLibrary = window.supabase;
+
+  if (config?.url && config?.anonKey && supabaseLibrary?.createClient) {
+    supabase = supabaseLibrary.createClient(config.url, config.anonKey);
+  } else {
+    console.warn('Supabase config or library not available');
+  }
 } catch (error) {
   console.warn('Supabase client initialization failed:', error.message);
   // App will continue to work without Supabase for anonymous users
