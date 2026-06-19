@@ -736,13 +736,23 @@ export default async function handler(req, res) {
     let rawText, provider, model;
     let primaryCallSucceeded = false;
     
+    // Safe logging - configuration summary
+    console.log('AI Configuration:', {
+      provider: AI_PROVIDER,
+      primaryModel: AI_PROVIDER === 'gemini' ? GEMINI_MODEL : MISTRAL_MODEL,
+      fallbackConfigured: !!AI_FALLBACK_MODEL,
+      fallbackModel: AI_FALLBACK_MODEL || 'none'
+    });
+    
     try {
       if (AI_PROVIDER === 'gemini') {
         ({ rawText, provider, model } = await callGemini(prompt));
         primaryCallSucceeded = true;
+        console.log('Primary model succeeded:', model);
       } else if (AI_PROVIDER === 'mistral') {
         ({ rawText, provider, model } = await callMistral(prompt));
         primaryCallSucceeded = true;
+        console.log('Primary model succeeded:', model);
       } else {
         throw new Error(`Onbekende AI_PROVIDER: ${AI_PROVIDER}`);
       }
@@ -752,6 +762,12 @@ export default async function handler(req, res) {
       const isHighDemandError = errorMessage.includes('high demand') || 
                                errorMessage.includes('currently experiencing high demand') ||
                                errorMessage.includes('try again later');
+      
+      console.log('Primary model failed:', {
+        errorType: isHighDemandError ? 'high_demand' : 'other',
+        errorMessage: errorMessage,
+        fallbackAvailable: !!AI_FALLBACK_MODEL
+      });
       
       if (isHighDemandError && AI_FALLBACK_MODEL) {
         console.log('Primary model experiencing high demand, trying fallback model:', AI_FALLBACK_MODEL);
@@ -765,6 +781,11 @@ export default async function handler(req, res) {
             ({ rawText, provider, model } = await callGemini(prompt));
             primaryCallSucceeded = true;
             console.log('Fallback model succeeded:', model);
+          } catch (fallbackError) {
+            console.log('Fallback model also failed:', {
+              errorMessage: fallbackError.message,
+              status: 'fallback_failed'
+            });
           } finally {
             // Restore original model
             GEMINI_MODEL = originalModel;
@@ -777,15 +798,28 @@ export default async function handler(req, res) {
             ({ rawText, provider, model } = await callMistral(prompt));
             primaryCallSucceeded = true;
             console.log('Fallback model succeeded:', model);
+          } catch (fallbackError) {
+            console.log('Fallback model also failed:', {
+              errorMessage: fallbackError.message,
+              status: 'fallback_failed'
+            });
           } finally {
             // Restore original model
             MISTRAL_MODEL = originalModel;
           }
         }
+      } else if (isHighDemandError && !AI_FALLBACK_MODEL) {
+        console.log('No AI_FALLBACK_MODEL configured.');
       }
       
       if (!primaryCallSucceeded) {
         // Re-throw the original error if fallback didn't work or wasn't available
+        console.log('Final error status:', {
+          primaryFailed: true,
+          fallbackAttempted: isHighDemandError && !!AI_FALLBACK_MODEL,
+          fallbackSucceeded: primaryCallSucceeded,
+          errorMessage: primaryError.message
+        });
         throw primaryError;
       }
     }
