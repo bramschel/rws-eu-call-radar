@@ -10,11 +10,23 @@ const ALLOWED_ORIGINS = [
 ];
 
 const AI_PROVIDER   = (process.env.AI_PROVIDER || 'gemini').trim().toLowerCase();
+const AI_MODEL      = process.env.AI_MODEL || '';
+const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
 
-const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
+// Model selection with fallback support
+let MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
+let GEMINI_MODEL  = process.env.GEMINI_MODEL  || 'gemini-2.5-flash-lite';
+
+// If AI_MODEL is specified, use it as the primary model
+if (AI_MODEL) {
+  if (AI_PROVIDER === 'mistral') {
+    MISTRAL_MODEL = AI_MODEL;
+  } else if (AI_PROVIDER === 'gemini') {
+    GEMINI_MODEL = AI_MODEL;
+  }
+}
+
 const MISTRAL_URL   = 'https://api.mistral.ai/v1/chat/completions';
-
-const GEMINI_MODEL  = process.env.GEMINI_MODEL  || 'gemini-2.5-flash-lite';
 const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function setCorsHeaders(req, res) {
@@ -619,8 +631,8 @@ function normalizeAiReviews(parsed) {
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
 
 async function callMistral(prompt) {
-  const apiKey = process.env.MISTRAL_API_KEY;
-  if (!apiKey) throw new Error('MISTRAL_API_KEY is niet ingesteld');
+  const apiKey = process.env.VIBE_CLI_KEY_BCG;
+  if (!apiKey) throw new Error('VIBE_CLI_KEY_BCG environment variable is required');
 
   const response = await fetch(MISTRAL_URL, {
     method: 'POST',
@@ -720,15 +732,63 @@ export default async function handler(req, res) {
       projectIdea, keywords, selectedTheme, calls: batch
     });
 
-    // Dispatch naar de geconfigureerde provider
+    // Dispatch naar de geconfigureerde provider met fallback support
     let rawText, provider, model;
-    if (AI_PROVIDER === 'gemini') {
-  ({ rawText, provider, model } = await callGemini(prompt));
-} else if (AI_PROVIDER === 'mistral') {
-  ({ rawText, provider, model } = await callMistral(prompt));
-} else {
-  throw new Error(`Onbekende AI_PROVIDER: ${AI_PROVIDER}`);
-}
+    let primaryCallSucceeded = false;
+    
+    try {
+      if (AI_PROVIDER === 'gemini') {
+        ({ rawText, provider, model } = await callGemini(prompt));
+        primaryCallSucceeded = true;
+      } else if (AI_PROVIDER === 'mistral') {
+        ({ rawText, provider, model } = await callMistral(prompt));
+        primaryCallSucceeded = true;
+      } else {
+        throw new Error(`Onbekende AI_PROVIDER: ${AI_PROVIDER}`);
+      }
+    } catch (primaryError) {
+      // Check if this is a high-demand/capacity error
+      const errorMessage = primaryError.message || '';
+      const isHighDemandError = errorMessage.includes('high demand') || 
+                               errorMessage.includes('currently experiencing high demand') ||
+                               errorMessage.includes('try again later');
+      
+      if (isHighDemandError && AI_FALLBACK_MODEL) {
+        console.log('Primary model experiencing high demand, trying fallback model:', AI_FALLBACK_MODEL);
+        
+        // Try fallback model
+        if (AI_PROVIDER === 'gemini') {
+          // Temporarily override the model for fallback
+          const originalModel = GEMINI_MODEL;
+          GEMINI_MODEL = AI_FALLBACK_MODEL;
+          try {
+            ({ rawText, provider, model } = await callGemini(prompt));
+            primaryCallSucceeded = true;
+            console.log('Fallback model succeeded:', model);
+          } finally {
+            // Restore original model
+            GEMINI_MODEL = originalModel;
+          }
+        } else if (AI_PROVIDER === 'mistral') {
+          // Temporarily override the model for fallback
+          const originalModel = MISTRAL_MODEL;
+          MISTRAL_MODEL = AI_FALLBACK_MODEL;
+          try {
+            ({ rawText, provider, model } = await callMistral(prompt));
+            primaryCallSucceeded = true;
+            console.log('Fallback model succeeded:', model);
+          } finally {
+            // Restore original model
+            MISTRAL_MODEL = originalModel;
+          }
+        }
+      }
+      
+      if (!primaryCallSucceeded) {
+        // Re-throw the original error if fallback didn't work or wasn't available
+        throw primaryError;
+      }
+    }
 
     let parsed;
     try {
@@ -764,6 +824,23 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Fout in /api/score:', error);
+    
+    // Check for high-demand/capacity errors and provide user-friendly message
+    const errorMessage = error.message || '';
+    const isHighDemandError = errorMessage.includes('high demand') || 
+                             errorMessage.includes('currently experiencing high demand') ||
+                             errorMessage.includes('try again later');
+    
+    if (isHighDemandError) {
+      // User-friendly Dutch message
+      const userMessage = 'Het AI-model is tijdelijk overbelast. Probeer het later opnieuw of kies een ander model.';
+      console.warn('AI capacity error - showing user-friendly message');
+      return res.status(503).json({ 
+        error: userMessage,
+        technicalDetails: error.message // Keep original for logging
+      });
+    }
+    
     return res.status(500).json({ error: error.message });
   }
 }

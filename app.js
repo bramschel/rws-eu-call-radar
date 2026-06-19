@@ -2482,21 +2482,40 @@ async function requestPasswordReset(email) {
     state.auth.error = null;
     updateAuthUI();
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}${window.location.pathname}`
     });
 
+    // Safe logging - don't log sensitive data
+    console.log('Password reset response:', {
+      hasData: !!data,
+      hasError: !!error,
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      errorStatus: error?.status
+    });
+
     if (error) {
+      // Show specific Supabase error in UI
+      const errorMessage = error.message || 'Failed to send password reset email';
+      console.error('Password reset error details:', {
+        code: error.code,
+        message: errorMessage,
+        status: error.status
+      });
       throw error;
     }
 
-    // Show success message
-    state.auth.success = 'Password reset email sent! Check your inbox.';
-    updateAuthUI();
-    return true;
+    // Only show success if no error
+    if (!error) {
+      state.auth.success = 'Password reset email sent! Check your inbox.';
+      updateAuthUI();
+    }
+    return !error;
 
   } catch (error) {
     console.error('Password reset failed:', error.message);
+    // Show the actual Supabase error message in UI
     state.auth.error = error.message || 'Failed to send password reset email';
     updateAuthUI();
     return false;
