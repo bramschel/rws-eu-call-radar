@@ -333,6 +333,42 @@ async function fetchJson(url) {
   return response.json();
 }
 
+/**
+ * Retry helper with exponential backoff for transient errors
+ * Retries only for: 429, 500, 502, 503, 504, network errors
+ * Does not retry for: 400, 401, 403, 404, parsing errors
+ */
+async function withRetry(fn, url, maxAttempts = 4) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Extract status code if available
+      const status = error.message?.match(/(\d{3})/)?.[0];
+      const isTransient = 
+        status && ['429', '500', '502', '503', '504'].includes(status) ||
+        error.code && ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(error.code);
+      
+      if (!isTransient || attempt >= maxAttempts) {
+        throw error; // Don't retry non-transient errors or if max attempts reached
+      }
+      
+      // Calculate delay with exponential backoff and jitter
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 1000, 10000);
+      const hostPath = url?.split('?')[0] || url;
+      
+      console.log(`Transient EU API error (${error.message}), attempt ${attempt}/${maxAttempts}, retrying in ${delay/1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError; // This line should never be reached, but included for safety
+}
+
 async function postMultipart(url, body) {
   const formData = new FormData();
 
@@ -348,19 +384,24 @@ async function postMultipart(url, body) {
     }
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    body: formData,
-    headers: {
-      Accept: 'application/json'
+  // Wrap the fetch call with retry logic for transient errors
+  const fetchWithRetry = async () => {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Accept: 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText} for ${url}`);
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status} ${response.statusText} for ${url}`);
-  }
+    return response.json();
+  };
 
-  return response.json();
+  return withRetry(fetchWithRetry, url);
 }
 
 async function fetchPortalConfig() {
