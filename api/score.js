@@ -1,5 +1,5 @@
 // api/score.js — Vercel serverless function
-// Gebruikt Google Gemini via GEMINI_API_KEY environment variable.
+// Gebruikt Mistral AI via VIBE_CLI_KEY_BCG environment variable.
 // Ontvangt: POST { projectIdea, keywords, selectedTheme, calls: [...] }
 // Geeft terug: { reviews: [...] }
 
@@ -9,25 +9,11 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-const AI_PROVIDER   = (process.env.AI_PROVIDER || 'gemini').trim().toLowerCase();
-const AI_MODEL      = process.env.AI_MODEL || '';
+// Model selection with fallback support
+const MISTRAL_MODEL = process.env.AI_MODEL || process.env.MISTRAL_MODEL || 'mistral-small-latest';
 const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
 
-// Model selection with fallback support
-let MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
-let GEMINI_MODEL  = process.env.GEMINI_MODEL  || 'gemini-2.5-flash-lite';
-
-// If AI_MODEL is specified, use it as the primary model
-if (AI_MODEL) {
-  if (AI_PROVIDER === 'mistral') {
-    MISTRAL_MODEL = AI_MODEL;
-  } else if (AI_PROVIDER === 'gemini') {
-    GEMINI_MODEL = AI_MODEL;
-  }
-}
-
-const MISTRAL_URL   = 'https://api.mistral.ai/v1/chat/completions';
-const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
@@ -667,49 +653,7 @@ async function callMistral(prompt) {
   };
 }
 
-async function callGemini(prompt) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is niet ingesteld');
 
-  const url = `${GEMINI_URL}?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{
-          text: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug. Geen markdown, geen code fences, geen tekst buiten JSON.'
-        }]
-      },
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json'
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    const msg = err.error?.message || `Gemini-fout ${response.status}`;
-    throw new Error(msg);
-  }
-
-  const data = await response.json();
-
-  // Haal tekst op uit candidates[0].content.parts (kan meerdere parts zijn)
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const rawText = parts.map(p => p.text || '').join('') || '{"reviews":[],"summary":{}}';
-
-  return {
-    rawText,
-    provider: 'gemini',
-    model: GEMINI_MODEL
-  };
-}
 
 // ── Handler ───────────────────────────────────────────────────
 
@@ -732,30 +676,22 @@ export default async function handler(req, res) {
       projectIdea, keywords, selectedTheme, calls: batch
     });
 
-    // Dispatch naar de geconfigureerde provider met fallback support
+    // Call Mistral with fallback support
     let rawText, provider, model;
     let primaryCallSucceeded = false;
     
     // Safe logging - configuration summary
-    console.log('AI Configuration:', {
-      provider: AI_PROVIDER,
-      primaryModel: AI_PROVIDER === 'gemini' ? GEMINI_MODEL : MISTRAL_MODEL,
+    console.log('Mistral Configuration:', {
+      primaryModel: MISTRAL_MODEL,
       fallbackConfigured: !!AI_FALLBACK_MODEL,
       fallbackModel: AI_FALLBACK_MODEL || 'none'
     });
     
     try {
-      if (AI_PROVIDER === 'gemini') {
-        ({ rawText, provider, model } = await callGemini(prompt));
-        primaryCallSucceeded = true;
-        console.log('Primary model succeeded:', model);
-      } else if (AI_PROVIDER === 'mistral') {
-        ({ rawText, provider, model } = await callMistral(prompt));
-        primaryCallSucceeded = true;
-        console.log('Primary model succeeded:', model);
-      } else {
-        throw new Error(`Onbekende AI_PROVIDER: ${AI_PROVIDER}`);
-      }
+      // Try primary Mistral model
+      ({ rawText, provider, model } = await callMistral(prompt));
+      primaryCallSucceeded = true;
+      console.log('Primary Mistral model succeeded:', model);
     } catch (primaryError) {
       // Check if this is a high-demand/capacity error
       const errorMessage = primaryError.message || '';
@@ -763,50 +699,31 @@ export default async function handler(req, res) {
                                errorMessage.includes('currently experiencing high demand') ||
                                errorMessage.includes('try again later');
       
-      console.log('Primary model failed:', {
+      console.log('Primary Mistral model failed:', {
         errorType: isHighDemandError ? 'high_demand' : 'other',
         errorMessage: errorMessage,
         fallbackAvailable: !!AI_FALLBACK_MODEL
       });
       
+      // Try fallback model if available and it's a high-demand error
       if (isHighDemandError && AI_FALLBACK_MODEL) {
-        console.log('Primary model experiencing high demand, trying fallback model:', AI_FALLBACK_MODEL);
+        console.log('Primary Mistral model experiencing high demand, trying fallback model:', AI_FALLBACK_MODEL);
         
-        // Try fallback model
-        if (AI_PROVIDER === 'gemini') {
-          // Temporarily override the model for fallback
-          const originalModel = GEMINI_MODEL;
-          GEMINI_MODEL = AI_FALLBACK_MODEL;
-          try {
-            ({ rawText, provider, model } = await callGemini(prompt));
-            primaryCallSucceeded = true;
-            console.log('Fallback model succeeded:', model);
-          } catch (fallbackError) {
-            console.log('Fallback model also failed:', {
-              errorMessage: fallbackError.message,
-              status: 'fallback_failed'
-            });
-          } finally {
-            // Restore original model
-            GEMINI_MODEL = originalModel;
-          }
-        } else if (AI_PROVIDER === 'mistral') {
+        try {
           // Temporarily override the model for fallback
           const originalModel = MISTRAL_MODEL;
           MISTRAL_MODEL = AI_FALLBACK_MODEL;
-          try {
-            ({ rawText, provider, model } = await callMistral(prompt));
-            primaryCallSucceeded = true;
-            console.log('Fallback model succeeded:', model);
-          } catch (fallbackError) {
-            console.log('Fallback model also failed:', {
-              errorMessage: fallbackError.message,
-              status: 'fallback_failed'
-            });
-          } finally {
-            // Restore original model
-            MISTRAL_MODEL = originalModel;
-          }
+          ({ rawText, provider, model } = await callMistral(prompt));
+          primaryCallSucceeded = true;
+          console.log('Fallback Mistral model succeeded:', model);
+        } catch (fallbackError) {
+          console.log('Fallback Mistral model also failed:', {
+            errorMessage: fallbackError.message,
+            status: 'fallback_failed'
+          });
+        } finally {
+          // Restore original model
+          MISTRAL_MODEL = originalModel;
         }
       } else if (isHighDemandError && !AI_FALLBACK_MODEL) {
         console.log('No AI_FALLBACK_MODEL configured.');
