@@ -242,6 +242,153 @@ function excerptText(value, maxLength = 1100) {
   return `${slice.slice(0, cutoff > 0 ? cutoff : maxLength).trim()}…`;
 }
 
+/**
+ * Safe excerpt that never cuts mid-word
+ * Prefers paragraph > sentence > whitespace boundaries
+ */
+function safeExcerpt(text, maxLength = 1500) {
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+
+  const slice = text.slice(0, maxLength);
+  
+  // Try paragraph boundary first (double newline)
+  const paragraphBreak = slice.lastIndexOf('\n\n');
+  if (paragraphBreak > maxLength * 0.3) {
+    return slice.slice(0, paragraphBreak).trim();
+  }
+
+  // Try sentence boundary
+  const sentenceBreak = Math.max(
+    slice.lastIndexOf('. '), 
+    slice.lastIndexOf('! '), 
+    slice.lastIndexOf('? ')
+  );
+  if (sentenceBreak > maxLength * 0.5) {
+    return `${slice.slice(0, sentenceBreak + 1).trim()}`;
+  }
+
+  // Try whitespace boundary
+  const wordBreak = slice.lastIndexOf(' ');
+  if (wordBreak > 0) {
+    return slice.slice(0, wordBreak).trim();
+  }
+
+  // Absolute fallback - should not happen with proper maxLength
+  return slice.slice(0, maxLength).trim();
+}
+
+/**
+ * Extract sections from text based on preferred headings
+ */
+function extractSections(text, preferredHeadings) {
+  if (!text) return null;
+  
+  const sections = {};
+  let currentSection = null;
+  let currentContent = [];
+  
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    // Skip empty lines
+    if (!trimmedLine) {
+      if (currentSection) {
+        currentContent.push(line); // Keep empty lines within sections
+      }
+      continue;
+    }
+    
+    // Check if this line looks like any heading (not just preferred ones)
+    const isHeading = /^[A-Z][a-zA-Z\s]+:?\s*$/.test(trimmedLine);
+    
+    if (isHeading) {
+      // Check if this is a preferred heading
+      const matchedHeading = preferredHeadings.find(heading => {
+        const headingPattern = new RegExp(`^${heading}:?\s*$`, 'i');
+        return headingPattern.test(trimmedLine);
+      });
+      
+      // Save previous section if exists and we're switching to a new section
+      if (currentSection && currentContent.length > 0) {
+        sections[currentSection] = currentContent.join('\n').trim();
+      }
+      
+      // Start new section if this is a preferred heading
+      if (matchedHeading) {
+        currentSection = matchedHeading;
+        currentContent = [];
+      } else {
+        // This is a non-preferred heading, stop current section
+        currentSection = null;
+        currentContent = [];
+      }
+    } else if (currentSection) {
+      // Continue current section
+      currentContent.push(line);
+    }
+  }
+  
+  // Save last section
+  if (currentSection && currentContent.length > 0) {
+    sections[currentSection] = currentContent.join('\n').trim();
+  }
+  
+  return sections;
+}
+
+/**
+ * Section-aware abstract selection
+ * Prioritizes Expected Outcome/Impact sections over full Scope
+ */
+function selectDisplayAbstract(fullText) {
+  if (!fullText) return null;
+  
+  const LONG_TEXT_THRESHOLD = 1500;
+  
+  // For short texts, return full text
+  if (fullText.length <= LONG_TEXT_THRESHOLD) {
+    return fullText;
+  }
+  
+  // Preferred section headings in priority order
+  const preferredHeadings = [
+    'Expected Outcome',
+    'Expected Outcomes', 
+    'Expected Impact',
+    'Expected impacts',
+    'Expected results',
+    'Expected results include'
+  ];
+  
+  // Try to extract sections
+  const sections = extractSections(fullText, preferredHeadings);
+  
+  // Look for preferred sections
+  for (const heading of preferredHeadings) {
+    if (sections[heading]) {
+      // Found a preferred section - return it
+      return sections[heading];
+    }
+  }
+  
+  // No preferred sections found - try to extract Scope section
+  const scopeSections = extractSections(fullText, ['Scope']);
+  if (scopeSections['Scope']) {
+    // If Scope is still too long, use safe excerpt
+    if (scopeSections['Scope'].length > LONG_TEXT_THRESHOLD) {
+      return safeExcerpt(scopeSections['Scope'], LONG_TEXT_THRESHOLD);
+    }
+    return scopeSections['Scope'];
+  }
+  
+  // No recognizable sections - use safe excerpt from full text
+  return safeExcerpt(fullText, LONG_TEXT_THRESHOLD);
+}
+
 function toIsoDate(value) {
   if (!value) {
     return null;
@@ -592,7 +739,13 @@ function normalizeResult(result, lookups) {
   const identifier = first(metadata.identifier);
   const action = extractAction(first(metadata.actions));
   const budget = extractBudget(identifier, first(metadata.budgetOverview));
-  const abstractText = excerptText(htmlToText(first(metadata.descriptionByte)));
+  
+  // Get full cleaned text
+  const abstractFull = htmlToText(first(metadata.descriptionByte));
+  
+  // Use section-aware extraction for display abstract
+  const abstractText = selectDisplayAbstract(abstractFull);
+  
   const statusId = first(metadata.status) || action?.statusId || null;
   const typeId = first(metadata.type) || null;
   const frameworkProgrammeIds = all(metadata.frameworkProgramme);
@@ -610,6 +763,7 @@ function normalizeResult(result, lookups) {
     callTitle: first(metadata.callTitle),
     destination,
     abstract: abstractText,
+    abstractFull: abstractFull,
     actionType: first(metadata.typesOfAction),
     status: {
       id: statusId,
@@ -634,7 +788,7 @@ function normalizeResult(result, lookups) {
       first(metadata.callTitle),
       destination,
       first(metadata.typesOfAction),
-      abstractText
+      abstractFull
     ].filter(Boolean).join(' ')
   };
 }
