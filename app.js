@@ -908,31 +908,47 @@ function renderResults() {
     const titleBtn  = card.querySelector('.grant-card__title-button');
     const legacyLink= card.querySelector('.grant-card__title a');
     const openLink  = card.querySelector('.grant-card__open-link');
-    const summary   = card.querySelector('.grant-card__summary');
-    const drawer    = card.querySelector('.grant-card__drawer');
-    const dSummary  = card.querySelector('.grant-card__drawer-summary');
+    const content     = card.querySelector('.grant-card__content');
+    const dFeedSummary = card.querySelector('.grant-card__drawer-feed-summary');
     const dAbstract = card.querySelector('.grant-card__drawer-abstract');
     const dAbsBlock = card.querySelector('.grant-card__drawer-block--abstract');
+    const dFeedSummaryBlock = card.querySelector('.grant-card__drawer-block--feed-summary');
     const facts     = card.querySelector('.grant-card__facts');
+    const detailsBtn = card.querySelector('.grant-card__details-toggle');
 
     statusChip.dataset.status = grant.status.id;
     statusChip.textContent    = grant.status.label;
     idEl.textContent          = grant.identifier;
-    if (titleBtn)   { titleBtn.textContent = grant.title; titleBtn.setAttribute('aria-expanded', 'false'); }
+    if (titleBtn)   { titleBtn.textContent = grant.title; titleBtn.removeAttribute('aria-expanded'); }
     if (legacyLink) { legacyLink.textContent = grant.title; legacyLink.href = grant.url; }
     if (openLink)   openLink.href = grant.url;
 
-    const sumText = grant.destination || grant.callTitle || grant.summary || '';
-    summary.textContent = sumText || 'No destination summary available.';
-    if (dSummary) dSummary.textContent = sumText || 'No short summary was exposed for this call.';
+    // Feed summary logic - only show if we have a usable, non-truncated summary
+    const feedSummaryText = grant.destination || grant.callTitle || grant.summary || '';
+    const feedSummaryIsTruncated = feedSummaryText && /…$|\.\.\.$/.test(feedSummaryText.trim());
+    const feedSummaryDuplicatesAbstract = grant.abstract && feedSummaryText.trim() === grant.abstract.trim();
+
+    if (dFeedSummary && dFeedSummaryBlock && feedSummaryText && !feedSummaryIsTruncated && !feedSummaryDuplicatesAbstract) {
+      dFeedSummary.textContent = feedSummaryText;
+      dFeedSummaryBlock.hidden = false;
+    } else if (dFeedSummaryBlock) {
+      dFeedSummaryBlock.hidden = true;
+    }
+
+    // Abstract / scope logic - unchanged
     if (dAbstract && dAbsBlock) { dAbstract.textContent = grant.abstract || ''; dAbsBlock.hidden = !grant.abstract; }
 
-    if (titleBtn && drawer) {
-      titleBtn.addEventListener('click', () => {
-        const open = !drawer.hidden;
-        drawer.hidden = open;
-        card.classList.toggle('is-expanded', !open);
-        titleBtn.setAttribute('aria-expanded', String(!open));
+    if (detailsBtn && content) {
+      detailsBtn.addEventListener('click', () => {
+        const isExpanded = detailsBtn.getAttribute('aria-expanded') === 'true';
+        detailsBtn.setAttribute('aria-expanded', String(!isExpanded));
+        content.setAttribute('aria-hidden', String(isExpanded));
+        content.hidden = isExpanded;
+        
+        const icon = detailsBtn.querySelector('.grant-card__toggle-icon');
+        const text = detailsBtn.querySelector('.grant-card__toggle-text');
+        if (icon) icon.innerHTML = isExpanded ? '&#9660;' : '&#9650;';
+        if (text) text.textContent = isExpanded ? 'Bekijk details' : 'Minder';
       });
     }
 
@@ -1012,7 +1028,6 @@ function renderResults() {
         aiBtn.textContent = 'AI: ' + result.score + '/100';
       } else { aiBtn.textContent = 'Analyseer met AI'; aiBtn.disabled = false; }
     };
-    if (topLine) topLine.appendChild(aiBtn);
 
     // Bewaar knop
     const saveBtn = document.createElement('button');
@@ -1021,27 +1036,14 @@ function renderResults() {
     saveBtn.textContent = isGrantSaved(grant) ? 'Bewaard' : 'Bewaar';
     saveBtn.setAttribute('aria-label', isGrantSaved(grant) ? 'Verwijder call uit bewaarde calls' : 'Bewaar call');
     saveBtn.onclick = e => { e.preventDefault(); e.stopPropagation(); toggleSavedGrant(grant); };
-    if (topLine) topLine.appendChild(saveBtn);
 
-    // Pipeline knop (in huidige stage of toevoegen)
-    const pipelineStageId = state.pipeline[grant.identifier];
-    const pipelineStage   = PIPELINE_STAGES.find(s => s.id === pipelineStageId);
-    const pipelineBtn     = document.createElement('button');
-    pipelineBtn.className = 'ghost-button grant-card__pipeline-button';
-    pipelineBtn.type = 'button';
-    pipelineBtn.textContent = pipelineStage ? `Pipeline: ${pipelineStage.label}` : '+ Pipeline';
-    pipelineBtn.title = pipelineStage ? 'In pipeline: ' + pipelineStage.label : 'Voeg toe aan pipeline';
-    pipelineBtn.onclick = () => {
-      if (pipelineStage) {
-        const next = PIPELINE_STAGES[PIPELINE_STAGES.findIndex(s => s.id === pipelineStageId) + 1];
-        if (next) { setPipelineStage(grant.identifier, next.id); pipelineBtn.textContent = 'Pipeline: ' + next.label; }
-        else      { setPipelineStage(grant.identifier, null);    pipelineBtn.textContent = '+ Pipeline'; }
-      } else {
-        setPipelineStage(grant.identifier, PIPELINE_STAGES[0].id);
-        pipelineBtn.textContent = 'Pipeline: ' + PIPELINE_STAGES[0].label;
-      }
-    };
-    if (topLine) topLine.appendChild(pipelineBtn);
+    // Voeg actieknoppen toe aan de footer, links van de toggle
+const footer = card.querySelector('.grant-card__footer');
+const toggle = card.querySelector('.grant-card__details-toggle');
+if (footer && toggle) {
+  footer.insertBefore(aiBtn, toggle);
+  footer.insertBefore(saveBtn, toggle);
+}
 
     frag.appendChild(card);
   }
@@ -1083,6 +1085,7 @@ function renderSavedCallsPanel() {
         rmBtn.title = 'Verwijder uit bewaarde calls'; rmBtn.textContent = '\xD7';
         rmBtn.setAttribute('aria-label', `Verwijder ${g.identifier} uit bewaarde calls`);
         rmBtn.addEventListener('click', () => { state.savedIds.delete(getGrantSaveId(g)); persistSavedCalls(); update(); });
+
         item.append(wrap, rmBtn);
         elements.savedCallsList.appendChild(item);
       }

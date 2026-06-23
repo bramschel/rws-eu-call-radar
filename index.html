@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RWS EU Call Radar</title>
     <meta name="description" content="EU Call Radar voor Rijkswaterstaat Bureau Brussel. Zoek, filter en beoordeel Europese funding calls op relevantie voor RWS-thema's.">
-    <link rel="stylesheet" href="styles.css?v=20260619-rws-auth-modal-3">
+    <link rel="stylesheet" href="styles.css?v=20260623-demo-mvp-1">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
   </head>
@@ -66,7 +66,7 @@
       <nav class="view-tabs">
         <button id="tab-radar" class="view-tab is-active">Radar</button>
         <button id="tab-shortlist" class="view-tab">AI Shortlist</button>
-        <button id="tab-pipeline" class="view-tab">Pipeline</button>
+        <!-- <button id="tab-pipeline" class="view-tab">Pipeline</button> -->
       </nav>
 
       <section id="radar-view" class="view-pane">
@@ -265,20 +265,45 @@
         </div>
       </section>
 
-      <section id="pipeline-view" class="view-pane" hidden>
+      <!-- <section id="pipeline-view" class="view-pane" hidden>
         <div class="panel pipeline-panel">
           <h2>Pipeline</h2>
           <p>Pipeline komt in volgende stap.</p>
         </div>
-      </section>
+      </section> -->
     </div>
 
-    <template id="grant-card-template">
-      <article class="grant-card">
-        <div class="grant-card__topline">
-          <span class="status-chip"></span>
-          <span class="grant-card__id"></span>
-        </div>
+   <template id="grant-card-template">
+  <article class="grant-card">
+    <div class="grant-card__topline">
+      <span class="status-chip"></span>
+      <span class="grant-card__id"></span>
+    </div>
+    <div class="grant-card__title-row">
+      <h3 class="grant-card__title">
+        <button class="grant-card__title-button" type="button"></button>
+      </h3>
+    </div>
+    <dl class="grant-card__facts"></dl>
+    <div class="grant-card__content" aria-hidden="true" hidden>
+      <div class="grant-card__drawer-block grant-card__drawer-block--feed-summary">
+        <p class="grant-card__drawer-label">Feed summary</p>
+        <p class="grant-card__drawer-text grant-card__drawer-feed-summary"></p>
+      </div>
+      <div class="grant-card__drawer-block grant-card__drawer-block--abstract" hidden>
+        <p class="grant-card__drawer-label">Abstract / scope</p>
+        <p class="grant-card__drawer-text grant-card__drawer-abstract"></p>
+      </div>
+    </div>
+    <div class="grant-card__footer">
+      <button class="grant-card__details-toggle" aria-expanded="false">
+        <span class="grant-card__toggle-icon">&#9660;</span>
+        <span class="grant-card__toggle-text">Bekijk details</span>
+      </button>
+      <a class="grant-card__open-link" target="_blank" rel="noreferrer">Open</a>
+    </div>
+  </article>
+</template>
 
         <div class="grant-card__title-row">
           <h3 class="grant-card__title">
@@ -288,12 +313,11 @@
           <a class="grant-card__open-link" target="_blank" rel="noreferrer">Open</a>
         </div>
 
-        <p class="grant-card__summary"></p>
-
-        <div class="grant-card__drawer" hidden>
-          <div class="grant-card__drawer-block">
+        <!-- Expanded content with AI Shortlist pattern -->
+        <div class="grant-card__content" id="${grant.identifier}-content" aria-hidden="true" hidden>
+          <div class="grant-card__drawer-block grant-card__drawer-block--feed-summary">
             <p class="grant-card__drawer-label">Feed summary</p>
-            <p class="grant-card__drawer-text grant-card__drawer-summary"></p>
+            <p class="grant-card__drawer-text grant-card__drawer-feed-summary"></p>
           </div>
 
           <div class="grant-card__drawer-block grant-card__drawer-block--abstract" hidden>
@@ -302,10 +326,18 @@
           </div>
         </div>
 
+        <!-- Details button using AI Shortlist pattern -->
+        <div class="grant-card__footer">
+          <button class="grant-card__details-toggle" aria-expanded="false" aria-controls="${grant.identifier}-content">
+            <span class="grant-card__toggle-icon">&#9660;</span>
+            <span class="grant-card__toggle-text">Bekijk details</span>
+          </button>
+        </div>
+
         <dl class="grant-card__facts"></dl>
       </article>
     </template>
 
-    <script type="module" src="app.js?v=20260619-password-reset-1"></script>
+    <script type="module" src="app.js?v=20260623-demo-mvp-1"></script>
   </body>
 </html>
