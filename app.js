@@ -1421,7 +1421,7 @@ function getDeterministicSummary(reviews, filteredCount) {
     return [
       `Geen AI-analyses beschikbaar voor ${filteredCount} calls in scope.`,
       'Voer eerst een AI-analyse uit op het Radar-tabblad.',
-      'Kies maximaal 10 calls voor beoordeling.'
+      'Kies maximaal 15 calls voor beoordeling.'
     ];
   }
  

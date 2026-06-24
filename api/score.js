@@ -443,7 +443,7 @@ CALLS:
 ${JSON.stringify(calls, null, 2)}
 
 MANAGEMENT SAMENVATTING OPDRACHT:
-Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 10 resultaten. 
+Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 15 resultaten. 
 Deze samenvatting is bedoeld voor RWS-management en moet de volgende elementen bevatten:
 
 Geefitsluitend geldige JSON terug.
@@ -461,7 +461,7 @@ De JSON moet exact deze structuur hebben:
       {"identifier": "...", "title": "...", "score": 0, "rationale": "..."},
       {"identifier": "...", "title": "...", "score": 0, "rationale": "..."}
     ],
-    "notableExclusions": "Belangrijke calls die NIET in de top 10 zitten maar wel relevant kunnen zijn voor RWS (max 2-3 regels)",
+    "notableExclusions": "Belangrijke calls die NIET in de top 15 zitten maar wel relevant kunnen zijn voor RWS (max 2-3 regels)",
     "recommendedNextSteps": [
       "Concrete aanbeveling 1",
       "Concrete aanbeveling 2",
@@ -670,7 +670,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Geen calls meegestuurd' });
     }
 
-    const batch = calls.slice(0, 10);
+    const batch = calls.slice(0, 15);
 
     const { prompt, examplesMetadata: relevanceExamplesUsed } = buildPrompt({
       projectIdea, keywords, selectedTheme, calls: batch
