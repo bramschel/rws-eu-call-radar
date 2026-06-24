@@ -209,7 +209,13 @@ const QUERY_SYNONYMS = {
 
 const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via']);
 
-const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope'];
+const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood',
+  'local democracy', 'social inclusion',
+  'citizens participation', 'community governance',
+  'social cohesion', 'urban residents',
+  'housing', 'social housing',
+  'school', 'education facility',
+  'health centre', 'social services'];
 
 const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
 
@@ -490,15 +496,34 @@ function calculateRelevance(grant, query, projectIdea) {
       matchedThemes.push({ id: theme.id, label: theme.label, score: ts, matches: hits });
     }
   }
-  const themeScore = Math.min(40, themeRaw);
+  
+  // Theme breadth penalty: broad multi-theme matches often indicate generic calls
+  const matchedThemeCount = matchedThemes.length;
+  const themeBreadthPenalty =
+    matchedThemeCount >= 4 ? 0.6 :
+    matchedThemeCount === 3 ? 0.8 :
+    1.0;
+  
+  const themeScore = Math.min(40, Math.round(themeRaw * themeBreadthPenalty));
 
   // Phrase score (max 30)
   const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
   const phraseScore  = Math.min(30, phraseResult.phraseScore);
 
-  let score = queryScore + themeScore + phraseScore;
+  // Check if there is user input
+  const hasUserInput = Boolean(query?.trim() || projectIdea?.trim());
 
-  // Noise penalty
+  let score;
+  if (!hasUserInput) {
+    // No user input: scale themeScore + phraseScore from max 70 to max 100.
+    // queryScore is excluded when there is no user input.
+    score = Math.round((themeScore + phraseScore) * (100 / 70));
+  } else {
+    // Normal calculation with all three components.
+    score = queryScore + themeScore + phraseScore;
+  }
+
+  // Noise penalty - unchanged behavior
   for (const n of NOISE_TERMS) {
     if (grantText.includes(normalizeText(n))) score -= 10;
   }
