@@ -2163,8 +2163,8 @@ async function scoreGrantWithAI(grant) {
   }
 }
 
-// ── AI: batch top-10 reranking ────────────────────────────────
-// Note: uses state.filtered.slice(0,10) — intentionally takes the top 10
+// ── AI: batch top-15 reranking ────────────────────────────────
+// Note: uses state.filtered.slice(0,15) — intentionally takes the top 15
 // of ALL filtered results (not just the current page) for best analysis coverage.
 function toAiCallPayload(grant) {
   return {
@@ -2184,7 +2184,7 @@ function toAiCallPayload(grant) {
 
 async function scoreTopResultsWithAI() {
   if (!AI_API_URL) { alert('AI_API_URL is niet ingesteld. Zorg dat de Vercel-backend actief is.'); return; }
-  const candidates = state.filtered.slice(0, 10);
+  const candidates = state.filtered.slice(0, 15);
   if (!candidates.length) { alert('Geen resultaten om te analyseren. Pas je filters aan.'); return; }
 
   const btn      = document.querySelector('#ai-rerank-button');
@@ -2231,7 +2231,7 @@ async function scoreTopResultsWithAI() {
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
     if (statusEl) statusEl.textContent = `Analyse mislukt: ${err.message}`;
-    if (btn)      { btn.textContent = 'AI analyseer top 10'; btn.disabled = false; }
+    if (btn)      { btn.textContent = 'AI analyseer top 15'; btn.disabled = false; }
   }
 }
 
@@ -3093,7 +3093,7 @@ function wireEvents() {
     const statusEl = document.querySelector('#ai-rerank-status');
     const aiBtn    = document.querySelector('#ai-rerank-button');
     if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
-    if (aiBtn)    { aiBtn.textContent = 'AI analyseer top 10'; aiBtn.disabled = false; }
+    if (aiBtn)    { aiBtn.textContent = 'AI analyseer top 15'; aiBtn.disabled = false; }
     resetPagination(); syncControls(); update();
   });
 
