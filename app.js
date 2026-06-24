@@ -497,14 +497,16 @@ function calculateRelevance(grant, query, projectIdea) {
     }
   }
   
-  // Theme breadth penalty: broad multi-theme matches often indicate generic calls
-  const matchedThemeCount = matchedThemes.length;
-  const themeBreadthPenalty =
-    matchedThemeCount >= 4 ? 0.6 :
-    matchedThemeCount === 3 ? 0.8 :
-    1.0;
+  // Focused theme scoring: use only strongest theme matches
+  // Sort themes by score descending to get top contributors
+  const sortedThemes = [...matchedThemes].sort((a, b) => b.score - a.score);
   
-  const themeScore = Math.min(40, Math.round(themeRaw * themeBreadthPenalty));
+  // Focused theme scoring: top theme + 50% of second theme
+  const topThemeScore = sortedThemes[0]?.score || 0;
+  const secondThemeScore = sortedThemes[1]?.score || 0;
+  const themeRawFocused = topThemeScore + 0.5 * secondThemeScore;
+  
+  const themeScore = Math.min(40, Math.round(themeRawFocused));
 
   // Phrase score (max 30)
   const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
