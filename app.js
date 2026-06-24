@@ -217,6 +217,34 @@ const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncolog
   'school', 'education facility',
   'health centre', 'social services'];
 
+// RWS core fit terms - focused infrastructure/water/mobility terms only
+const RWS_CORE_TERMS = [
+  'navigable inland waterways',
+  'inland waterways',
+  'waterways',
+  'water infrastructure',
+  'waterway infrastructure',
+  'hydraulic infrastructure',
+  'flood resilience',
+  'flood protection',
+  'water management',
+  'asset management',
+  'infrastructure asset management',
+  'infrastructure resilience',
+  'climate resilience',
+  'climate adaptation',
+  'bridges',
+  'locks',
+  'sluices',
+  'dikes',
+  'water barriers',
+  'transport corridors',
+  'TEN-T',
+  'corridor management',
+  'road infrastructure',
+  'mobility infrastructure'
+];
+
 const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
 
 // ── State ─────────────────────────────────────────────────────
@@ -421,6 +449,29 @@ function getGrantTextFields(grant) {
   };
 }
 
+function scoreRwsCoreFit(grantText) {
+  // Score RWS core fit based on infrastructure/water/mobility terms
+  // Phrase matches count more than single terms
+  let rwsCoreScore = 0;
+  const matchedRwsCoreTerms = [];
+  
+  for (const term of RWS_CORE_TERMS) {
+    const normalizedTerm = normalizeText(term);
+    if (grantText.includes(normalizedTerm)) {
+      // Phrase matches get higher weight
+      const weight = term.includes(' ') ? 3 : 1;
+      rwsCoreScore += weight;
+      matchedRwsCoreTerms.push(term);
+    }
+  }
+  
+  // Cap at reasonable maximum
+  return {
+    rwsCoreScore: Math.min(25, rwsCoreScore),
+    matchedRwsCoreTerms
+  };
+}
+
 function scoreImportantPhrases(fields, selectedTheme) {
   let phraseScore = 0;
   const matchedPhrases = [];
@@ -525,10 +576,30 @@ function calculateRelevance(grant, query, projectIdea) {
     score = queryScore + themeScore + phraseScore;
   }
 
+  // RWS core fit scoring
+  const coreFitResult = scoreRwsCoreFit(grantText);
+  const rwsCoreScore = coreFitResult.rwsCoreScore;
+  const matchedRwsCoreTerms = coreFitResult.matchedRwsCoreTerms;
+
   // Noise penalty - unchanged behavior
   for (const n of NOISE_TERMS) {
     if (grantText.includes(normalizeText(n))) score -= 10;
   }
+
+  // RWS core fit bonus: add positive points for strong RWS core fit
+  const rwsCoreBonus = Math.min(20, rwsCoreScore);
+  score += rwsCoreBonus;
+
+  // RWS core fit gate: limit high scores for non-core calls
+  const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
+  if (rwsCoreScore === 0) {
+    // No RWS core fit: cap at 75
+    score = Math.min(score, 75);
+  } else if (rwsCoreScore < 8 && matchedNoiseTerms.length > 0) {
+    // Weak core fit with noise: cap at 60
+    score = Math.min(score, 60);
+  }
+  // Strong core fit (8+): no cap applied
 
   // Reasons
   const reasons = [];
@@ -549,7 +620,8 @@ function calculateRelevance(grant, query, projectIdea) {
     matchedTerms: Array.from(matchedTerms),
     origMatchedTerms: Array.from(origMatchedTerms),
     matchedPhrases: phraseResult.matchedPhrases,
-    matchedThemes, reasons
+    matchedThemes, reasons,
+    rwsCoreScore, matchedRwsCoreTerms, rwsCoreBonus
   };
 }
 
