@@ -61,7 +61,7 @@ const PIPELINE_STAGES = [
 const RWS_THEMES = [
   { id: 'corridor-management', label: 'Corridor Management',
     description: 'Transportcorridors, vaarwegen, TEN-T, multimodaliteit, verkeersmanagement en slimme mobiliteit.',
-    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','logistics','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor'] },
+    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','logistics','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
   { id: 'climate-adaptation', label: 'Climate Adaptation',
     description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, hitte, overstroming en resilience.',
     terms: ['climate adaptation','climate resilience','resilient infrastructure','adaptive infrastructure','flood risk','flood safety','flood protection','flood preparedness','water security','water resilience','sea level rise','storm surge','extreme weather','heat stress','drought','freshwater availability','fresh water','water management','river basin','coastal resilience','urban resilience','climate proof','climate-proof'] },
@@ -242,7 +242,9 @@ const RWS_CORE_TERMS = [
   'TEN-T',
   'corridor management',
   'road infrastructure',
-  'mobility infrastructure'
+  'mobility infrastructure',
+  'dual-use infrastructure',
+  'cross-border infrastructure'
 ];
 
 const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
