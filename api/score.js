@@ -374,7 +374,7 @@ Beoordeel per call:
 1. Inhoudelijke aansluiting op projectidee en keywords.
 2. Aansluiting op het gekozen Bureau Brussel-thema, indien opgegeven.
 3. Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie, niet primair als beleidsmaker.
-4. Mogelijke rol voor RWS, bijvoorbeeld kennispartner, pilotlocatie, asset owner, beheerder, consortiumdeelnemer of stakeholder.
+4. Mogelijke rol voor RWS, bijvoorbeeld asset owner, beheerder, pilotlocatie, consortiumdeelnemer, kennispartner of stakeholder. RWS hoeft geen lead partner, uitvoeringspartner of formele begunstigde te zijn voor een hoge projectfit. Een lichte, passieve of kennisgerichte rol kan nog steeds hoog scoren wanneer RWS duidelijke strategische waarde inbrengt door practitioner-expertise, asset-owner perspectief, infrastructuur- of vaarwegbeheer kennis, corridor-/netwerk governance ervaring, implementatie-lessons, standaardisatie- of interoperabiliteitsinput, beleidsinvloed vanuit uitvoeringspraktijk, toegang tot relevante Europese netwerken, of leerwaarde voor RWS-prioriteiten.
 5. Mate van onzekerheid, bijvoorbeeld als scope te breed is of eligibility onduidelijk is.
 
 
@@ -388,12 +388,13 @@ aiRelevanceScore (0–100): de totale beoordeling op basis van ALLE beschikbare 
 
 CONSERVATIEVE SCORECAPS (verplicht):
 - Generic sustainability, climate, AI or digitalisation link only: MAX 70
-- RWS only as possible stakeholder or knowledge partner: MAX 75
+- Do not cap projectfit merely because RWS is stakeholder, associated partner or knowledge partner. Cap only when the RWS role is passive and there is no clear strategic value, no link to RWS assets/networks/water systems, no knowledge contribution, no consortium/network value and no implementation or policy-learning relevance. For strategic knowledge roles (standardisation, governance, corridor management, asset management expertise), MAX 85 is appropriate even without direct execution role.
 - No concrete RWS asset, network, water system, road, waterway, bridge, lock, tunnel, corridor or operational management role: MAX 78
 - Relevance mainly comes from RAG context rather than the call text: MAX 72
 - Relevance mainly comes from historical examples: MAX 75
 - Scores above 85 require direct evidence from the call text plus a concrete RWS role
 - Scores above 90 require exceptional fit with RWS core tasks and realistic implementation or pilot potential
+- For CEF/TEN-T military mobility or civil-defence dual-use infrastructure calls, do not penalize the call merely because RWS may not be lead partner. If RWS can contribute as national infrastructure manager, asset owner, corridor expert, knowledge partner, stakeholder or associated partner, this can still be a strong fit.
 
 USER INTENT / ACTIVE FILTER FIT (verplicht):
 - Beoordeel "user intent fit" apart van algemene RWS-fit.

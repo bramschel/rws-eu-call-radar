@@ -102,7 +102,8 @@ const IMPORTANT_PHRASES = [
   { phrase: 'cross-border cooperation',         theme: 'network-governance',  weight: 24 },
   { phrase: 'interoperability',                 theme: 'network-governance',  weight: 18 },
   { phrase: 'dual-use infrastructure',          theme: 'corridor-management', weight: 28 },
-  { phrase: 'dual use',                         theme: 'corridor-management', weight: 18 }
+  { phrase: 'dual use',                         theme: 'corridor-management', weight: 18 },
+  { phrase: 'transport infrastructure',         theme: 'corridor-management', weight: 24 }
 ];
 
 const RWS_DOMAIN_TERMS = ['infrastructure','transport infrastructure','road infrastructure','roads','highways','bridges','tunnels','asset management','maintenance','renovation','traffic management','mobility','smart mobility','corridor','TEN-T','inland waterways','waterways','navigation','shipping','ports','river','river basin','flood risk','flood protection','water safety','water management','coastal','sea level rise','drought','digital twin','sensor data','decision support','predictive maintenance','water infrastructure','flood management','flood resilience','flood defence','flood defense','stormwater','river management','coastal management','coastal protection','dike','dyke','levee','waterway infrastructure','climate-proof infrastructure','climate proof infrastructure','infrastructure resilience','road resilience','bridge resilience','tunnel resilience'];
