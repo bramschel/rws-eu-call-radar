@@ -1098,7 +1098,7 @@ function renderResults() {
             '<span class="ai-score ' + pfCls + '">' + escapeHtml(String(pfScore)) + '/100</span>' +
           '</div>' +
         '</div>' +
-        (aiReview.projectFit ? '<p><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
+        (aiReview.projectFit ? '<p class="grant-card__projectfit"><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
         '<p>' + escapeHtml(aiReview.rationale || 'Geen toelichting beschikbaar.') + '</p>' +
         '<dl class="grant-card__facts" style="margin-top:.5rem">' +
           (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
