@@ -1,5 +1,5 @@
 // api/score.js — Vercel serverless function
-// Gebruikt Google Gemini via GEMINI_API_KEY environment variable.
+// Gebruikt Mistral AI via VIBE_CLI_KEY_BCG environment variable.
 // Ontvangt: POST { projectIdea, keywords, selectedTheme, calls: [...] }
 // Geeft terug: { reviews: [...] }
 
@@ -9,7 +9,10 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
+// Model selection with fallback support
+const MISTRAL_MODEL = process.env.AI_MODEL || process.env.MISTRAL_MODEL || 'mistral-small-latest';
+const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
+
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 function setCorsHeaders(req, res) {
@@ -289,14 +292,21 @@ function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
 
 function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
   const rwsContext = buildRwsContext(selectedTheme) || RWS_CONTEXT_FALLBACK;
-  const { examples } = selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls);
+  const { examples, metadata: examplesMetadata } = selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls);
   
   const relevanceExamplesText = examples.length > 0
     ? `\nRELEVANTE HISTORISCHE VOORBEELDEN:\n` + examples.map((ex) => `
-## Voorbeeld: ${ex.projectName}\nThema: ${ex.theme} (${ex.themeId})\nCall: ${ex.call}\nKeywords: ${ex.keywords?.join(', ') || 'Niet beschikbaar'}\nPatroon: ${ex.pattern || 'Niet beschikbaar'}\nRWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}\n`).join('\n')
+## Voorbeeld: ${ex.projectName}${ex.projectAbbreviation ? ` (${ex.projectAbbreviation})` : ''}
+Type: ${ex.useAs === 'positive_example' ? 'POSITIEF VOORBEELD — als een call hier sterk op lijkt, verhoog aiRelevanceScore met 5–10 punten' : 'Referentie'}
+Thema: ${ex.theme} (${ex.themeId})
+Call: ${ex.call}
+Keywords: ${ex.keywords?.join(', ') || 'Niet beschikbaar'}
+Patroon: ${ex.pattern || 'Niet beschikbaar'}
+RWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}
+`).join('\n')
     : '';
 
-  return `
+  const prompt = `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
 
 RELEVANTE RWS- EN BUREAU BRUSSEL-RAG-CONTEXT:
@@ -305,6 +315,26 @@ ${rwsContext}${relevanceExamplesText}
 Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-relevantie, maar op concrete RWS-relevantie, uitvoerbaarheid en toepasbaarheid voor Rijkswaterstaat als uitvoeringsorganisatie.
 
 IMPORTANT: De historische voorbeelden mogen alleen zwaar meewegen als de nieuwe call inhoudelijk lijkt op titel, scope, doel, keywords of RWS-rol van het historische voorbeeld. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen. Als een call sterk lijkt op een voorbeeld, benoem dat dan expliciet in projectFit of rationale.
+
+COMPACTE REFERENTIES INSTRUCTIE:
+- Wanneer je historische voorbeelden of RAG-context items vermeldt in projectFit, rationale of andere tekstvelden, gebruik dan compacte, mensvriendelijke referenties uit de data in plaats van de volledige lange titels.
+- Voor historische voorbeelden: gebruik projectAbbreviation waar beschikbaar (bijv. "MANABAS COAST" in plaats van "MAinstreaming Nature Based Solutions through COASTal Systems").
+- Voor RAG-context: gebruik een beknopte mensvriendelijke korte titel of themalabel waar beschikbaar (bijv. "Klimaatadaptatie" in plaats van "Focuspunt Klimaatadaptatie"). Gebruik de technische id alleen als er geen mensvriendelijke korte titel beschikbaar is.
+- Verzin geen labels of afkortingen — gebruik alleen bestaande referenties uit de data.
+- Houd projectFit en rationale beknopt en laat referenties niet domineren.
+- Als geen korte referentie beschikbaar is, gebruik dan de volledige titel maar herhaal deze niet meerdere keren.
+
+RAG INSTRUCTIES:
+- RAG context is optional supporting context, not mandatory evidence.
+- Do not force a RWS connection because RAG contains a related theme.
+- Use RAG only when the call text itself supports a concrete match.
+- If RAG context is broad or generic, say so and do not increase the score much.
+
+HISTORISCHE VOORBEELDEN INSTRUCTIES:
+- All examples in data/relevance_examples.json are positive relevance examples.
+- They are pattern examples only, not proof of relevance.
+- Do not assign a high score solely because a call resembles a past positive example.
+- Generic similarity, such as both mentioning climate, AI, logistics or digitalisation, is weak evidence.
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
@@ -324,7 +354,10 @@ De zoekvraag van de gebruiker is leidend. Leg per call expliciet uit:
 2. welke onderdelen van het projectidee terugkomen in de call;
 3. welke onderdelen ontbreken of onzeker zijn;
 4. of Rijkswaterstaat een logische rol kan hebben als uitvoeringsorganisatie;
-5. hoe de call past binnen het gekozen Bureau Brussel-thema.
+5. hoe de call past binnen het gekozen Bureau Brussel-thema;
+6. of de call substantiële overlap heeft met het geselecteerde thema of filtercontext.
+
+Beoordeel user intent fit als een aparte, cruciale dimensie. Een call kan algemene RWS-relevantie hebben, maar als deze niet past bij het geselecteerde thema, keywords of projectidee van de gebruiker, mag deze niet hoog scoren.
 
 Als het projectidee Nederlandstalige RWS-termen bevat, interpreteer deze in EU-call context. Bijvoorbeeld:
 - bruggenmonitoring = bridge monitoring, bridge inspection, structural health monitoring, condition monitoring;
@@ -332,7 +365,7 @@ Als het projectidee Nederlandstalige RWS-termen bevat, interpreteer deze in EU-c
 - instandhouding = maintenance, renovation, replacement, lifecycle management, asset management;
 - kunstwerken = bridges, tunnels, locks, sluices, civil structures.
 
-Geef een hoge score alleen als de call zowel inhoudelijk aansluit op het projectidee als een duidelijke RWS-rol heeft.
+Geef een hoge score alleen als de call zowel inhoudelijk aansluit op het projectidee als een duidelijke RWS-rol heeft. Wees conservatief in scoring en expliciet over onzekerheden.
 
 Rangschik de calls van meest naar minst relevant.
 
@@ -341,30 +374,77 @@ Beoordeel per call:
 1. Inhoudelijke aansluiting op projectidee en keywords.
 2. Aansluiting op het gekozen Bureau Brussel-thema, indien opgegeven.
 3. Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie, niet primair als beleidsmaker.
-4. Mogelijke rol voor RWS, bijvoorbeeld kennispartner, pilotlocatie, asset owner, beheerder, consortiumdeelnemer of stakeholder.
+4. Mogelijke rol voor RWS, bijvoorbeeld asset owner, beheerder, pilotlocatie, consortiumdeelnemer, kennispartner of stakeholder. RWS hoeft geen lead partner, uitvoeringspartner of formele begunstigde te zijn voor een hoge projectfit. Een lichte, passieve of kennisgerichte rol kan nog steeds hoog scoren wanneer RWS duidelijke strategische waarde inbrengt door practitioner-expertise, asset-owner perspectief, infrastructuur- of vaarwegbeheer kennis, corridor-/netwerk governance ervaring, implementatie-lessons, standaardisatie- of interoperabiliteitsinput, beleidsinvloed vanuit uitvoeringspraktijk, toegang tot relevante Europese netwerken, of leerwaarde voor RWS-prioriteiten.
 5. Mate van onzekerheid, bijvoorbeeld als scope te breed is of eligibility onduidelijk is.
 
 
-SCORING:
-Beoordeel streng. Een call is alleen hoog relevant als er zowel projectfit als RWS-fit is.
+SCORING — twee samenhangende maar onafhankelijk berekende scores per call:
 
-0-20 = niet relevant voor RWS
-21-40 = zwakke RWS-fit of vooral buiten RWS-domein
-41-60 = mogelijk relevant, maar RWS-rol is onzeker of indirect
-61-80 = relevant, duidelijke link met RWS-domeinen en mogelijke RWS-rol
-81-100 = sterk relevant, duidelijke projectfit, duidelijke RWS-rol en passend Bureau Brussel-thema
+aiRelevanceScore (0–100): de totale beoordeling op basis van ALLE beschikbare informatie:
+- Inhoudelijke aansluiting op het projectidee en de opgegeven keywords.
+- Relevantie voor Rijkswaterstaat als uitvoeringsorganisatie (asset owner, beheerder, kennispartner, pilotlocatie, consortiumdeelnemer).
+- Aansluiting op de RWS RAG-context hierboven (domeinen, lopende projecten, prioriteiten van RWS).
+- Gelijkenis met historische positieve voorbeelden uit de RAG.
 
-Scorebeperkingen:
-- Primair landbouw/boeren/voedsel/gewassen/veeteelt zonder RWS-waterbeheer of infrastructuurcomponent: maximaal 35.
-- Primair gemeentelijk/stedelijk zonder rol voor nationale infrastructuur, waterbeheer of corridors: maximaal 45.
+CONSERVATIEVE SCORECAPS (verplicht):
+- Generic sustainability, climate, AI or digitalisation link only: MAX 70
+- Do not cap projectfit merely because RWS is stakeholder, associated partner or knowledge partner. Cap only when the RWS role is passive and there is no clear strategic value, no link to RWS assets/networks/water systems, no knowledge contribution, no consortium/network value and no implementation or policy-learning relevance. For strategic knowledge roles (standardisation, governance, corridor management, asset management expertise), MAX 85 is appropriate even without direct execution role.
+- No concrete RWS asset, network, water system, road, waterway, bridge, lock, tunnel, corridor or operational management role: MAX 78
+- Relevance mainly comes from RAG context rather than the call text: MAX 72
+- Relevance mainly comes from historical examples: MAX 75
+- Scores above 85 require direct evidence from the call text plus a concrete RWS role
+- Scores above 90 require exceptional fit with RWS core tasks and realistic implementation or pilot potential
+- For CEF/TEN-T military mobility or civil-defence dual-use infrastructure calls, do not penalize the call merely because RWS may not be lead partner. If RWS can contribute as national infrastructure manager, asset owner, corridor expert, knowledge partner, stakeholder or associated partner, this can still be a strong fit.
+
+USER INTENT / ACTIVE FILTER FIT (verplicht):
+- Beoordeel "user intent fit" apart van algemene RWS-fit.
+- Als een actief thema/filter aanwezig is, moet de call substantiële overlap hebben met dat thema om hoog te scoren.
+- RAG-context mag relevantie ondersteunen, maar mag geen mismatch met het gekozen thema of gebruikersintentie overschrijven.
+
+THEMA-SPECIFIEKE FIT CAPS:
+- Als actief thema/filter aanwezig is EN de call heeft geen substantiële overlap met dat thema: MAX 65
+- Als actief thema/filter aanwezig is EN overlap zwak of alleen indirect is: MAX 75
+- Als relevantie vooral komt uit RAG-context buiten het geselecteerde thema: MAX 70
+- Als gebruikerskeywords of projectidee zijn opgegeven EN de call daar niet op aansluit: MAX 70
+- Scores boven 80 vereisen zowel RWS-relevantie als duidelijke fit met het actieve thema/gebruikersintentie
+- Scores boven 85 vereisen direct call-text bewijs voor zowel RWS-fit als actieve thema/gebruikersintentie fit
+- RAG-context mag deze caps niet omzeilen
+- Pas caps toe NA eventuele RAG- of historische-voorbeeld bonussen
+- Als meerdere caps van toepassing zijn, gebruik dan de laagste cap
+
+THEMA-SPECIFIEKE RICHTLIJNEN:
+- Als geselecteerd thema "Corridor Management" is, scoort een call alleen hoog als de call-tekst concrete overlap heeft met corridors, corridorbeheer, netwerkbeheer, transportcorridors, logistieke corridors, multimodale netwerken, TEN-T, verkeersmanagement, vaarwegcorridors, goederen-/passagiersstromen, ITS/C-ITS, RIS, of operationeel corridor-niveau infrastructuurbeheer.
+- Een generieke match met klimaatadaptatie, duurzaamheid, digitalisering of RWS RAG-context is onvoldoende voor een hoge score als het geselecteerde thema "Corridor Management" is.
+
+Scorebonussen (cumuleerbaar, max +15 totaal op aiRelevanceScore):
++3 tot +8 als de call inhoudelijk aansluit op een of meer RAG-context items — benoem de titel(s) in ragMatchedItems
++3 tot +7 als de call sterk lijkt op een POSITIEF VOORBEELD uit de historische voorbeelden
+
+CONSERVATIEVE SCORE RANGES:
+0–20 = geen RWS-domein, geen uitvoeringsrol denkbaar
+21–40 = zwakke of indirecte RWS-fit
+41–60 = mogelijk relevant, RWS-rol onzeker of indirect
+61–70 = duidelijke RWS-domeinlink maar generieke aansluiting (sustainability, climate, AI, digitalisation)
+71–78 = concrete RWS-domeinlink maar indirecte of onzekere uitvoeringsrol
+79–85 = sterke RWS-domeinlink met plausibele uitvoeringsrol, direct call-text evidence
+86–90 = uitstekende RWS-fit met concrete RWS rol en direct call-text evidence
+91–100 = exceptionele RWS-fit met RWS core tasks en realistisch implementatie/pilot potentieel
+
+projectFitScore (0–100): de specifieke aansluiting op het projectidee van de gebruiker, los berekend van de bredere RWS-fit.
+Kijk alleen naar: komen de kernbegrippen, doelen en aanpak van het projectidee terug in de scope van de call?
+Een call kan een hoge projectFitScore hebben met een lage aiRelevanceScore (bijv. goed projectidee-match maar RWS speelt geen rol), of omgekeerd.
+
+Scorebeperkingen voor aiRelevanceScore:
+- Landbouw-, boeren-, voedsel- of rurale termen zijn niet automatisch lage RWS-fit. Beoordeel alleen lager als er geen concrete koppeling is met RWS-taken zoals waterbeheer, droogte, overstromingsrisico, infrastructuur, assetmanagement, klimaatadaptatie of gebiedsgerichte uitvoering: maximaal 35.
+- Primair gemeentelijk/stedelijk zonder nationale infrastructuur, waterbeheer of corridors: maximaal 45.
 - Puur academisch of individuele onderzoeker zonder implementatie/pilot/asset owner rol: maximaal 40.
-- Algemene klimaatadaptatie zonder RWS-specifieke toepassing: maximaal 45.
+
 
 CALLS:
 ${JSON.stringify(calls, null, 2)}
 
 MANAGEMENT SAMENVATTING OPDRACHT:
-Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 10 resultaten. 
+Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 15 resultaten. 
 Deze samenvatting is bedoeld voor RWS-management en moet de volgende elementen bevatten:
 
 Geefitsluitend geldige JSON terug.
@@ -382,7 +462,7 @@ De JSON moet exact deze structuur hebben:
       {"identifier": "...", "title": "...", "score": 0, "rationale": "..."},
       {"identifier": "...", "title": "...", "score": 0, "rationale": "..."}
     ],
-    "notableExclusions": "Belangrijke calls die NIET in de top 10 zitten maar wel relevant kunnen zijn voor RWS (max 2-3 regels)",
+    "notableExclusions": "Belangrijke calls die NIET in de top 15 zitten maar wel relevant kunnen zijn voor RWS (max 2-3 regels)",
     "recommendedNextSteps": [
       "Concrete aanbeveling 1",
       "Concrete aanbeveling 2",
@@ -398,24 +478,32 @@ De JSON moet exact deze structuur hebben:
       "themeFit": ["..."],
       "rationale": "...",
       "possibleRwsRole": "...",
+      "possibleRwsProject": "...",
+      "callScopeSummary": "...",
       "uncertainties": "...",
-      "recommendedNextStep": "..."
+      "recommendedNextStep": "...",
+      "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"],
+      "snapshotReden": "...",
+      "waaromRelevant": ["...", "..."]
     }
   ]
 }
 
-Veldinstructies:
-- projectFit: beschrijf in 1-2 zinnen hoe de call aansluit op het concrete projectidee van de gebruiker. Benem expliciet als de call lijkt op historische voorbeelden.
-- projectFitScore: score 0-100 voor aansluiting op het projectidee, los van algemene RWS-relevantie.
-- rationale: beschrijf de totale beoordeling, inclusief RWS-fit en EU-call fit. Vermeld als historische patronen herkend zijn.
-- summary.executiveSummary: management samenvatting van de top resultaten
-- summary.topOpportunities: top 3 meest relevante calls met korte toelichting
-- summary.notableExclusions: importante calls die net buiten de top 10 vallen
-- summary.recommendedNextSteps: 3 concrete actiepunten voor RWS
+- snapshotReden: exact 1 zin in het NEDERLANDS, max 15 woorden, die uitlegt waarom deze call opvalt voor RWS. Begin met een werkwoord of concreet onderwerp. NIET: "Deze call is relevant voor RWS vanwege..." WEL: "Zoekt uitvoerende partner voor sensorvalidatie op bestaande rijksinfrastructuur." WEL: "Financiert pilots voor klimaatbestendige waterkeringen met asset-owner deelname."
+
+- waaromRelevant: array van exact 2 bullets in het NEDERLANDS, elk max 20 woorden. Bullet 1: concrete link tussen de call en een specifiek RWS-domein of taak. Bullet 2: specifiek element van de call dat aansluit op lopende RWS-programma's of RAG-context. NIET: herhaling van snapshotReden. NIET: generieke zinnen als "is relevant voor RWS vanwege zijn infrastructuurrol."
+
+- possibleRwsProject: exact 1 zin in het NEDERLANDS in de vorm: "RWS zou als [rol] kunnen [concrete actie] binnen [onderdeel van de call], gebruikmakend van [bestaande RWS-asset, locatie, data of lopend programma]." Als geen concrete invulling mogelijk is op basis van de calldata en RAG-context: geef null terug. NOOIT de tekst "Nog te concretiseren" of een variant daarvan. NOOIT een herhaling van waaromRelevant of possibleRwsRole.
+
+- rationale: volledige toelichting in het NEDERLANDS. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd superlatieven ("perfect match", "uitstekende fit") tenzij aiRelevanceScore > 85 met concreet bewijs.
+
+- ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
 
 Sorteer reviews van hoogste naar laagste aiRelevanceScore.
 Gebruik geen tekst buiten JSON.
 `.trim();
+
+  return { prompt, examplesMetadata };
 }
 
 function extractJsonFromText(text) {
@@ -506,9 +594,14 @@ function normalizeAiReviews(parsed) {
             ? [review.thema]
             : [],
     rationale: review.rationale || review.uitleg || review.explanation || '',
-    possibleRwsRole: review.possibleRwsRole || review.rws_role || review.rwsRole || '',
-    uncertainties: review.uncertainties || review.onzekerheden || '',
-    recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || ''
+    possibleRwsRole:     review.possibleRwsRole || review.rws_role || review.rwsRole || '',
+    possibleRwsProject:  review.possibleRwsProject || '',
+    callScopeSummary:    review.callScopeSummary || '',
+    uncertainties:       review.uncertainties || review.onzekerheden || '',
+    recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || '',
+    ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : [],
+    snapshotReden:       review.snapshotReden || '',
+    waaromRelevant:      Array.isArray(review.waaromRelevant) ? review.waaromRelevant : []
   }));
 
   // Sorteer reviews op aiRelevanceScore (hoog naar laag)
@@ -522,96 +615,143 @@ function normalizeAiReviews(parsed) {
   return { reviews: normalized };
 }
 
+// ── Provider-specifieke LLM-aanroepen ────────────────────────
+
+async function callMistral(prompt) {
+  const apiKey = process.env.VIBE_CLI_KEY_BCG;
+  if (!apiKey) throw new Error('VIBE_CLI_KEY_BCG environment variable is required');
+
+  const response = await fetch(MISTRAL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: MISTRAL_MODEL,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
+        },
+        { role: 'user', content: prompt }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Mistral-fout ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    rawText: data.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}',
+    provider: 'mistral',
+    model: MISTRAL_MODEL
+  };
+}
+
+
+
+// ── Handler ───────────────────────────────────────────────────
+
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const apiKey = process.env.MISTRAL_API_KEY;
-
-    if (!apiKey) {
-      console.error('MISTRAL_API_KEY is niet ingesteld');
-      return res.status(500).json({ error: 'Backend niet geconfigureerd' });
-    }
-
     const { projectIdea, keywords, selectedTheme, calls } = req.body || {};
 
     if (!Array.isArray(calls) || calls.length === 0) {
       return res.status(400).json({ error: 'Geen calls meegestuurd' });
     }
 
-    const batch = calls.slice(0, 10);
+    const batch = calls.slice(0, 15);
 
-    // Selecteer relevante historische voorbeelden
-    const { metadata: relevanceExamplesUsed } = selectRelevanceExamples(
-      projectIdea, 
-      keywords, 
-      selectedTheme, 
-      batch
-    );
-
-    const prompt = buildPrompt({
-      projectIdea,
-      keywords,
-      selectedTheme,
-      calls: batch
+    const { prompt, examplesMetadata: relevanceExamplesUsed } = buildPrompt({
+      projectIdea, keywords, selectedTheme, calls: batch
     });
 
-    const mistralResponse = await fetch(MISTRAL_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: MISTRAL_MODEL,
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      })
+    // Call Mistral with fallback support
+    let rawText, provider, model;
+    let primaryCallSucceeded = false;
+    
+    // Safe logging - configuration summary
+    console.log('Mistral Configuration:', {
+      primaryModel: MISTRAL_MODEL,
+      fallbackConfigured: !!AI_FALLBACK_MODEL,
+      fallbackModel: AI_FALLBACK_MODEL || 'none'
     });
-
-    if (!mistralResponse.ok) {
-      const err = await mistralResponse.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Mistral-fout ${mistralResponse.status}`);
+    
+    try {
+      // Try primary Mistral model
+      ({ rawText, provider, model } = await callMistral(prompt));
+      primaryCallSucceeded = true;
+      console.log('Primary Mistral model succeeded:', model);
+    } catch (primaryError) {
+      // Check if this is a high-demand/capacity error
+      const errorMessage = primaryError.message || '';
+      const isHighDemandError = errorMessage.includes('high demand') || 
+                               errorMessage.includes('currently experiencing high demand') ||
+                               errorMessage.includes('try again later');
+      
+      console.log('Primary Mistral model failed:', {
+        errorType: isHighDemandError ? 'high_demand' : 'other',
+        errorMessage: errorMessage,
+        fallbackAvailable: !!AI_FALLBACK_MODEL
+      });
+      
+      // Try fallback model if available and it's a high-demand error
+      if (isHighDemandError && AI_FALLBACK_MODEL) {
+        console.log('Primary Mistral model experiencing high demand, trying fallback model:', AI_FALLBACK_MODEL);
+        
+        try {
+          // Temporarily override the model for fallback
+          const originalModel = MISTRAL_MODEL;
+          MISTRAL_MODEL = AI_FALLBACK_MODEL;
+          ({ rawText, provider, model } = await callMistral(prompt));
+          primaryCallSucceeded = true;
+          console.log('Fallback Mistral model succeeded:', model);
+        } catch (fallbackError) {
+          console.log('Fallback Mistral model also failed:', {
+            errorMessage: fallbackError.message,
+            status: 'fallback_failed'
+          });
+        } finally {
+          // Restore original model
+          MISTRAL_MODEL = originalModel;
+        }
+      } else if (isHighDemandError && !AI_FALLBACK_MODEL) {
+        console.log('No AI_FALLBACK_MODEL configured.');
+      }
+      
+      if (!primaryCallSucceeded) {
+        // Re-throw the original error if fallback didn't work or wasn't available
+        console.log('Final error status:', {
+          primaryFailed: true,
+          fallbackAttempted: isHighDemandError && !!AI_FALLBACK_MODEL,
+          fallbackSucceeded: primaryCallSucceeded,
+          errorMessage: primaryError.message
+        });
+        throw primaryError;
+      }
     }
 
-    const mistralData = await mistralResponse.json();
-    const rawText = mistralData.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}';
-
     let parsed;
-
     try {
       parsed = extractJsonFromText(rawText);
     } catch (parseError) {
-      console.error('Kon Mistral-output niet parsen:', rawText);
-
-      return res.status(502).json({
-        error: 'AI gaf geen geldige JSON terug',
-        rawText
-      });
+      console.error(`Kon ${provider}-output niet parsen:`, rawText);
+      return res.status(502).json({ error: 'AI gaf geen geldige JSON terug', rawText });
     }
 
-    const normalized = normalizeAiReviews(parsed);
-    const summary = extractSummaryFromData(parsed);
-
-    // Build summary from AI response or create default
+    const normalized     = normalizeAiReviews(parsed);
+    const summary        = extractSummaryFromData(parsed);
     const responseSummary = summary || {
       executiveSummary: '',
       overallAdvice: '',
@@ -620,22 +760,39 @@ export default async function handler(req, res) {
       recommendedNextSteps: []
     };
 
-    // Ensure we don't include ragContextUsed in summary
+    // ragContextUsed hoort niet in summary-output
     delete responseSummary.ragContextUsed;
 
-    // Get ragContext metadata for backend
     const ragContext = getRagContextMetadata(selectedTheme);
 
-return res.status(200).json({
-  ...normalized,
-  summary: responseSummary,
-  provider: 'mistral',
-  model: MISTRAL_MODEL,
-  ragContextUsed: ragContext,
-  relevanceExamplesUsed: relevanceExamplesUsed
-});
+    return res.status(200).json({
+      ...normalized,
+      summary: responseSummary,
+      provider,
+      model,
+      ragContextUsed: ragContext,
+      relevanceExamplesUsed
+    });
+
   } catch (error) {
     console.error('Fout in /api/score:', error);
+    
+    // Check for high-demand/capacity errors and provide user-friendly message
+    const errorMessage = error.message || '';
+    const isHighDemandError = errorMessage.includes('high demand') || 
+                             errorMessage.includes('currently experiencing high demand') ||
+                             errorMessage.includes('try again later');
+    
+    if (isHighDemandError) {
+      // User-friendly Dutch message
+      const userMessage = 'Het AI-model is tijdelijk overbelast. Probeer het later opnieuw of kies een ander model.';
+      console.warn('AI capacity error - showing user-friendly message');
+      return res.status(503).json({ 
+        error: userMessage,
+        technicalDetails: error.message // Keep original for logging
+      });
+    }
+    
     return res.status(500).json({ error: error.message });
   }
 }
