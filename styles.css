@@ -2690,6 +2690,7 @@ body::before {
   padding-left: 1.25rem;
   display: grid;
   gap: 8px;
+  list-style: none;
 }
 
 .briefing-summary__item {

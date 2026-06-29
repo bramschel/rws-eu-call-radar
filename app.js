@@ -1688,26 +1688,15 @@ function getDeterministicSummary(reviews, filteredCount) {
   const topCall = getTopCallsForBriefing(reviews)[0];
   const topCallData = topCall ? getCallByIdentifier(topCall.identifier) : null;
  
-  // Actieverdeling over alle reviews
-  const actionCounts = { 'Actief verkennen': 0, 'Nader toetsen': 0, 'Monitoren': 0, 'Niet prioriteren': 0 };
-  reviews.forEach(r => {
-    const call = getCallByIdentifier(r.identifier);
-    const label = clampActionLabel(r, call);
-    if (actionCounts[label] !== undefined) actionCounts[label]++;
-  });
+
  
-  const actieParts = [];
-  if (actionCounts['Actief verkennen'] > 0)  actieParts.push(`${actionCounts['Actief verkennen']}x actief verkennen`);
-  if (actionCounts['Nader toetsen'] > 0)     actieParts.push(`${actionCounts['Nader toetsen']}x nader toetsen`);
-  if (actionCounts['Monitoren'] > 0)          actieParts.push(`${actionCounts['Monitoren']}x monitoren`);
-  if (actionCounts['Niet prioriteren'] > 0)   actieParts.push(`${actionCounts['Niet prioriteren']}x niet prioriteren`);
+
  
   return [
     `${reviews.length} van ${filteredCount} calls geanalyseerd — dominant thema: ${dominantTheme} (${themeOverview.themeCounts[dominantTheme] || 0} calls).`,
     topCallData
       ? `Topcall: ${topCallData.title} (AI: ${topCall.aiRelevanceScore}/100, ${getPrimaryThemeForGrant(topCallData)}).`
-      : 'Geen topcall bepaald.',
-    actieParts.length ? `Actieverdeling: ${actieParts.join(', ')}.` : 'Geen actielabels bepaald.'
+      : 'Geen topcall bepaald.'
   ];
 }
 
