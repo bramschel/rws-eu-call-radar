@@ -655,6 +655,257 @@ function toggleSavedGrant(grant) {
 const getSavedGrants = () =>
   state.data?.grants?.filter(g => state.savedIds.has(getGrantSaveId(g))) || [];
 
+function exportSavedCallsHtml() {
+  const saved = getSavedGrants();
+  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
+
+  const exportDate = new Date().toISOString().slice(0, 10);
+  const exportTime = new Date().toLocaleTimeString('nl-NL');
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RWS EU Call Radar - Bewaarde calls</title>
+  <style>
+    body {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      color: #1a1a2e;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      background: white;
+    }
+    
+    .report-header {
+      border-bottom: 2px solid #003082;
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+    }
+    
+    .report-title {
+      color: #003082;
+      font-size: 28px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+    }
+    
+    .report-meta {
+      color: #6b7280;
+      font-size: 14px;
+      margin: 0;
+    }
+    
+    .call-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      background: white;
+    }
+    
+    .call-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 16px;
+      gap: 16px;
+    }
+    
+    .call-id {
+      font-family: monospace;
+      font-size: 13px;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+    
+    .call-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin: 0;
+      flex: 1;
+    }
+    
+    .call-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    
+    .call-meta dt {
+      font-weight: 500;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    
+    .call-meta dd {
+      margin: 0;
+      color: #1a1a2e;
+    }
+    
+    .call-section {
+      margin-top: 20px;
+    }
+    
+    .call-section h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #003082;
+      margin: 0 0 8px 0;
+    }
+    
+    .call-section p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .score-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 13px;
+      margin-right: 8px;
+    }
+    
+    .score-badge--high {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .score-badge--mid {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    
+    .score-badge--low {
+      background: #f5f5f5;
+      color: #616161;
+    }
+    
+    .themes-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    
+    .theme-badge {
+      background: #f4f6f9;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      color: #1a1a2e;
+    }
+    
+    .call-url {
+      font-size: 13px;
+      color: #003082;
+      word-break: break-all;
+    }
+    
+    @media print {
+      body {
+        padding: 12px;
+      }
+      .call-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="report-header">
+    <h1 class="report-title">RWS EU Call Radar - Bewaarde calls</h1>
+    <p class="report-meta">Geëxporteerd op ${exportDate} om ${exportTime} | ${saved.length} calls</p>
+  </header>
+  
+  <main>
+    ${saved.map(grant => `
+      <article class="call-card">
+        <div class="call-header">
+          <span class="call-id">${escapeHtml(grant.identifier || '')}</span>
+          <h3 class="call-title">${escapeHtml(grant.title || 'Geen titel')}</h3>
+        </div>
+        
+        <dl class="call-meta">
+          ${getPrimaryProgramme(grant) ? `<div><dt>Programma</dt><dd>${escapeHtml(getPrimaryProgramme(grant))}</dd></div>` : ''}
+          ${grant.status?.label ? `<div><dt>Status</dt><dd>${escapeHtml(grant.status.label)}</dd></div>` : ''}
+          ${grant.startDate || grant.plannedOpeningDate ? `<div><dt>Openingsdatum</dt><dd>${escapeHtml(grant.startDate || grant.plannedOpeningDate || '')}</dd></div>` : ''}
+          ${grant.deadlineDate ? `<div><dt>Deadline</dt><dd>${escapeHtml(grant.deadlineDate)}</dd></div>` : ''}
+          ${grant.actionType || grant.kind?.label ? `<div><dt>Actietype</dt><dd>${escapeHtml(grant.actionType || grant.kind?.label || '')}</dd></div>` : ''}
+          ${grant.budget?.totalBudgetEur ? `<div><dt>Budget</dt><dd>€${escapeHtml(formatCurrency(grant.budget.totalBudgetEur))}</dd></div>` : ''}
+          ${grant.budget?.expectedGrants ? `<div><dt>Verwachte subsidies</dt><dd>${escapeHtml(grant.budget.expectedGrants)}</dd></div>` : ''}
+        </dl>
+        
+        ${grant.relevance?.score ? `
+        <div class="call-section">
+          <h4>Relevantie</h4>
+          <p><span class="score-badge ${getScoreBadgeClass(grant.relevance.score)}">${escapeHtml(grant.relevance.score)}/100</span> Non-AI relevantiescore</p>
+          ${grant.relevance.matchedThemes?.length ? `
+          <div class="themes-list">
+            ${grant.relevance.matchedThemes.map(theme => `<span class="theme-badge">${escapeHtml(theme.label)}</span>`).join('')}
+          </div>` : ''}
+          ${grant.relevance.matchedTerms?.length ? `<p><strong>Gematchte zoektermen:</strong> ${escapeHtml(grant.relevance.matchedTerms.join(', '))}</p>` : ''}
+          ${grant.relevance.reasons?.length ? `<p><strong>Redenen:</strong> ${escapeHtml(grant.relevance.reasons.join('; '))}</p>` : ''}
+        </div>` : ''}
+        
+        ${grant.summary || grant.destination || grant.callTitle ? `
+        <div class="call-section">
+          <h4>Samenvatting</h4>
+          <p>${escapeHtml(grant.summary || grant.destination || grant.callTitle || 'Geen samenvatting beschikbaar')}</p>
+        </div>` : ''}
+        
+        ${grant.abstract ? `
+        <div class="call-section">
+          <h4>Abstract / Scope</h4>
+          <p>${escapeHtml(grant.abstract)}</p>
+        </div>` : ''}
+        
+        ${grant.url ? `
+        <div class="call-section">
+          <h4>Originele call</h4>
+          <a href="${escapeHtml(grant.url)}" class="call-url" target="_blank" rel="noreferrer">${escapeHtml(grant.url)}</a>
+        </div>` : ''}
+      </article>
+    `).join('')}
+  </main>
+  
+  <footer style="margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280;">
+    <p>RWS EU Call Radar - Rijkswaterstaat Bureau Brussel</p>
+    <p>Dit rapport is gegenereerd op ${exportDate} om ${exportTime}</p>
+  </footer>
+</body>
+</html>
+`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `rws-eu-call-radar-bewaarde-calls.html`
+  });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getScoreBadgeClass(score) {
+  const numScore = Number(score);
+  if (numScore >= 70) return 'score-badge score-badge--high';
+  if (numScore >= 40) return 'score-badge score-badge--mid';
+  return 'score-badge score-badge--low';
+}
+
 function exportSavedCallsCsv() {
   const saved = getSavedGrants();
   if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
@@ -3085,7 +3336,7 @@ function wireEvents() {
   onChange('programme',   elements.programmeSelect);
   elements.sortSelect?.addEventListener('change', e => { state.filters.sort = e.target.value; update(); });
 
-  elements.exportSavedButton?.addEventListener('click', exportSavedCallsCsv);
+  elements.exportSavedButton?.addEventListener('click', exportSavedCallsHtml);
   elements.clearSavedButton?.addEventListener('click', () => {
     if (!state.savedIds.size || !confirm('Weet je zeker dat je alle bewaarde calls wilt wissen?')) return;
     state.savedIds.clear(); persistSavedCalls(); update();
