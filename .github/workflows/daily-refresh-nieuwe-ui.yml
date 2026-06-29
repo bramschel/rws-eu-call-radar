@@ -1,0 +1,35 @@
+name: Daily data refresh nieuwe-ui
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout nieuwe-ui branch
+        uses: actions/checkout@v4
+        with:
+          ref: nieuwe-ui
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Refresh EU grants data
+        run: npm run update:data
+
+      - name: Commit updated data if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/grants.json
+          git diff --cached --quiet || git commit -m "chore: refresh EU grants snapshot"
+          git push origin HEAD:nieuwe-ui
