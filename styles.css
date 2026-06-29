@@ -3279,6 +3279,17 @@ body::before {
   color: #616161;
 }
 
+/* Status dot styles */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.status-dot.status-open { background: #4caf50; }
+.status-dot.status-forthcoming { background: #ff9800; }
+
 .compact-call__scores {
   display: flex;
   flex-wrap: wrap;

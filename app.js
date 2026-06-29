@@ -1856,6 +1856,27 @@ function getStatusBadgeClass(status) {
   return 'compact-call__status--neutral';
 }
 
+function getStatusDotClass(status) {
+  if (!status) return 'status-dot';
+  
+  // Normalize status to handle both label and code formats
+  const statusText = status.label ? status.label.toLowerCase() : String(status).toLowerCase();
+  const statusCode = status.id ? String(status.id) : '';
+  
+  // Open for submission (green)
+  if (statusText.includes('open') || statusCode === '31094502') {
+    return 'status-dot status-open';
+  }
+  
+  // Forthcoming (orange)
+  if (statusText.includes('forthcoming') || statusCode === '31094501') {
+    return 'status-dot status-forthcoming';
+  }
+  
+  // Default/neutral
+  return 'status-dot';
+}
+
 function getSelectedThemeSummary(reviews, selectedTheme) {
   if (selectedTheme === 'all') return null;
   
@@ -2104,8 +2125,7 @@ function renderAiShortlist() {
             <span class="compact-call__rank">#${rank}</span>
             <div class="compact-call__badges">
               <span class="compact-call__theme">${escapeHtml(primaryTheme)}</span>
-              <span class="compact-call__status ${getStatusBadgeClass(call.status)}">${escapeHtml(call.status?.label || 'Onbekend')}</span>
-              <span class="compact-call__action-label action-label--${actionCls}">${escapeHtml(actionLabel)}</span>
+              <span class="status-dot ${getStatusDotClass(call.status)}"></span>
             </div>
           </div>
  
