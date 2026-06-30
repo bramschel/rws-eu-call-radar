@@ -110,7 +110,7 @@ const RWS_DOMAIN_TERMS = ['infrastructure','transport infrastructure','road infr
 
 const QUERY_SYNONYMS = {
   assetmanagement: ['asset management','infrastructure asset management','ISO 55001','lifecycle management','asset lifecycle','network performance','condition assessment','asset data','areaaldata','infrastructure maintenance'],
-  instandhouding: ['maintenance','infrastructure maintenance','asset management','renovation','replacement','renewal','lifecycle management','predictive maintenance','condition monitoring'],
+  instandhouding: ['resilience','infrastructure resilience','asset management','renovation','replacement','renewal','lifecycle management','predictive maintenance','condition monitoring'],
   onderhoud: ['maintenance','infrastructure maintenance','asset management','predictive maintenance','preventive maintenance','condition-based maintenance'],
   renovatie: ['renovation','infrastructure renovation','renewal','replacement','rehabilitation','lifecycle extension'],
   vervanging: ['replacement','renewal','renovation','infrastructure renewal','asset replacement'],
