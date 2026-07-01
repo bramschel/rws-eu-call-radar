@@ -70,7 +70,7 @@ const RWS_THEMES = [
     terms: ['sustainability','sustainable infrastructure','sustainable land use','sustainable water management','circular economy','circular infrastructure','material reuse','reuse of materials','secondary raw materials','asphalt recycling','recycling','circular procurement','zero-emission construction','zero emission construction','low carbon construction','climate-neutral infrastructure','carbon neutral','carbon-neutral','energy neutral','biodiversity','nature-inclusive infrastructure','nature inclusive infrastructure','habitat restoration','ecosystem restoration','nature-based solutions','nature based solutions','building with nature','green infrastructure','blue infrastructure','green and blue infrastructure','water quality','water pollution','wastewater','ecology'] },
   { id: 'digitalisation', label: 'Digitalisation',
     description: 'Data, AI, digital twins, smart infrastructure, automatisering, informatievoorziening en besluitvorming.',
-    terms: ['digitalisation','digitalization','data','data governance','data-driven','data driven','information systems','information management','artificial intelligence','AI','machine learning','decision support','digital twin','digital twins','smart infrastructure','smart mobility','automation','automated systems','predictive maintenance','sensor data','remote sensing','cybersecurity','interoperability','C-ITS','ITS','River Information Services','RIS','traffic data','mobility data'] },
+    terms: ['AI-assisted infrastructure','construction automation','cyber resilience','data governance','data infrastructure','data sharing','data-driven','data driven','decision support','digitalisation','digitalization','digital twin','digital twins','information management','information systems','interoperability','machine learning','mobility data','predictive maintenance','remote sensing','smart infrastructure','smart mobility','traffic data'] },
   { id: 'network-governance', label: 'Network Governance',
     description: 'Internationale samenwerking, harmonisatie, standaardisatie, beleidsinstrumenten en netwerkcoördinatie.',
     terms: ['network governance','governance','cross-border cooperation','cross border cooperation','international cooperation','European cooperation','coordination','co-ordination','harmonisation','harmonization','standardisation','standardization','interoperability','policy instruments','capacity building','institutional cooperation','stakeholder cooperation','partnerships','public authorities','public administration','regulatory framework','knowledge exchange','best practices','European networks','network operators','road authorities','water authorities'] }
@@ -1945,8 +1945,18 @@ function renderAiShortlist() {
   if (!container) return;
  
   const reviews = Array.from(state.aiReviews.values());
-  if (!reviews.length) {
-    container.innerHTML = '<p class="shortlist-empty">Voer eerst een AI-analyse uit op het Radar-tabblad om de shortlist te vullen.</p>';
+  
+  // Minimum score filter for AI Shortlist display only
+  // Include calls where AI relevance >= 50 OR project fit >= 50
+  const AI_SHORTLIST_MIN_SCORE = 50;
+  const visibleReviews = reviews.filter(review => {
+    const aiScore = Number(review.aiRelevanceScore || 0);
+    const fitScore = Number(review.projectFitScore || 0);
+    return aiScore >= AI_SHORTLIST_MIN_SCORE || fitScore >= AI_SHORTLIST_MIN_SCORE;
+  });
+  
+  if (!visibleReviews.length) {
+    container.innerHTML = '<p class="shortlist-empty">Geen calls met AI-relevantie of projectfit vanaf 50 gevonden.</p>';
     return;
   }
  
@@ -1970,7 +1980,7 @@ function renderAiShortlist() {
     </div>`;
  
   // 2. Samenvatting
-  const summary = getDeterministicSummary(reviews, filteredCount);
+  const summary = getDeterministicSummary(visibleReviews, filteredCount);
   html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Samenvatting</h3>
@@ -1980,10 +1990,10 @@ function renderAiShortlist() {
     </div>`;
  
   // 3. Thema-overzicht
-  const selectedThemeSummary = getSelectedThemeSummary(reviews, state.filters.theme);
+  const selectedThemeSummary = getSelectedThemeSummary(visibleReviews, state.filters.theme);
  
   if (state.filters.theme === 'all') {
-    const themeOverview = getThemeOverview(reviews);
+    const themeOverview = getThemeOverview(visibleReviews);
     html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
@@ -2047,7 +2057,7 @@ function renderAiShortlist() {
   }
  
   // 4. Calls
-  const sortedReviews = sortReviewsByAiRelevance(reviews);
+  const sortedReviews = sortReviewsByAiRelevance(visibleReviews);
  
   if (sortedReviews.length > 0) {
     html += `
@@ -2068,10 +2078,17 @@ function renderAiShortlist() {
         : 'Onbekend';
       const callId = `call-${index}`;
  
-      // Score display: "AI 88 · Fit 90" in één span
+      // Score display: separate badges for AI and Project Fit
       const aiScore  = review.aiRelevanceScore ?? 0;
       const fitScore = review.projectFitScore  ?? 0;
-      const scoreCls = aiScore >= 70 ? 'score--high' : aiScore >= 50 ? 'score--mid' : 'score--low';
+      
+      // Determine score classes for both AI and Project Fit
+      const getScoreClass = (score) => {
+        return score >= 70 ? 'score--high' : score >= 50 ? 'score--mid' : 'score--low';
+      };
+      
+      const aiScoreCls = getScoreClass(aiScore);
+      const fitScoreCls = getScoreClass(fitScore);
  
       // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback
       const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
@@ -2130,9 +2147,10 @@ function renderAiShortlist() {
             <span class="compact-call__deadline">Deadline: ${escapeHtml(deadline)}</span>
           </div>
  
-          <!-- Scores: gecombineerd -->
+          <!-- Scores: separate badges for AI and Project Fit -->
           <div class="compact-call__scores">
-            <span class="compact-call__score-combined ${scoreCls}">AI ${aiScore} &middot; Fit ${fitScore}</span>
+            <span class="compact-call__score-badge ${aiScoreCls}">AI ${aiScore}</span>
+            <span class="compact-call__score-badge ${fitScoreCls}">Fit ${fitScore}</span>
           </div>
  
           <!-- Snapshot: 1 zin waarom relevant -->
@@ -2196,7 +2214,7 @@ function renderAiShortlist() {
   }
  
   // 5. Watchlist
-  const watchlistCalls = getWatchlistCalls(reviews);
+  const watchlistCalls = getWatchlistCalls(visibleReviews);
   if (watchlistCalls.length > 0) {
     html += `
     <div class="briefing-section">
