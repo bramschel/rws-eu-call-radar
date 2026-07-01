@@ -826,7 +826,7 @@ button:disabled {
 }
 
 .grant-card__projectfit {
-  border-left: 3px solid #003082;
+  border-left: 3px solid rgba(0, 48, 130, 0.75);
   padding-left: 12px;
   margin: 12px 0;
 }
@@ -1273,8 +1273,8 @@ body::before {
   content: "";
   position: absolute;
   inset: 0;
-  width: 10px;
-  background: var(--rws-yellow);
+  width: 6px;
+  background: rgba(255, 182, 18, 0.85);
 }
 
 .hero::after {
@@ -1312,13 +1312,13 @@ body::before {
 
 /* Stronger intro/notice */
 .intro-panel {
-  background: linear-gradient(135deg, #ffffff 0%, #eef7fc 100%);
-  border-left: 8px solid var(--rws-yellow);
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fc 100%);
+  border-left: 4px solid rgba(255, 182, 18, 0.55);
 }
 
 .notice-panel {
-  background: #fff7d9;
-  border-left: 8px solid var(--rws-yellow);
+  background: #fffef5;
+  border-left: 4px solid rgba(255, 182, 18, 0.55);
 }
 
 /* Controls with more contrast */
@@ -1534,9 +1534,14 @@ body::before {
 
 .ai-panel,
 .ai-results-panel {
-  border-left: 6px solid var(--rws-yellow);
-  background: linear-gradient(135deg, #fff8df, #eef8ff);
-  border-color: #d9e7f2;
+  border-left: 4px solid rgba(255, 182, 18, 0.55);
+  background: #ffffff;
+  border-color: #e6f0fa;
+}
+
+.ai-results-panel {
+  background: #fffef8;
+  border-left: 4px solid rgba(255, 182, 18, 0.55);
 }
 
 .ai-panel__label {
@@ -1951,10 +1956,10 @@ body::before {
   margin-bottom: 18px;
   padding: 24px;
   border-radius: var(--radius-lg);
-  border-left: 8px solid var(--rws-yellow);
-  background: linear-gradient(135deg, #fff8df 0%, #ffffff 100%);
+  border-left: 4px solid rgba(255, 182, 18, 0.55);
+  background: #ffffff;
   box-shadow: var(--shadow-soft);
-  border: 1px solid #ead68a;
+  border: 1px solid #e6f0fa;
 }
 
 .ai-briefing__header {
@@ -3710,6 +3715,36 @@ body::before {
 .compact-call__score-combined.score--high { background: rgba(16,185,129,0.15); color: #10b981; }
 .compact-call__score-combined.score--mid  { background: rgba(245,158,11,0.15); color: #f59e0b; }
 .compact-call__score-combined.score--low  { background: rgba(100,116,139,0.12); color: #94a3b8; }
+
+/* New separate score badges for AI Shortlist */
+.compact-call__score-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+  text-align: center;
+  min-width: 48px;
+}
+
+.compact-call__score-badge.score--high {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.compact-call__score-badge.score--mid {
+  background: #fef3c7;
+  color: #7c2d12;
+  border: 1px solid #f59e0b;
+}
+
+.compact-call__score-badge.score--low {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 1px solid #ef4444;
+}
  
 /* Snapshot: 1 zin waarom relevant, licht cursief */
 .compact-call__snapshot {
