@@ -362,7 +362,7 @@ Beoordeel user intent fit als een aparte, cruciale dimensie. Een call kan algeme
 Als het projectidee Nederlandstalige RWS-termen bevat, interpreteer deze in EU-call context. Bijvoorbeeld:
 - bruggenmonitoring = bridge monitoring, bridge inspection, structural health monitoring, condition monitoring;
 - hoofdwegennet = highway network, national road network, motorway network, road infrastructure;
-- instandhouding = maintenance, renovation, replacement, lifecycle management, asset management;
+- instandhouding = infrastructure resilience, renovation, replacement, lifecycle management, asset management;
 - kunstwerken = bridges, tunnels, locks, sluices, civil structures.
 
 Geef een hoge score alleen als de call zowel inhoudelijk aansluit op het projectidee als een duidelijke RWS-rol heeft. Wees conservatief in scoring en expliciet over onzekerheden.
