@@ -901,9 +901,9 @@ function exportSavedCallsHtml() {
 
 function getScoreBadgeClass(score) {
   const numScore = Number(score);
-  if (numScore >= 70) return 'score-badge score-badge--high';
-  if (numScore >= 40) return 'score-badge score-badge--mid';
-  return 'score-badge score-badge--low';
+  if (numScore >= 70) return 'score--high';
+  if (numScore >= 55) return 'score--mid';
+  return 'score--low';
 }
 
 function exportSavedCallsCsv() {
@@ -1334,8 +1334,8 @@ function renderResults() {
     if (aiReview) {
       const aiScore    = aiReview.aiRelevanceScore ?? 0;
       const pfScore    = aiReview.projectFitScore ?? 0;
-      const scoreCls   = aiScore >= 61 ? 'ai-score--high' : aiScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
-      const pfCls      = pfScore >= 61 ? 'ai-score--high' : pfScore >= 41 ? 'ai-score--mid' : 'ai-score--low';
+      const scoreCls   = getScoreBadgeClass(aiScore);
+      const pfCls      = getScoreBadgeClass(pfScore);
       const aiBlock    = document.createElement('div');
       aiBlock.className = 'grant-card__ai-review';
       aiBlock.innerHTML =
@@ -2083,12 +2083,9 @@ function renderAiShortlist() {
       const fitScore = review.projectFitScore  ?? 0;
       
       // Determine score classes for both AI and Project Fit
-      const getScoreClass = (score) => {
-        return score >= 70 ? 'score--high' : score >= 50 ? 'score--mid' : 'score--low';
-      };
       
-      const aiScoreCls = getScoreClass(aiScore);
-      const fitScoreCls = getScoreClass(fitScore);
+      const aiScoreCls = getScoreBadgeClass(aiScore);
+      const fitScoreCls = getScoreBadgeClass(fitScore);
  
       // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback
       const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
@@ -2351,7 +2348,7 @@ function renderAiResults() {
   const sorted = Array.from(state.aiReviews.values()).sort((a, b) => (b.aiRelevanceScore ?? 0) - (a.aiRelevanceScore ?? 0));
   for (const r of sorted) {
     const aiScore = r.aiRelevanceScore ?? 0;
-    const sc = aiScore >= 70 ? 'ai-score--high' : aiScore >= 40 ? 'ai-score--mid' : 'ai-score--low';
+    const sc = getScoreBadgeClass(aiScore);
     const item = document.createElement('div');
     item.className = 'ai-review-item';
     item.innerHTML =
@@ -2360,7 +2357,7 @@ function renderAiResults() {
         '<strong class="ai-review-item__id">' + escapeHtml(r.identifier || 'Onbekende call') + '</strong>' +
       '</div>' +
       '<p class="ai-review-item__project-fit"><strong>Projectfit:</strong> ' + escapeHtml(r.projectFit || 'Geen projectfit.') +
-        (r.projectFitScore ? ' <span class="ai-score ai-score--mid">' + escapeHtml(String(r.projectFitScore)) + '/100</span>' : '') + '</p>' +
+        (r.projectFitScore ? ' <span class="ai-score ' + getScoreBadgeClass(r.projectFitScore) + '">' + escapeHtml(String(r.projectFitScore)) + '/100</span>' : '') + '</p>' +
       '<p class="ai-review-item__rationale">' + escapeHtml(r.rationale || 'Geen toelichting.') + '</p>' +
       '<dl class="ai-review-item__facts">' +
         '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(r.possibleRwsRole  || 'Niet gespecificeerd') + '</dd></div>' +

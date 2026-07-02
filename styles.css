@@ -1883,6 +1883,22 @@ body::before {
   color: #8f1f16;
 }
 
+/* Make score-- classes work with ai-score base class for consistency */
+.ai-score.score--high {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.ai-score.score--mid {
+  background: #fef3c7;
+  color: #7c2d12;
+}
+
+.ai-score.score--low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .ai-review-item__id {
   color: var(--rws-blue);
 }
