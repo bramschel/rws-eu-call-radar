@@ -864,10 +864,10 @@ function exportSavedCallsHtml() {
           <p>${escapeHtml(grant.summary || grant.destination || grant.callTitle || 'Geen samenvatting beschikbaar')}</p>
         </div>` : ''}
         
-        ${grant.abstract ? `
+        ${getDetailAbstractText(grant) ? `
         <div class="call-section">
           <h4>Abstract / Scope</h4>
-          <p>${escapeHtml(grant.abstract)}</p>
+          <div>${getDetailAbstractText(grant)}</div>
         </div>` : ''}
         
         ${grant.url ? `
@@ -904,6 +904,181 @@ function getScoreBadgeClass(score) {
   if (numScore >= 70) return 'score--high';
   if (numScore >= 55) return 'score--mid';
   return 'score--low';
+}
+
+// ── Helper: Detail abstract text ─────────────────────────────────
+function getDetailAbstractText(grant) {
+  // Use abstractFull when available and extract useful sections
+  if (grant.abstractFull) {
+    const text = grant.abstractFull;
+    
+    // Try to extract useful sections with their headings
+    const sections = {};
+    const preferredHeadings = [
+      'Objective', 'Objectives',
+      'Expected Outcome', 'Expected Outcomes',
+      'Scope'
+    ];
+    
+    // Simple section extraction by looking for heading patterns
+    const lines = text.split('\n');
+    let currentSection = null;
+    let sectionContent = [];
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      // Check if this line matches any preferred heading
+      let isPreferredHeading = false;
+      for (const heading of preferredHeadings) {
+        const headingPattern = new RegExp(`^${heading}:?\\s*$`, 'i');
+        if (headingPattern.test(trimmedLine)) {
+          // Found a section heading
+          if (currentSection && sectionContent.length > 0) {
+            // Only store if we don't already have this section
+            if (!sections[currentSection]) {
+              sections[currentSection] = sectionContent.join('\n').trim();
+            }
+          }
+          currentSection = heading;
+          sectionContent = [];
+          isPreferredHeading = true;
+          break;
+        }
+      }
+      
+      if (!isPreferredHeading && currentSection) {
+        // Collect content for current section
+        if (trimmedLine) { // Skip empty lines
+          sectionContent.push(line);
+        }
+      }
+    }
+    
+    // Add the last section if it exists
+    if (currentSection && sectionContent.length > 0 && !sections[currentSection]) {
+      sections[currentSection] = sectionContent.join('\n').trim();
+    }
+    
+    // If we found useful sections, format them nicely
+    if (Object.keys(sections).length > 0) {
+      let result = '';
+      for (const [heading, content] of Object.entries(sections)) {
+        result += `<strong>${heading}:</strong> ${content}<br><br>`;
+      }
+      return result.trim();
+    }
+    
+    // No clear sections found - use first few paragraphs as fallback
+    const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+    if (paragraphs.length > 0) {
+      // Use first 2-3 paragraphs, up to ~1500 characters
+      let excerpt = paragraphs[0];
+      if (paragraphs.length > 1) {
+        excerpt += '<br><br>' + paragraphs[1];
+      }
+      if (paragraphs.length > 2 && excerpt.length < 1200) {
+        excerpt += '<br><br>' + paragraphs[2];
+      }
+      return excerpt;
+    }
+    
+    // Final fallback - use first 1500 characters
+    return text.substring(0, 1500);
+  }
+  
+  // Fallback to regular abstract if abstractFull is not available
+  return grant.abstract || '';
+}
+
+// ── Helper: AI abstract text ──────────────────────────────────────
+const AI_ABSTRACT_MAX_CHARS = 2500;
+
+function getAiAbstractText(grant) {
+  // Plain text only for AI analysis
+  // Use abstractFull when available and extract useful sections
+  if (grant.abstractFull) {
+    const text = grant.abstractFull;
+    
+    // Try to extract useful sections with their headings
+    const sections = {};
+    const preferredHeadings = [
+      'Objective', 'Objectives',
+      'Expected Outcome', 'Expected Outcomes',
+      'Scope'
+    ];
+    
+    // Simple section extraction by looking for heading patterns
+    const lines = text.split('\n');
+    let currentSection = null;
+    let sectionContent = [];
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      // Check if this line matches any preferred heading
+      let isPreferredHeading = false;
+      for (const heading of preferredHeadings) {
+        const headingPattern = new RegExp(`^${heading}:?\\s*$`, 'i');
+        if (headingPattern.test(trimmedLine)) {
+          // Found a section heading
+          if (currentSection && sectionContent.length > 0) {
+            // Only store if we don't already have this section
+            if (!sections[currentSection]) {
+              sections[currentSection] = sectionContent.join('\n').trim();
+            }
+          }
+          currentSection = heading;
+          sectionContent = [];
+          isPreferredHeading = true;
+          break;
+        }
+      }
+      
+      if (!isPreferredHeading && currentSection) {
+        // Collect content for current section
+        if (trimmedLine) { // Skip empty lines
+          sectionContent.push(line);
+        }
+      }
+    }
+    
+    // Add the last section if it exists
+    if (currentSection && sectionContent.length > 0 && !sections[currentSection]) {
+      sections[currentSection] = sectionContent.join('\n').trim();
+    }
+    
+    // If we found useful sections, format them with section labels
+    if (Object.keys(sections).length > 0) {
+      let result = '';
+      for (const [heading, content] of Object.entries(sections)) {
+        result += `${heading}: ${content}\n\n`;
+      }
+      // Ensure we don't exceed the character limit
+      return result.length <= AI_ABSTRACT_MAX_CHARS ? result.trim() : result.substring(0, AI_ABSTRACT_MAX_CHARS).trim();
+    }
+    
+    // No clear sections found - use first few paragraphs as fallback
+    const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+    if (paragraphs.length > 0) {
+      // Use first paragraphs, up to character limit
+      let excerpt = paragraphs[0];
+      if (paragraphs.length > 1 && excerpt.length < AI_ABSTRACT_MAX_CHARS - 500) {
+        excerpt += '\n\n' + paragraphs[1];
+      }
+      if (paragraphs.length > 2 && excerpt.length < AI_ABSTRACT_MAX_CHARS - 500) {
+        excerpt += '\n\n' + paragraphs[2];
+      }
+      // Ensure we don't exceed the character limit
+      return excerpt.length <= AI_ABSTRACT_MAX_CHARS ? excerpt.trim() : excerpt.substring(0, AI_ABSTRACT_MAX_CHARS).trim();
+    }
+    
+    // Final fallback - use first portion of text
+    return text.length <= AI_ABSTRACT_MAX_CHARS ? text.trim() : text.substring(0, AI_ABSTRACT_MAX_CHARS).trim();
+  }
+  
+  // Fallback to regular abstract if abstractFull is not available
+  return grant.abstract || '';
 }
 
 function exportSavedCallsCsv() {
@@ -2408,7 +2583,7 @@ async function scoreGrantWithAI(grant) {
       programme:           getPrimaryProgramme(grant),
       destination:         grant.destination || '',
       summary:             grant.summary || '',
-      abstract:            grant.abstract || '',
+      abstract:            getAiAbstractText(grant),
       actionType:          grant.actionType || grant.kind?.label || '',
       frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
       programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
@@ -2452,7 +2627,7 @@ function toAiCallPayload(grant) {
     programme:           getPrimaryProgramme(grant),
     destination:         grant.destination || '',
     summary:             grant.summary || '',
-    abstract:            String(grant.abstract || '').slice(0, 2500),
+    abstract:            getAiAbstractText(grant),
     actionType:          grant.actionType || grant.kind?.label || '',
     frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
     programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
@@ -2533,7 +2708,7 @@ async function runAiReview() {
       programme:           getPrimaryProgramme(g),
       destination:         g.destination || '',
       summary:             g.summary || '',
-      abstract:            String(g.abstract || '').slice(0, 2500),
+      abstract:            getAiAbstractText(g),
       actionType:          g.actionType || g.kind?.label || '',
       budget:              g.budget?.totalBudgetEur || null,
       deadline:            g.deadlineDate || null,
