@@ -486,7 +486,7 @@ De JSON moet exact deze structuur hebben:
       "possibleRwsProject": "...",
       "callScopeSummary": "...",
       "uncertainties": "...",
-      "callRequirements": ["...", "...", "..."]
+      "callRequirements": ["...", "...", "..."],
       "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"],
       "snapshotReden": "...",
       "waaromRelevant": ["...", "..."]
@@ -500,13 +500,22 @@ De JSON moet exact deze structuur hebben:
 
 - possibleRwsProject: geef alleen een concrete projectzin als de calltekst of RAG-context voldoende aanknopingspunten biedt voor rol, actie en RWS-asset/programma. Als één van deze drie ontbreekt, geef null terug. Vermijd generieke invullingen. Als geen concrete invulling mogelijk is op basis van de calldata en RAG-context: geef null terug. NOOIT de tekst "Nog te concretiseren" of een variant daarvan. NOOIT een herhaling van waaromRelevant of possibleRwsRole.
 
+- possibleRwsRole: 1 tot 2 volledige zinnen in het Nederlands. Noem het roltype, maar geef ook context over wat RWS concreet zou kunnen bijdragen. Geef geen losse lijst van labels zoals "asset owner, kennispartner, corridorbeheerder".
+
+- projectFit: 2 tot 3 concrete zinnen in het Nederlands. Leg uit hoe de call past bij het projectidee, welke RWS-taak of asset geraakt wordt, en welke rol RWS realistisch kan hebben. Vermijd één-zinsantwoorden.
+
+- rationale: 2 tot 3 concrete zinnen in het Nederlands. Leg uit waarom de call relevant is voor RWS, met direct bewijs uit de calltekst en, waar relevant, RAG-context of historische voorbeelden. Vermijd generieke formuleringen en herhaal niet alleen projectFit.
+
+- uncertainties: 1 tot 2 concrete zinnen in het Nederlands. Benoem wat werkelijk onzeker is: eligibility, locatie, Nederlandse scope, consortiumrol, cofinanciering, uitvoeringsfase of beschikbaarheid van RWS-assets. Vermijd vage zinnen zoals "scope is breed" zonder uitleg.
+
 - callRequirements: array van exact 3 vereisten die letterlijk voortvloeien uit de calltekst. Haal ze uit de volgende categorieën (gebruik elke categorie maximaal één keer):
   1. Consortiumvereisten: minimale omvang, type organisaties, landen of geografische spreiding (bijv. "Minimaal 3 deelnemers uit 3 verschillende EU-lidstaten vereist")
   2. Inhoudelijke scope: specifieke activiteiten of thema's die verplicht moeten worden geadresseerd (bijv. "Nature-based solutions moeten als eerste optie worden verkend boven technische maatregelen")
   3. Geografische/sectorale focus of procesmatige eisen: waar het project op gericht moet zijn of hoe het uitgevoerd moet worden (bijv. "Verplichte afstemming met het Mission Implementation Platform via een MoU")
   Alleen letterlijke vereisten uit de calltekst. Geen interpretaties of aanbevelingen. Elk vereiste maximaal 20 woorden. Als een categorie niet aanwezig is in de call, kies dan de drie sterkste vereisten ongeacht categorie.
 
-- rationale: volledige toelichting in het NEDERLANDS. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd superlatieven ("perfect match", "uitstekende fit") tenzij aiRelevanceScore > 85 met concreet bewijs.
+BALANS-INSTRUCTIE:
+callRequirements mogen kort en feitelijk zijn, maar projectFit, rationale, possibleRwsRole en uncertainties moeten inhoudelijke toelichting blijven geven. Verkort deze velden niet tot labels of telegramstijl. Gebruik korte maar volledige zinnen.
 
 - ragMatchedItems: lijst van titels van RAG-context items die inhoudelijk aansluiten op deze call. Lege array als er geen match is.
 
