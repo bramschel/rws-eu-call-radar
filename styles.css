@@ -47,6 +47,17 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, var(--bg) 45%, #eaf1f6 100%);
 }
 
+.ai-requirements,
+.compact-call__bullets {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+ai-requirements li,
+.compact-call__bullet {
+  margin-bottom: 0.25rem;
+}
+
 body::before {
   content: "";
   position: fixed;

@@ -496,7 +496,7 @@ function scoreImportantPhrases(fields, selectedTheme) {
   return { phraseScore, matchedPhrases };
 }
 
-function calculateRelevance(grant, query, projectIdea) {
+function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   const fields    = getGrantTextFields(grant);
   const combined  = normalizeText([query, projectIdea].filter(Boolean).join(' '));
   const origTerms = splitTerms(combined);
@@ -546,7 +546,7 @@ function calculateRelevance(grant, query, projectIdea) {
       if (grantText.includes(np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
     }
     if (ts > 0) {
-      if (state.filters.theme !== 'all' && theme.id === state.filters.theme) ts += 8;
+      if (selectedTheme !== 'all' && theme.id === selectedTheme) ts += 8;
       themeRaw += ts;
       matchedThemes.push({ id: theme.id, label: theme.label, score: ts, matches: hits });
     }
@@ -564,7 +564,7 @@ function calculateRelevance(grant, query, projectIdea) {
   const themeScore = Math.min(40, Math.round(themeRawFocused));
 
   // Phrase score (max 30)
-  const phraseResult = scoreImportantPhrases(fields, state.filters.theme);
+  const phraseResult = scoreImportantPhrases(fields, selectedTheme);
   const phraseScore  = Math.min(30, phraseResult.phraseScore);
 
   // Check if there is user input
@@ -837,7 +837,7 @@ function exportSavedCallsHtml() {
         </div>
         
         <dl class="call-meta">
-          ${getPrimaryProgramme(grant) ? `<div><dt>Programma</dt><dd>${escapeHtml(getPrimaryProgramme(grant))}</dd></div>` : ''}
+          ${(function() { const programme = getPrimaryProgramme(grant); return programme ? `<div><dt>Programma</dt><dd>${escapeHtml(programme)}</dd></div>` : ''; })()}
           ${grant.status?.label ? `<div><dt>Status</dt><dd>${escapeHtml(grant.status.label)}</dd></div>` : ''}
           ${grant.startDate || grant.plannedOpeningDate ? `<div><dt>Openingsdatum</dt><dd>${escapeHtml(grant.startDate || grant.plannedOpeningDate || '')}</dd></div>` : ''}
           ${grant.deadlineDate ? `<div><dt>Deadline</dt><dd>${escapeHtml(grant.deadlineDate)}</dd></div>` : ''}
@@ -1240,7 +1240,7 @@ if (state.filters.recentMonths === '14d') {
         if (!at.includes(normalizeText(state.filters.actionType))) return false;
       }
 
-      const rel = calculateRelevance(grant, query, idea);
+      const rel = calculateRelevance(grant, query, idea, state.filters.theme);
       grant.relevance = rel;
 
       if (state.filters.theme !== 'all' && !rel.matchedThemes.some(t => t.id === state.filters.theme)) return false;
@@ -1530,7 +1530,7 @@ function renderResults() {
           (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
           (aiReview.possibleRwsRole  ? '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(aiReview.possibleRwsRole)  + '</dd></div>' : '') +
           (aiReview.uncertainties    ? '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(aiReview.uncertainties)    + '</dd></div>' : '') +
-          (aiReview.recommendedNextStep ? '<div><dt>Volgende stap</dt><dd>' + escapeHtml(aiReview.recommendedNextStep) + '</dd></div>' : '') +
+          (aiReview.callRequirements?.length ? '<div><dt>Vereisten uit calltekst</dt><dd><ul class="ai-requirements">' + aiReview.callRequirements.map(req => '<li>' + escapeHtml(req) + '</li>').join('') + '</ul></dd></div>' : '') +
           (aiReview.ragMatchedItems?.length ? '<div><dt>RAG-context</dt><dd>' + escapeHtml(aiReview.ragMatchedItems.join(', ')) + '</dd></div>' : '') +
         '</dl>';
       relBlock.insertAdjacentElement('afterend', aiBlock);
@@ -1817,12 +1817,7 @@ function getDeduplicatedNextActions(reviews) {
   
   topCalls.forEach(review => {
     const call = getCallByIdentifier(review.identifier);
-    if (call && review.recommendedNextStep) {
-      const actionText = `${call.identifier}: ${review.recommendedNextStep}`;
-      if (!actions.has(actionText)) {
-        actions.set(actionText, { callId: call.identifier, action: review.recommendedNextStep });
-      }
-    }
+    // Removed recommendedNextStep handling - now using callRequirements
   });
   
   return Array.from(actions.values());
@@ -2098,8 +2093,7 @@ function getPossibleRwsProject(review) {
   const isSimilarToFit       = review.projectFit       && project === review.projectFit;
   const isSimilarToRationale = review.rationale        && project === review.rationale;
   const isSimilarToScope     = review.callScopeSummary && project === review.callScopeSummary;
-  const isSimilarToNextStep  = review.recommendedNextStep && project === review.recommendedNextStep;
-  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale || isSimilarToScope || isSimilarToNextStep) return null;
+  if (isSimilarToRole || isSimilarToFit || isSimilarToRationale || isSimilarToScope) return null;
  
   const genericPhrases = [
     'nog te concretiseren',
@@ -2292,7 +2286,7 @@ function renderAiShortlist() {
       const contextText = [rationaleResterende, ragTag].filter(Boolean).join(' ');
  
       const uncertainty = review.uncertainties || '';
-      const nextStep    = review.recommendedNextStep || '';
+      const callRequirements = Array.isArray(review.callRequirements) ? review.callRequirements : [];
       const actionCls   = actionLabel.toLowerCase().replace(/\s+/g, '-');
  
       html += `
@@ -2352,10 +2346,12 @@ function renderAiShortlist() {
               <p class="compact-call__text">${escapeHtml(uncertainty)}</p>
             </div>` : ''}
  
-            ${nextStep ? `
+            ${callRequirements.length ? `
             <div class="compact-call__section">
-              <h5 class="compact-call__section-title">Volgende stap</h5>
-              <p class="compact-call__text">${escapeHtml(nextStep)}</p>
+              <h5 class="compact-call__section-title">Vereisten uit calltekst</h5>
+              <ul class="compact-call__bullets">
+                ${callRequirements.map(req => `<li class="compact-call__bullet">${escapeHtml(req)}</li>`).join('')}
+              </ul>
             </div>` : ''}
  
             ${contextText ? `
@@ -2505,7 +2501,7 @@ function renderAiBriefing() {
       '<section class="ai-briefing__section"><h4>Recommended Next Steps</h4><ul class="ai-briefing__steps">' +
         (s.recommendedNextSteps?.length
           ? s.recommendedNextSteps.map(st => '<li class="ai-briefing__step">' + escapeHtml(st) + '</li>').join('')
-          : '<li class="ai-briefing__step">Geen stappen beschikbaar.</li>') +
+          : '') +
       '</ul></section>' +
     '</div>';
 }
@@ -2537,7 +2533,7 @@ function renderAiResults() {
       '<dl class="ai-review-item__facts">' +
         '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(r.possibleRwsRole  || 'Niet gespecificeerd') + '</dd></div>' +
         '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(r.uncertainties    || 'Niet gespecificeerd') + '</dd></div>' +
-        '<div><dt>Volgende stap</dt><dd>' + escapeHtml(r.recommendedNextStep || 'Niet gespecificeerd') + '</dd></div>' +
+        (r.callRequirements?.length ? '<div><dt>Vereisten uit calltekst</dt><dd><ul class="ai-requirements">' + r.callRequirements.map(req => '<li>' + escapeHtml(req) + '</li>').join('') + '</ul></dd></div>' : '') +
         '<div><dt>Thema</dt><dd>'         + escapeHtml(r.theme             || 'Niet gespecificeerd') + '</dd></div>' +
       '</dl>';
     list.appendChild(item);
@@ -2559,7 +2555,7 @@ function normalizeAiReviewForDisplay(review) {
     rationale:           review.rationale || review.uitleg || review.explanation || '',
     possibleRwsRole:     review.possibleRwsRole || review.possibleRWSRole || review.rwsRole || review.rws_role || '',
     uncertainties:       review.uncertainties || review.onzekerheden || '',
-    recommendedNextStep: review.recommendedNextStep || review.nextStep || review.next_step || '',
+    callRequirements:    Array.isArray(review.callRequirements) ? review.callRequirements : [],
     ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : [],
     snapshotReden:       review.snapshotReden || '',
     waaromRelevant:      Array.isArray(review.waaromRelevant) ? review.waaromRelevant : []
@@ -2606,7 +2602,7 @@ async function scoreGrantWithAI(grant) {
       thema:               Array.isArray(themeV) ? themeV.join(', ') : themeV,
       possibleRwsRole:     review.possibleRwsRole ?? review.rwsRole ?? '',
       uncertainties:       review.uncertainties ?? review.onzekerheden ?? '',
-      recommendedNextStep: review.recommendedNextStep ?? review.nextStep ?? ''
+      callRequirements:    Array.isArray(review.callRequirements) ? review.callRequirements : []
     };
     AI_CACHE.set(grant.identifier, result);
     return result;

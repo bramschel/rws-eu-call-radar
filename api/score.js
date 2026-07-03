@@ -3,6 +3,10 @@
 // Ontvangt: POST { projectIdea, keywords, selectedTheme, calls: [...] }
 // Geeft terug: { reviews: [...] }
 
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
 const ALLOWED_ORIGINS = [
   'https://bramschel.github.io',
   'http://localhost',
@@ -24,9 +28,10 @@ function setCorsHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+// Helper: Safe input length limits
+function limitText(value, maxLength) {
+  return String(value || '').slice(0, maxLength);
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -58,7 +63,7 @@ const STOPWORDS = new Set([
   'the', 'and', 'or', 'for', 'with', 'from', 'into', 'onto', 'of', 'in', 'on', 'at', 'by', 'as', 'to',
   'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
   'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might', 'must',
-  'this', 'that', 'these', 'those', 'it', 'its', 'as', 'if', 'then', 'else', 'but',
+  'this', 'that', 'these', 'those', 'it', 'its', 'if', 'then', 'else', 'but',
   // Nederlands
   'de', 'het', 'een', 'en', 'of', 'van', 'voor', 'met', 'in', 'op', 'aan', 'door', 'om', 'te',
   'is', 'zijn', 'wordt', 'worden', 'heeft', 'hebben', 'had', 'hadden', 'kan', 'kunnen',
@@ -314,7 +319,7 @@ ${rwsContext}${relevanceExamplesText}
 
 Gebruik deze context als beoordelingskader. Beoordeel calls niet op algemene EU-relevantie, maar op concrete RWS-relevantie, uitvoerbaarheid en toepasbaarheid voor Rijkswaterstaat als uitvoeringsorganisatie.
 
-IMPORTANT: De historische voorbeelden mogen alleen zwaar meewegen als de nieuwe call inhoudelijk lijkt op titel, scope, doel, keywords of RWS-rol van het historische voorbeeld. Gebruik historische voorbeelden om patronen te herkennen, niet om blind te kopiëren. Een nieuwe call moet zelfstandig beoordeeld blijven op projectfit, RWS-fit en themafit. De outcome uit historische voorbeelden (zoals rejected_eu of rejected_rws) is ALLEEN procesinformatie en mag de relevantie NOOIT verlagen. Als een call sterk lijkt op een voorbeeld, benoem dat dan expliciet in projectFit of rationale.
+IMPORTANT: Historische voorbeelden zijn patroonvoorbeelden, geen bewijs. Gebruik ze alleen als ondersteunend signaal bij inhoudelijke overeenkomst met titel, scope, doel, keywords of RWS-rol. Procesuitkomsten zoals rejected_eu of rejected_rws mogen de relevantie niet verlagen. Als een call sterk lijkt op een voorbeeld, benoem dat dan expliciet in projectFit of rationale.
 
 COMPACTE REFERENTIES INSTRUCTIE:
 - Wanneer je historische voorbeelden of RAG-context items vermeldt in projectFit, rationale of andere tekstvelden, gebruik dan compacte, mensvriendelijke referenties uit de data in plaats van de volledige lange titels.
@@ -447,7 +452,7 @@ MANAGEMENT SAMENVATTING OPDRACHT:
 Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 15 resultaten. 
 Deze samenvatting is bedoeld voor RWS-management en moet de volgende elementen bevatten:
 
-Geefitsluitend geldige JSON terug.
+Geef uitsluitend geldige JSON terug.
 Geen markdown.
 Geen code fences.
 Geen uitleg buiten JSON.
@@ -481,7 +486,7 @@ De JSON moet exact deze structuur hebben:
       "possibleRwsProject": "...",
       "callScopeSummary": "...",
       "uncertainties": "...",
-      "recommendedNextStep": "...",
+      "callRequirements": ["...", "...", "..."]
       "ragMatchedItems": ["titel van RAG-item indien gematcht, anders lege array"],
       "snapshotReden": "...",
       "waaromRelevant": ["...", "..."]
@@ -493,7 +498,13 @@ De JSON moet exact deze structuur hebben:
 
 - waaromRelevant: array van exact 2 bullets in het NEDERLANDS, elk max 20 woorden. Bullet 1: concrete link tussen de call en een specifiek RWS-domein of taak. Bullet 2: specifiek element van de call dat aansluit op lopende RWS-programma's of RAG-context. NIET: herhaling van snapshotReden. NIET: generieke zinnen als "is relevant voor RWS vanwege zijn infrastructuurrol."
 
-- possibleRwsProject: exact 1 zin in het NEDERLANDS in de vorm: "RWS zou als [rol] kunnen [concrete actie] binnen [onderdeel van de call], gebruikmakend van [bestaande RWS-asset, locatie, data of lopend programma]." Als geen concrete invulling mogelijk is op basis van de calldata en RAG-context: geef null terug. NOOIT de tekst "Nog te concretiseren" of een variant daarvan. NOOIT een herhaling van waaromRelevant of possibleRwsRole.
+- possibleRwsProject: geef alleen een concrete projectzin als de calltekst of RAG-context voldoende aanknopingspunten biedt voor rol, actie en RWS-asset/programma. Als één van deze drie ontbreekt, geef null terug. Vermijd generieke invullingen. Als geen concrete invulling mogelijk is op basis van de calldata en RAG-context: geef null terug. NOOIT de tekst "Nog te concretiseren" of een variant daarvan. NOOIT een herhaling van waaromRelevant of possibleRwsRole.
+
+- callRequirements: array van exact 3 vereisten die letterlijk voortvloeien uit de calltekst. Haal ze uit de volgende categorieën (gebruik elke categorie maximaal één keer):
+  1. Consortiumvereisten: minimale omvang, type organisaties, landen of geografische spreiding (bijv. "Minimaal 3 deelnemers uit 3 verschillende EU-lidstaten vereist")
+  2. Inhoudelijke scope: specifieke activiteiten of thema's die verplicht moeten worden geadresseerd (bijv. "Nature-based solutions moeten als eerste optie worden verkend boven technische maatregelen")
+  3. Geografische/sectorale focus of procesmatige eisen: waar het project op gericht moet zijn of hoe het uitgevoerd moet worden (bijv. "Verplichte afstemming met het Mission Implementation Platform via een MoU")
+  Alleen letterlijke vereisten uit de calltekst. Geen interpretaties of aanbevelingen. Elk vereiste maximaal 20 woorden. Als een categorie niet aanwezig is in de call, kies dan de drie sterkste vereisten ongeacht categorie.
 
 - rationale: volledige toelichting in het NEDERLANDS. Benoem expliciet welke RAG-items of historische voorbeelden meewogen en waarom. Vermijd superlatieven ("perfect match", "uitstekende fit") tenzij aiRelevanceScore > 85 met concreet bewijs.
 
@@ -598,7 +609,9 @@ function normalizeAiReviews(parsed) {
     possibleRwsProject:  review.possibleRwsProject || '',
     callScopeSummary:    review.callScopeSummary || '',
     uncertainties:       review.uncertainties || review.onzekerheden || '',
-    recommendedNextStep: review.recommendedNextStep || review.next_step || review.nextStep || '',
+    callRequirements:    Array.isArray(review.callRequirements)
+      ? review.callRequirements.map(String).map(s => s.trim()).filter(Boolean).slice(0, 3)
+      : [],
     ragMatchedItems:     Array.isArray(review.ragMatchedItems) ? review.ragMatchedItems : [],
     snapshotReden:       review.snapshotReden || '',
     waaromRelevant:      Array.isArray(review.waaromRelevant) ? review.waaromRelevant : []
@@ -617,7 +630,7 @@ function normalizeAiReviews(parsed) {
 
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
 
-async function callMistral(prompt) {
+async function callMistral(prompt, modelName = MISTRAL_MODEL) {
   const apiKey = process.env.VIBE_CLI_KEY_BCG;
   if (!apiKey) throw new Error('VIBE_CLI_KEY_BCG environment variable is required');
 
@@ -628,7 +641,7 @@ async function callMistral(prompt) {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: MISTRAL_MODEL,
+      model: modelName,
       temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [
@@ -671,10 +684,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Geen calls meegestuurd' });
     }
 
+    // Apply safe input length limits
+    const safeProjectIdea = limitText(projectIdea, 1500);
+    const safeKeywords = limitText(keywords, 500);
+
     const batch = calls.slice(0, 15);
 
     const { prompt, examplesMetadata: relevanceExamplesUsed } = buildPrompt({
-      projectIdea, keywords, selectedTheme, calls: batch
+      projectIdea: safeProjectIdea, keywords: safeKeywords, selectedTheme, calls: batch
     });
 
     // Call Mistral with fallback support
@@ -698,7 +715,10 @@ export default async function handler(req, res) {
       const errorMessage = primaryError.message || '';
       const isHighDemandError = errorMessage.includes('high demand') || 
                                errorMessage.includes('currently experiencing high demand') ||
-                               errorMessage.includes('try again later');
+                               errorMessage.includes('try again later') ||
+                               primaryError.status === 429 ||
+                               primaryError.status === 503 ||
+                               primaryError.status === 504;
       
       console.log('Primary Mistral model failed:', {
         errorType: isHighDemandError ? 'high_demand' : 'other',
@@ -711,10 +731,8 @@ export default async function handler(req, res) {
         console.log('Primary Mistral model experiencing high demand, trying fallback model:', AI_FALLBACK_MODEL);
         
         try {
-          // Temporarily override the model for fallback
-          const originalModel = MISTRAL_MODEL;
-          MISTRAL_MODEL = AI_FALLBACK_MODEL;
-          ({ rawText, provider, model } = await callMistral(prompt));
+          // Use fallback model without reassigning const variable
+          ({ rawText, provider, model } = await callMistral(prompt, AI_FALLBACK_MODEL));
           primaryCallSucceeded = true;
           console.log('Fallback Mistral model succeeded:', model);
         } catch (fallbackError) {
@@ -722,9 +740,6 @@ export default async function handler(req, res) {
             errorMessage: fallbackError.message,
             status: 'fallback_failed'
           });
-        } finally {
-          // Restore original model
-          MISTRAL_MODEL = originalModel;
         }
       } else if (isHighDemandError && !AI_FALLBACK_MODEL) {
         console.log('No AI_FALLBACK_MODEL configured.');
@@ -781,15 +796,17 @@ export default async function handler(req, res) {
     const errorMessage = error.message || '';
     const isHighDemandError = errorMessage.includes('high demand') || 
                              errorMessage.includes('currently experiencing high demand') ||
-                             errorMessage.includes('try again later');
+                             errorMessage.includes('try again later') ||
+                             error.status === 429 ||
+                             error.status === 503 ||
+                             error.status === 504;
     
     if (isHighDemandError) {
       // User-friendly Dutch message
       const userMessage = 'Het AI-model is tijdelijk overbelast. Probeer het later opnieuw of kies een ander model.';
       console.warn('AI capacity error - showing user-friendly message');
       return res.status(503).json({ 
-        error: userMessage,
-        technicalDetails: error.message // Keep original for logging
+        error: userMessage
       });
     }
     
