@@ -2315,8 +2315,8 @@ function renderAiShortlist() {
  
           <!-- Scores: separate badges for AI and Project Fit -->
           <div class="compact-call__scores">
-            <span class="compact-call__score-badge ${aiScoreCls}">AI ${aiScore}</span>
-            <span class="compact-call__score-badge ${fitScoreCls}">Fit ${fitScore}</span>
+            <span class="ai-score ${aiScoreCls}">AI ${aiScore}</span>
+            <span class="ai-score ${fitScoreCls}">Fit ${fitScore}</span>
           </div>
  
           <!-- Snapshot: 1 zin waarom relevant -->

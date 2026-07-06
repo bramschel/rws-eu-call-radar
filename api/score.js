@@ -495,17 +495,11 @@ De JSON moet exact deze structuur hebben:
 }
 
 - snapshotReden: exact 1 zin in het NEDERLANDS, max 15 woorden, die uitlegt waarom deze call opvalt voor RWS. Begin met een werkwoord of concreet onderwerp. NIET: "Deze call is relevant voor RWS vanwege..." WEL: "Zoekt uitvoerende partner voor sensorvalidatie op bestaande rijksinfrastructuur." WEL: "Financiert pilots voor klimaatbestendige waterkeringen met asset-owner deelname."
-
 - waaromRelevant: array van exact 2 bullets in het NEDERLANDS, elk max 20 woorden. Bullet 1: concrete link tussen de call en een specifiek RWS-domein of taak. Bullet 2: specifiek element van de call dat aansluit op lopende RWS-programma's of RAG-context. NIET: herhaling van snapshotReden. NIET: generieke zinnen als "is relevant voor RWS vanwege zijn infrastructuurrol."
-
 - possibleRwsProject: geef alleen een concrete projectzin als de calltekst of RAG-context voldoende aanknopingspunten biedt voor rol, actie en RWS-asset/programma. Als één van deze drie ontbreekt, geef null terug. Vermijd generieke invullingen. Als geen concrete invulling mogelijk is op basis van de calldata en RAG-context: geef null terug. NOOIT de tekst "Nog te concretiseren" of een variant daarvan. NOOIT een herhaling van waaromRelevant of possibleRwsRole.
-
 - possibleRwsRole: 1 tot 2 volledige zinnen in het Nederlands. Noem het roltype, maar geef ook context over wat RWS concreet zou kunnen bijdragen. Geef geen losse lijst van labels zoals "asset owner, kennispartner, corridorbeheerder".
-
-- projectFit: 2 tot 3 concrete zinnen in het Nederlands. Leg uit hoe de call past bij het projectidee, welke RWS-taak of asset geraakt wordt, en welke rol RWS realistisch kan hebben. Vermijd één-zinsantwoorden.
-
-- rationale: 2 tot 3 concrete zinnen in het Nederlands. Leg uit waarom de call relevant is voor RWS, met direct bewijs uit de calltekst en, waar relevant, RAG-context of historische voorbeelden. Vermijd generieke formuleringen en herhaal niet alleen projectFit.
-
+- projectFit: 1 tot 3 concrete zinnen in het Nederlands. Leg uit hoe de call past bij het projectidee, welke RWS-taak of asset geraakt wordt, en welke rol RWS realistisch kan hebben. Vermijd één-zinsantwoorden.
+- rationale: 1 tot 3 concrete zinnen in het Nederlands. Leg uit waarom de call relevant is voor RWS, met direct bewijs uit de calltekst en, waar relevant, RAG-context of historische voorbeelden. Vermijd generieke formuleringen en herhaal niet alleen projectFit.
 - uncertainties: 1 tot 2 concrete zinnen in het Nederlands. Benoem wat werkelijk onzeker is: eligibility, locatie, Nederlandse scope, consortiumrol, cofinanciering, uitvoeringsfase of beschikbaarheid van RWS-assets. Vermijd vage zinnen zoals "scope is breed" zonder uitleg.
 
 - callRequirements: array van exact 3 vereisten die letterlijk voortvloeien uit de calltekst. Haal ze uit de volgende categorieën (gebruik elke categorie maximaal één keer):
