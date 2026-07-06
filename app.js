@@ -2642,25 +2642,65 @@ async function scoreTopResultsWithAI() {
   if (btn)      { btn.disabled = true; btn.textContent = 'Analyseren\u2026'; }
   if (statusEl) { statusEl.textContent = `Top ${candidates.length} calls worden beoordeeld\u2026`; statusEl.hidden = false; }
 
-  const payload = {
-    projectIdea:   state.filters.projectIdea,
-    keywords:      state.filters.query,
-    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
-    calls:         candidates.map(toAiCallPayload)
-  };
+  // Batch processing: split into chunks of 5
+  const AI_BATCH_SIZE = 5;
+  const batches = [];
+  for (let i = 0; i < candidates.length; i += AI_BATCH_SIZE) {
+    batches.push(candidates.slice(i, i + AI_BATCH_SIZE));
+  }
+
+  // Clear previous summary for batched processing
+  state.aiSummary = null;
 
   try {
-    const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Backend-fout ${res.status}`); }
-    const data    = await res.json();
-    const reviews = data.reviews || [];
-    if (!reviews.length) throw new Error('Geen beoordelingen ontvangen.');
+    // Process batches sequentially
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Update progress for current batch
+      if (statusEl) {
+        statusEl.textContent = `Analyseren batch ${batchIndex + 1} van ${batches.length} (${batch.length} calls)\u2026`;
+      }
+      console.log(`AI batch ${batchIndex + 1}/${batches.length} started`);
 
-    for (const r of reviews) {
-      const norm = normalizeAiReviewForDisplay(r);
-      state.aiReviews.set(norm.identifier, norm);
+      const payload = {
+        projectIdea:   state.filters.projectIdea,
+        keywords:      state.filters.query,
+        selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+        calls:         batch.map(toAiCallPayload)
+      };
+
+      const res = await fetch(AI_API_URL, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload) 
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error(`AI batch ${batchIndex + 1}/${batches.length} failed:`, err);
+        throw new Error(err.error || `Backend-fout ${res.status} tijdens batch ${batchIndex + 1}`);
+      }
+
+      const data = await res.json();
+      const reviews = data.reviews || [];
+      if (!reviews.length) {
+        console.error(`Batch ${batchIndex + 1}/${batches.length} returned no reviews`);
+        throw new Error('Geen beoordelingen ontvangen voor batch.');
+      }
+
+      // Merge batch results
+      for (const r of reviews) {
+        const norm = normalizeAiReviewForDisplay(r);
+        state.aiReviews.set(norm.identifier, norm);
+      }
+
+      console.log(`AI batch ${batchIndex + 1}/${batches.length} completed`);
+      if (statusEl) {
+        statusEl.textContent = `Batch ${batchIndex + 1} van ${batches.length} voltooid. Totaal: ${state.aiReviews.size} calls geanalyseerd.`;
+      }
     }
-    state.aiSummary      = data.summary || null;
+
     state.aiRerankActive = true;
 
     // Sort: AI-scored calls first (desc aiRelevanceScore), rest below
@@ -2673,14 +2713,14 @@ async function scoreTopResultsWithAI() {
       return (b.relevance?.score || 0) - (a.relevance?.score || 0);
     });
 
-    if (statusEl) statusEl.textContent = `${reviews.length} calls beoordeeld door AI \u2014 gesorteerd op AI-relevantie.`;
+    if (statusEl) statusEl.textContent = `${state.aiReviews.size} calls succesvol geanalyseerd.`;
     if (btn)      { btn.textContent = 'Heranalyseer'; btn.disabled = false; }
 
     renderAiBriefing();
     renderResults();
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
-    if (statusEl) statusEl.textContent = `Analyse mislukt: ${err.message}`;
+    if (statusEl) statusEl.textContent = `AI-analyse afgebroken tijdens batch ${batchIndex + 1} van ${batches.length}.`;
     if (btn)      { btn.textContent = 'AI analyseer top 15'; btn.disabled = false; }
   }
 }
