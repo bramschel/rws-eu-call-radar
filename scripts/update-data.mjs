@@ -1,8 +1,10 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
 const PORTAL_CONFIG_URL = 'https://ec.europa.eu/info/funding-tenders/opportunities/portal/assets/openid-login-config.json';
 const OUTPUT_DIR = new URL('../data/', import.meta.url);
 const OUTPUT_FILE = new URL('../data/grants.json', import.meta.url);
+const STATE_FILE = new URL('../data/grants_seen_state.json', import.meta.url);
 const PAGE_SIZE = 100;
 const SEARCH_TEXT = '***';
 const MAX_API_WINDOW = 10000;
@@ -27,6 +29,9 @@ const DISPLAY_FIELDS = [
   'summary'
 ];
 
+// Status ID for "Open for submission"
+const OPEN_STATUS_ID = '31094502';
+
 const BASE_FILTERS = {
   type: ['1', '2', '8'],
   status: ['31094501', '31094502']
@@ -43,6 +48,121 @@ const TYPE_FALLBACKS = {
   '2': 'Calls for proposals',
   '8': 'Cascade funding calls'
 };
+
+// Baseline date for first-run migration (2026-01-01)
+const BASELINE_DATE = '2026-01-01T00:00:00.000Z';
+
+/**
+ * Load or initialize the state tracking file
+ * State is keyed by grant.identifier
+ * 
+ * State structure for each grant:
+ * {
+ *   firstSeenAt: string|null,      // When this grant was first seen by the radar
+ *   lastSeenAt: string,            // When this grant was last seen
+ *   lastStatusId: string|null,     // Last known status.id
+ *   statusFirstSeenAt: string|null, // When this status was first seen
+ *   statusChangedAt: string|null,   // When status last changed
+ *   firstOpenSeenAt: string|null    // When this grant first became "Open" status
+ * }
+ */
+async function loadOrInitializeState() {
+  let state = {};
+  
+  // Try to load existing state
+  if (existsSync(STATE_FILE)) {
+    try {
+      const stateContent = await readFile(STATE_FILE, 'utf8');
+      state = JSON.parse(stateContent);
+      console.log(`Loaded existing state with ${Object.keys(state).length} tracked grants`);
+    } catch (error) {
+      console.warn('Could not read existing state file, initializing new state:', error.message);
+      state = {};
+    }
+  } else {
+    console.log('No existing state file found, will initialize on first run');
+  }
+  
+  return state;
+}
+
+/**
+ * Save state to file
+ */
+async function saveState(state) {
+  await writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+  console.log(`Saved state with ${Object.keys(state).length} tracked grants`);
+}
+
+/**
+ * Update tracking state for a grant
+ * Returns the updated grant with tracking metadata
+ */
+function updateGrantTracking(grant, stateEntry) {
+  const now = new Date().toISOString();
+  const grantStatusId = grant.status?.id;
+  
+  // Initialize tracking fields if not present
+  const tracking = {
+    firstSeenAt: stateEntry.firstSeenAt || null,
+    lastSeenAt: stateEntry.lastSeenAt || now,
+    statusFirstSeenAt: stateEntry.statusFirstSeenAt || null,
+    statusChangedAt: stateEntry.statusChangedAt || null,
+    lastStatusId: stateEntry.lastStatusId || null,
+    firstOpenSeenAt: stateEntry.firstOpenSeenAt || null
+  };
+  
+  // Check if this is a new grant
+  const isNewGrant = !stateEntry.firstSeenAt;
+  
+  if (isNewGrant) {
+    tracking.firstSeenAt = now;
+    tracking.statusFirstSeenAt = now;
+    tracking.lastStatusId = grantStatusId;
+    
+    // If grant is already open, set firstOpenSeenAt
+    if (grantStatusId === OPEN_STATUS_ID) {
+      tracking.firstOpenSeenAt = now;
+    }
+  } else {
+    // Update lastSeenAt for existing grant
+    tracking.lastSeenAt = now;
+    tracking.lastStatusId = grantStatusId;
+    
+    // Check if status changed
+    const statusChanged = stateEntry.lastStatusId !== grantStatusId;
+    
+    if (statusChanged) {
+      tracking.statusChangedAt = now;
+      tracking.statusFirstSeenAt = now;
+      
+      // If new status is open and we haven't seen it open before, record it
+      if (grantStatusId === OPEN_STATUS_ID && !stateEntry.firstOpenSeenAt) {
+        tracking.firstOpenSeenAt = now;
+      }
+    }
+    
+    // For baseline tracking entries (migrated from 2026-01-01), preserve original values
+    // and don't set firstOpenSeenAt just because the grant is currently Open
+    if (stateEntry.firstSeenAt === BASELINE_DATE) {
+      // Keep firstSeenAt unchanged
+      // Keep firstOpenSeenAt unchanged (don't set it just because status is Open)
+      // Keep statusChangedAt unchanged unless status actually changed
+      tracking.firstSeenAt = stateEntry.firstSeenAt;
+      tracking.firstOpenSeenAt = stateEntry.firstOpenSeenAt;
+      tracking.statusChangedAt = statusChanged ? now : stateEntry.statusChangedAt;
+    }
+  }
+  
+  return {
+    ...grant,
+    firstSeenAt: tracking.firstSeenAt,
+    lastSeenAt: tracking.lastSeenAt,
+    statusFirstSeenAt: tracking.statusFirstSeenAt,
+    statusChangedAt: tracking.statusChangedAt,
+    firstOpenSeenAt: tracking.firstOpenSeenAt
+  };
+}
 
 function first(values) {
   return Array.isArray(values) && values.length ? values[0] : null;
@@ -120,6 +240,153 @@ function excerptText(value, maxLength = 1100) {
   const wordBreak = slice.lastIndexOf(' ');
   const cutoff = sentenceBreak > maxLength * 0.55 ? sentenceBreak + 1 : wordBreak;
   return `${slice.slice(0, cutoff > 0 ? cutoff : maxLength).trim()}…`;
+}
+
+/**
+ * Safe excerpt that never cuts mid-word
+ * Prefers paragraph > sentence > whitespace boundaries
+ */
+function safeExcerpt(text, maxLength = 1500) {
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+
+  const slice = text.slice(0, maxLength);
+  
+  // Try paragraph boundary first (double newline)
+  const paragraphBreak = slice.lastIndexOf('\n\n');
+  if (paragraphBreak > maxLength * 0.3) {
+    return slice.slice(0, paragraphBreak).trim();
+  }
+
+  // Try sentence boundary
+  const sentenceBreak = Math.max(
+    slice.lastIndexOf('. '), 
+    slice.lastIndexOf('! '), 
+    slice.lastIndexOf('? ')
+  );
+  if (sentenceBreak > maxLength * 0.5) {
+    return `${slice.slice(0, sentenceBreak + 1).trim()}`;
+  }
+
+  // Try whitespace boundary
+  const wordBreak = slice.lastIndexOf(' ');
+  if (wordBreak > 0) {
+    return slice.slice(0, wordBreak).trim();
+  }
+
+  // Absolute fallback - should not happen with proper maxLength
+  return slice.slice(0, maxLength).trim();
+}
+
+/**
+ * Extract sections from text based on preferred headings
+ */
+function extractSections(text, preferredHeadings) {
+  if (!text) return null;
+  
+  const sections = {};
+  let currentSection = null;
+  let currentContent = [];
+  
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    // Skip empty lines
+    if (!trimmedLine) {
+      if (currentSection) {
+        currentContent.push(line); // Keep empty lines within sections
+      }
+      continue;
+    }
+    
+    // Check if this line looks like any heading (not just preferred ones)
+    const isHeading = /^[A-Z][a-zA-Z\s]+:?\s*$/.test(trimmedLine);
+    
+    if (isHeading) {
+      // Check if this is a preferred heading
+      const matchedHeading = preferredHeadings.find(heading => {
+        const headingPattern = new RegExp(`^${heading}:?\s*$`, 'i');
+        return headingPattern.test(trimmedLine);
+      });
+      
+      // Save previous section if exists and we're switching to a new section
+      if (currentSection && currentContent.length > 0) {
+        sections[currentSection] = currentContent.join('\n').trim();
+      }
+      
+      // Start new section if this is a preferred heading
+      if (matchedHeading) {
+        currentSection = matchedHeading;
+        currentContent = [];
+      } else {
+        // This is a non-preferred heading, stop current section
+        currentSection = null;
+        currentContent = [];
+      }
+    } else if (currentSection) {
+      // Continue current section
+      currentContent.push(line);
+    }
+  }
+  
+  // Save last section
+  if (currentSection && currentContent.length > 0) {
+    sections[currentSection] = currentContent.join('\n').trim();
+  }
+  
+  return sections;
+}
+
+/**
+ * Section-aware abstract selection
+ * Prioritizes Expected Outcome/Impact sections over full Scope
+ */
+function selectDisplayAbstract(fullText) {
+  if (!fullText) return null;
+  
+  const LONG_TEXT_THRESHOLD = 1500;
+  
+  // For short texts, return full text
+  if (fullText.length <= LONG_TEXT_THRESHOLD) {
+    return fullText;
+  }
+  
+  // Preferred section headings in priority order
+  const preferredHeadings = [
+    'Expected Outcome',
+    'Expected Outcomes', 
+    'Expected Impact',
+    'Expected impacts',
+    'Expected results',
+    'Expected results include'
+  ];
+  
+  // Try to extract sections
+  const sections = extractSections(fullText, preferredHeadings);
+  
+  // Look for preferred sections
+  for (const heading of preferredHeadings) {
+    if (sections[heading]) {
+      // Found a preferred section - return it
+      return sections[heading];
+    }
+  }
+  
+  // No preferred sections found - try to extract Scope section
+  const scopeSections = extractSections(fullText, ['Scope']);
+  if (scopeSections['Scope']) {
+    // If Scope is still too long, use safe excerpt
+    if (scopeSections['Scope'].length > LONG_TEXT_THRESHOLD) {
+      return safeExcerpt(scopeSections['Scope'], LONG_TEXT_THRESHOLD);
+    }
+    return scopeSections['Scope'];
+  }
+  
+  // No recognizable sections - use safe excerpt from full text
+  return safeExcerpt(fullText, LONG_TEXT_THRESHOLD);
 }
 
 function toIsoDate(value) {
@@ -213,6 +480,42 @@ async function fetchJson(url) {
   return response.json();
 }
 
+/**
+ * Retry helper with exponential backoff for transient errors
+ * Retries only for: 429, 500, 502, 503, 504, network errors
+ * Does not retry for: 400, 401, 403, 404, parsing errors
+ */
+async function withRetry(fn, url, maxAttempts = 4) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Extract status code if available
+      const status = error.message?.match(/(\d{3})/)?.[0];
+      const isTransient = 
+        status && ['429', '500', '502', '503', '504'].includes(status) ||
+        error.code && ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(error.code);
+      
+      if (!isTransient || attempt >= maxAttempts) {
+        throw error; // Don't retry non-transient errors or if max attempts reached
+      }
+      
+      // Calculate delay with exponential backoff and jitter
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 1000, 10000);
+      const hostPath = url?.split('?')[0] || url;
+      
+      console.log(`Transient EU API error (${error.message}), attempt ${attempt}/${maxAttempts}, retrying in ${delay/1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError; // This line should never be reached, but included for safety
+}
+
 async function postMultipart(url, body) {
   const formData = new FormData();
 
@@ -228,19 +531,24 @@ async function postMultipart(url, body) {
     }
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    body: formData,
-    headers: {
-      Accept: 'application/json'
+  // Wrap the fetch call with retry logic for transient errors
+  const fetchWithRetry = async () => {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Accept: 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText} for ${url}`);
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status} ${response.statusText} for ${url}`);
-  }
+    return response.json();
+  };
 
-  return response.json();
+  return withRetry(fetchWithRetry, url);
 }
 
 async function fetchPortalConfig() {
@@ -431,7 +739,13 @@ function normalizeResult(result, lookups) {
   const identifier = first(metadata.identifier);
   const action = extractAction(first(metadata.actions));
   const budget = extractBudget(identifier, first(metadata.budgetOverview));
-  const abstractText = excerptText(htmlToText(first(metadata.descriptionByte)));
+  
+  // Get full cleaned text
+  const abstractFull = htmlToText(first(metadata.descriptionByte));
+  
+  // Use section-aware extraction for display abstract
+  const abstractText = selectDisplayAbstract(abstractFull);
+  
   const statusId = first(metadata.status) || action?.statusId || null;
   const typeId = first(metadata.type) || null;
   const frameworkProgrammeIds = all(metadata.frameworkProgramme);
@@ -449,6 +763,7 @@ function normalizeResult(result, lookups) {
     callTitle: first(metadata.callTitle),
     destination,
     abstract: abstractText,
+    abstractFull: abstractFull,
     actionType: first(metadata.typesOfAction),
     status: {
       id: statusId,
@@ -473,7 +788,7 @@ function normalizeResult(result, lookups) {
       first(metadata.callTitle),
       destination,
       first(metadata.typesOfAction),
-      abstractText
+      abstractFull
     ].filter(Boolean).join(' ')
   };
 }
@@ -512,7 +827,7 @@ async function main() {
   ]);
 
   const lookups = buildFacetLookups(facets);
-  const grants = dedupeResults(search.results)
+  let grants = dedupeResults(search.results)
     .map((result) => normalizeResult(result, lookups))
     .filter((grant) => !grant.deadlineDate || new Date(grant.deadlineDate).getTime() >= now)
     .sort((left, right) => {
@@ -521,6 +836,30 @@ async function main() {
       return rightDate - leftDate;
     });
 
+  // Load or initialize state tracking
+  const state = await loadOrInitializeState();
+  
+  // Apply state tracking to each grant
+  const grantsWithTracking = grants.map((grant) => {
+    const stateEntry = state[grant.identifier] || {};
+    return updateGrantTracking(grant, stateEntry);
+  });
+  
+  // Update state with new grants
+  grantsWithTracking.forEach((grant) => {
+    state[grant.identifier] = {
+      firstSeenAt: grant.firstSeenAt,
+      lastSeenAt: grant.lastSeenAt,
+      lastStatusId: grant.status?.id,
+      statusFirstSeenAt: grant.statusFirstSeenAt,
+      statusChangedAt: grant.statusChangedAt,
+      firstOpenSeenAt: grant.firstOpenSeenAt
+    };
+  });
+  
+  // Save updated state
+  await saveState(state);
+
   const output = {
     generatedAt: refresh.refreshedAt,
     source: {
@@ -528,16 +867,16 @@ async function main() {
       searchUrl: endpoints.searchUrl,
       facetUrl: endpoints.facetUrl,
       reportedTotalResults: search.totalResults,
-      storedResults: grants.length,
+      storedResults: grantsWithTracking.length,
       workflow: refresh
     },
     facets,
-    summary: buildSummary(grants),
-    grants
+    summary: buildSummary(grantsWithTracking),
+    grants: grantsWithTracking
   };
 
   await writeFile(OUTPUT_FILE, JSON.stringify(output));
-  console.log(`Wrote ${grants.length} grants to ${OUTPUT_FILE.pathname}`);
+  console.log(`Wrote ${grantsWithTracking.length} grants to ${OUTPUT_FILE.pathname}`);
 }
 
 main().catch((error) => {

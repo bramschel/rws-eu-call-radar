@@ -1,73 +1,114 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RWS EU Call Radar</title>
-    <meta name="description" content="A static browser for European funding calls powered by the official EU Funding & Tenders search API.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260520-3">
+    <meta name="description" content="EU Call Radar voor Rijkswaterstaat Bureau Brussel. Zoek, filter en beoordeel Europese funding calls op relevantie voor RWS-thema's.">
+    <link rel="stylesheet" href="styles.css?v=20260706-shortlist-reuse-ai-score-badges-1"></link>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
   </head>
+
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero__copy">
-          <p class="eyebrow">RWS EU Call Radar</p>
-          <h1>Vind actuele EU-calls voor infrastructuur, water, natuur en circulariteit.</h1>
+          <p class="eyebrow">Rijkswaterstaat Bureau Brussel</p>
+
+          <h1>EU Calls Radar voor Europese samenwerkingsprojecten</h1>
+
           <p class="hero__lede">
-          Zoek en filter open en forthcoming EU-calls op basis van projectideeën, keywords en RWS-thema’s.
-          De data komt uit de publieke EU Funding &amp; Tenders index en wordt lokaal als snapshot gebruikt.
+            Zoek open en forthcoming EU-calls op basis van projectideeën, keywords en de vijf Bureau Brussel-thema’s.
+            Gebruik AI om de best passende calls te rangschikken voor jouw zoekvraag.
           </p>
+
           <div class="hero__meta" id="hero-meta">
             <div class="metric-tile">
               <span class="metric-tile__value" id="metric-total">-</span>
-              <span class="metric-tile__label">Calls indexed</span>
+              <span class="metric-tile__label">Calls geïndexeerd</span>
             </div>
+
             <div class="metric-tile">
               <span class="metric-tile__value" id="metric-live">-</span>
-              <span class="metric-tile__label">Open right now</span>
+              <span class="metric-tile__label">Open</span>
             </div>
+
             <div class="metric-tile">
               <span class="metric-tile__value" id="metric-budget">-</span>
-              <span class="metric-tile__label">Known budget</span>
+              <span class="metric-tile__label">Bekend budget</span>
             </div>
           </div>
         </div>
+
         <div class="hero__aside">
           <div class="stamp">
-            <span class="stamp__label">Last update</span>
+            <span class="stamp__label">Laatste update</span>
             <strong class="stamp__value">
-              <a id="last-updated" class="stamp__link" target="_blank" rel="noreferrer">Loading…</a>
+              <a id="last-updated" class="stamp__link" target="_blank" rel="noreferrer">Laden...</a>
             </strong>
             <span class="stamp__sub" id="source-count"></span>
           </div>
+
           <div class="legend">
-            <div class="legend__row"><span class="dot dot--open"></span> Open for submission</div>
-            <div class="legend__row"><span class="dot dot--forthcoming"></span> Forthcoming</div>
+            <div class="legend__row">
+              <span class="dot dot--open"></span>
+              Open for submission
+            </div>
+            <div class="legend__row">
+              <span class="dot dot--forthcoming"></span>
+              Forthcoming
+            </div>
           </div>
         </div>
       </header>
 
-      <section class="controls panel">
-        <label class="search-field">
-          <span>Projectidee of zoekvraag</span>
-          <textarea
-            id="project-input"
-            rows="4"
-            placeholder="Beschrijf kort je projectidee, beleidsopgave of innovatievraag. Bijvoorbeeld: circulair asfalt, hergebruik van materialen, biodiversiteit langs infrastructuur, waterkwaliteit of nature-based solutions."
-          ></textarea>
-        </label>
+      <nav class="view-tabs">
+        <button id="tab-radar" class="view-tab is-active">Radar</button>
+        <button id="tab-shortlist" class="view-tab">AI Shortlist</button>
+        <!-- <button id="tab-pipeline" class="view-tab">Pipeline</button> -->
+      </nav>
 
-        <label class="search-field">
-          <span>Keywords</span>
-          <input
-            id="search-input"
-            type="search"
-            placeholder="Bijvoorbeeld: circular infrastructure, biodiversity, water quality"
-    >
-  </label>
+      <section id="radar-view" class="view-pane">
+        <section class="panel intro-panel">
+        <div>
+          <p class="sidebar__label">Office for European Programmes</p>
+          <p>
+            Bureau Brussel stimuleert, faciliteert en beheert Europese samenwerking binnen Rijkswaterstaat.
+            Deze radar helpt om publieke EU Funding &amp; Tenders-calls sneller te verkennen
+            vanuit de vijf Bureau Brussel-thema’s.
+          </p>
+        </div>
+
+        <div class="theme-strip" aria-label="Bureau Brussel-thema's">
+          <span>Corridor Management</span>
+          <span>Climate Adaptation</span>
+          <span>Sustainability</span>
+          <span>Digitalisation</span>
+          <span>Network Governance</span>
+        </div>
+      </section>
+
+      <section class="controls panel">
+        <div class="controls__primary">
+          <label class="search-field search-field--project">
+            <span>Projectidee of zoekvraag</span>
+            <textarea
+              id="project-input"
+              rows="4"
+              placeholder="Beschrijf kort je projectidee, beleidsopgave of innovatievraag. Bijvoorbeeld: circulaire infrastructuur, materiaalhergebruik, digitale corridorsturing, klimaatadaptatie of waterkwaliteit."
+            ></textarea>
+          </label>
+
+          <label class="search-field">
+            <span>Keywords</span>
+            <input
+              id="search-input"
+              type="search"
+              placeholder="Bijvoorbeeld: circular infrastructure, climate resilience, inland waterways, digital twin"
+            >
+          </label>
+        </div>
 
         <div class="status-pills" id="status-pills"></div>
 
@@ -77,22 +118,23 @@
             <select id="programme-select"></select>
           </label>
 
-<label class="select-field">
-  <span>Bureau Brussel-thema</span>
-  <select id="theme-select">
-    <option value="all">Alle thema’s</option>
-    <option value="corridor-management">Corridor Management</option>
-    <option value="climate-adaptation">Climate Adaptation</option>
-    <option value="sustainability">Sustainability / Duurzame Leefomgeving</option>
-    <option value="digitalisation">Digitalisation</option>
-    <option value="network-governance">Network Governance</option>
-  </select>
-</label>
+          <label class="select-field">
+            <span>Bureau Brussel-thema</span>
+            <select id="theme-select">
+              <option value="all">Alle thema’s</option>
+              <option value="corridor-management">Corridor Management</option>
+              <option value="climate-adaptation">Climate Adaptation</option>
+              <option value="sustainability">Sustainability / Duurzame Leefomgeving</option>
+              <option value="digitalisation">Digitalisation</option>
+              <option value="network-governance">Network Governance</option>
+            </select>
+          </label>
 
           <label class="select-field">
             <span>Recent geopend</span>
             <select id="recent-select">
               <option value="all">Alles</option>
+              <option value="14d">Laatste 2 weken</option>
               <option value="1">Laatste 1 maand</option>
               <option value="2">Laatste 2 maanden</option>
               <option value="3">Laatste 3 maanden</option>
@@ -101,98 +143,201 @@
           </label>
 
           <label class="select-field">
-            <span>Sort</span>
+            <span>Sorteren</span>
             <select id="sort-select">
               <option value="relevance-desc">Meest relevant</option>
-              <option value="start-desc">Newest opening date</option>
-              <option value="deadline-asc">Closest deadline</option>
-              <option value="budget-desc">Largest budget</option>
-              <option value="title-asc">Title A-Z</option>
+              <option value="start-desc">Nieuwste openingsdatum</option>
+              <option value="deadline-asc">Dichtstbijzijnde deadline</option>
+              <option value="budget-desc">Grootste budget</option>
+              <option value="title-asc">Titel A-Z</option>
             </select>
           </label>
 
           <button class="ghost-button" id="reset-button" type="button">Reset filters</button>
+          
+          <div class="auth-controls">
+            <div id="auth-status" class="auth-status">
+              <span id="user-greeting">Not signed in</span>
+            </div>
+            <button class="ghost-button" id="sign-in-button" type="button">Sign In</button>
+            <button class="ghost-button" id="sign-up-button" type="button">Sign Up</button>
+            <button class="ghost-button" id="sign-out-button" type="button" hidden>Sign Out</button>
+          </div>
         </div>
-     </section>
+      </section>
 
-<section class="panel">
-  <p>
-    <strong>Let op:</strong> deze tool gebruikt publieke EU Funding &amp; Tenders-data.
-    Controleer callinformatie altijd op de officiële EU Funding &amp; Tenders Portal.
-    Voer geen vertrouwelijke informatie of persoonsgegevens in. Zoekopdrachten worden niet opgeslagen.
-  </p>
-</section>
+      <section class="panel notice-panel">
+        <p>
+          <strong>Let op:</strong> deze tool gebruikt publieke EU Funding &amp; Tenders-data.
+          Controleer callinformatie altijd op de officiële EU Funding &amp; Tenders Portal.
+          Voer geen vertrouwelijke informatie of persoonsgegevens in. AI-analyse is experimenteel.
+        </p>
+      </section>
 
-<main class="layout">
-        <aside class="sidebar panel">
-          <div>
-            <p class="sidebar__label">Snapshot view</p>
-            <h2 id="results-count">Loading…</h2>
-          </div>
+      <main class="layout" id="radar-view">
+        <aside class="sidebar panel saved-sidebar">
+  <!-- Verborgen elementen die app.js nog verwacht -->
+  <div class="visually-hidden-runtime" aria-hidden="true">
+    <h2 id="results-count">Laden...</h2>
+    <div id="top-programmes"></div>
+  </div>
 
-          <div class="sidebar-block">
-            <p class="sidebar__label">Programme filters</p>
-            <p class="sidebar__copy">Click a programme to apply that filter instantly.</p>
-            <div id="top-programmes" class="mini-list"></div>
-          </div>
-<div class="sidebar-block saved-calls-panel">
-  <p class="sidebar__label">Bewaarde calls</p>
-  <h2 id="saved-calls-count">0 bewaarde calls</h2>
+  <div class="saved-sidebar__header">
+    <p class="sidebar__label">Werkselectie</p>
+    <h2 id="saved-calls-count">0 bewaarde calls</h2>
+    <p class="sidebar__copy">
+      Bewaar interessante calls tijdens het zoeken. Gebruik de export om je selectie verder te delen of te analyseren.
+    </p>
+  </div>
 
-  <div id="saved-calls-list" class="mini-list saved-calls-list">
+  <div id="saved-calls-list" class="saved-calls-list">
     <p class="sidebar__copy">Nog geen calls bewaard.</p>
   </div>
 
   <div class="saved-calls-panel__actions">
-    <button class="ghost-button" id="export-saved-button" type="button">Export CSV</button>
+    <button class="ghost-button" id="export-saved-button" type="button">Exporteer rapport</button>
     <button class="ghost-button" id="clear-saved-button" type="button">Wis selectie</button>
+    <button class="ghost-button" id="ai-review-button" type="button" hidden>Beoordeel bewaarde calls</button>
   </div>
-</div>
-        </aside>
+  
+  <!-- Personal Saved Searches Panel -->
+  <div id="saved-searches-container" class="saved-searches-container"></div>
+</aside>
+
 
         <section class="results panel">
           <div class="results__header">
             <div>
-              <p class="sidebar__label">Results</p>
-              <h2 id="results-headline">Loading grants…</h2>
+              <p class="sidebar__label">Resultaten</p>
+              <h2 id="results-headline">Calls laden...</h2>
+              <p id="ai-rerank-status" class="sidebar__copy" hidden></p>
             </div>
-            <a class="ghost-button link-button" href="https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?order=DESC&pageNumber=1&pageSize=50&sortBy=startDate&isExactMatch=true&status=31094501,31094502,31094503" target="_blank" rel="noreferrer">Open official portal</a>
+
+            <div class="results__actions">
+              <button id="ai-rerank-button" class="primary-button" type="button">
+                AI analyseer top 15
+              </button>
+
+              <a
+                class="ghost-button link-button"
+                href="https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?order=DESC&pageNumber=1&pageSize=50&sortBy=startDate&isExactMatch=true&status=31094501,31094502,31094503"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open EU portal
+              </a>
+            </div>
+          </div>
+
+          <div class="ai-panel">
+            <p class="ai-panel__label">AI-ranking</p>
+            <p class="ai-panel__copy">
+              De AI-analyse beoordeelt de top 15 zichtbare calls op basis van je projectidee,
+              keywords en eventueel gekozen Bureau Brussel-thema. De gewone filters blijven leidend.
+            </p>
+          </div>
+
+          <div id="ai-results-panel" class="ai-results-panel" hidden>
+            <div class="ai-results-panel__header">
+              <p class="ai-panel__label">AI-analyse</p>
+              <p class="ai-panel__copy">Gerangschikte AI-beoordeling van de geselecteerde calls.</p>
+            </div>
+            <div id="ai-results-list" class="ai-results-list"></div>
           </div>
 
           <div id="results-list" class="results-list"></div>
 
           <div class="results__footer">
-            <button id="load-more-button" class="ghost-button" type="button" hidden>Load more</button>
+            <button id="load-more-button" class="ghost-button" type="button" hidden>Laad meer</button>
+            <div id="pagination-controls" class="pagination-controls"></div>
           </div>
         </section>
       </main>
+      </section>
+
+      <section id="shortlist-view" class="view-pane" hidden>
+        <div class="panel ai-shortlist-panel">
+          <div class="ai-shortlist__header">
+            <h2>Shortlist</h2>
+            <p class="ai-shortlist__description">Overzicht van AI-geanalyseerde top calls.</p>
+          </div>
+          <div id="shortlist-content" class="shortlist-content"></div>
+        </div>
+      </section>
+
+      <!-- <section id="pipeline-view" class="view-pane" hidden>
+        <div class="panel pipeline-panel">
+          <h2>Pipeline</h2>
+          <p>Pipeline komt in volgende stap.</p>
+        </div>
+      </section> -->
     </div>
 
-    <template id="grant-card-template">
-      <article class="grant-card">
-        <div class="grant-card__topline">
-          <span class="status-chip"></span>
-          <span class="grant-card__id"></span>
-        </div>
+   <template id="grant-card-template">
+  <article class="grant-card">
+    <div class="grant-card__topline">
+      <span class="status-chip"></span>
+      <span class="grant-card__id"></span>
+    </div>
+    <div class="grant-card__title-row">
+      <h3 class="grant-card__title">
+        <button class="grant-card__title-button" type="button"></button>
+      </h3>
+    </div>
+    <dl class="grant-card__facts"></dl>
+    <div class="grant-card__content" aria-hidden="true" hidden>
+      <div class="grant-card__drawer-block grant-card__drawer-block--feed-summary">
+        <p class="grant-card__drawer-label">Feed summary</p>
+        <p class="grant-card__drawer-text grant-card__drawer-feed-summary"></p>
+      </div>
+      <div class="grant-card__drawer-block grant-card__drawer-block--abstract" hidden>
+        <p class="grant-card__drawer-label">Abstract / scope</p>
+        <p class="grant-card__drawer-text grant-card__drawer-abstract"></p>
+      </div>
+    </div>
+    <div class="grant-card__footer">
+      <button class="grant-card__details-toggle" aria-expanded="false">
+        <span class="grant-card__toggle-icon">&#9660;</span>
+        <span class="grant-card__toggle-text">Bekijk details</span>
+      </button>
+      <a class="grant-card__open-link" target="_blank" rel="noreferrer">Open</a>
+    </div>
+  </article>
+</template>
+
         <div class="grant-card__title-row">
-          <h3 class="grant-card__title"><button class="grant-card__title-button" type="button"></button></h3>
+          <h3 class="grant-card__title">
+            <button class="grant-card__title-button" type="button"></button>
+          </h3>
+
           <a class="grant-card__open-link" target="_blank" rel="noreferrer">Open</a>
         </div>
-        <p class="grant-card__summary"></p>
-        <div class="grant-card__drawer" hidden>
-          <div class="grant-card__drawer-block">
+
+        <!-- Expanded content with AI Shortlist pattern -->
+        <div class="grant-card__content" id="${grant.identifier}-content" aria-hidden="true" hidden>
+          <div class="grant-card__drawer-block grant-card__drawer-block--feed-summary">
             <p class="grant-card__drawer-label">Feed summary</p>
-            <p class="grant-card__drawer-text grant-card__drawer-summary"></p>
+            <p class="grant-card__drawer-text grant-card__drawer-feed-summary"></p>
           </div>
+
           <div class="grant-card__drawer-block grant-card__drawer-block--abstract" hidden>
             <p class="grant-card__drawer-label">Abstract / scope</p>
             <p class="grant-card__drawer-text grant-card__drawer-abstract"></p>
           </div>
         </div>
+
+        <!-- Details button using AI Shortlist pattern -->
+        <div class="grant-card__footer">
+          <button class="grant-card__details-toggle" aria-expanded="false" aria-controls="${grant.identifier}-content">
+            <span class="grant-card__toggle-icon">&#9660;</span>
+            <span class="grant-card__toggle-text">Bekijk details</span>
+          </button>
+        </div>
+
         <dl class="grant-card__facts"></dl>
       </article>
     </template>
 
-    <script type="module" src="app.js?v=20260520-3"></script>
+    <script type="module" src="app.js?v=20260706-shortlist-reuse-ai-score-badges-1"></script>
   </body>
 </html>
