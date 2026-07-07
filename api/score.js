@@ -142,6 +142,8 @@ function splitTerms(value) {
     .map((term) => term.trim())
     .filter((term) => {
       if (!term) return false;
+      // Betekenisvolle acroniemen, zoals ITS, mogen niet als stopword verdwijnen.
+      if (MEANINGFUL_ACRONYMS.has(term)) return true;
       // Filter stopwords
       if (STOPWORDS.has(term)) return false;
       // Filter op betekenisvolle lengte/acroniemen
@@ -581,7 +583,11 @@ function extractSummaryFromData(parsed) {
   return null;
 }
 
-function normalizeAiReviews(parsed) {
+function normalizeIdentifier(value) {
+  return String(value || '').trim();
+}
+
+function normalizeAiReviews(parsed, allowedIdentifiers = null) {
   const reviews = Array.isArray(parsed)
     ? parsed
     : Array.isArray(parsed?.reviews)
@@ -589,7 +595,7 @@ function normalizeAiReviews(parsed) {
       : [];
 
   const normalized = reviews.map((review) => ({
-    identifier: review.identifier || review.callId || '',
+    identifier: normalizeIdentifier(review.identifier || review.callId),
     aiRelevanceScore: Number(review.aiRelevanceScore ?? 0),
     projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
     projectFitScore: Number(
@@ -620,15 +626,24 @@ function normalizeAiReviews(parsed) {
     waaromRelevant:      Array.isArray(review.waaromRelevant) ? review.waaromRelevant : []
   }));
 
+  const filtered = allowedIdentifiers instanceof Set
+    ? normalized.filter((review) => allowedIdentifiers.has(review.identifier))
+    : normalized.filter((review) => review.identifier);
+
+  const droppedReviewCount = normalized.length - filtered.length;
+  if (droppedReviewCount > 0) {
+    console.warn('AI-reviews zonder bekende identifier genegeerd:', { droppedReviewCount });
+  }
+
   // Sorteer reviews op aiRelevanceScore (hoog naar laag)
   // Calls zonder score (0) komen onderaan
-  normalized.sort((a, b) => {
+  filtered.sort((a, b) => {
     const scoreA = a.aiRelevanceScore || 0;
     const scoreB = b.aiRelevanceScore || 0;
     return scoreB - scoreA;
   });
 
-  return { reviews: normalized };
+  return { reviews: filtered };
 }
 
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
@@ -659,14 +674,17 @@ async function callMistral(prompt, modelName = MISTRAL_MODEL) {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Mistral-fout ${response.status}`);
+    const apiError = new Error(err.error?.message || `Mistral-fout ${response.status}`);
+    apiError.status = response.status;
+    apiError.details = err;
+    throw apiError;
   }
 
   const data = await response.json();
   return {
     rawText: data.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}',
     provider: 'mistral',
-    model: MISTRAL_MODEL
+    model: modelName
   };
 }
 
@@ -691,10 +709,14 @@ export default async function handler(req, res) {
     const safeProjectIdea = limitText(projectIdea, 1500);
     const safeKeywords = limitText(keywords, 500);
 
+    const safeSelectedTheme = limitText(selectedTheme, 80);
     const batch = calls.slice(0, 15);
+    const allowedIdentifiers = new Set(
+      batch.map((call) => normalizeIdentifier(call.identifier)).filter(Boolean)
+    );
 
     const { prompt, examplesMetadata: relevanceExamplesUsed } = buildPrompt({
-      projectIdea: safeProjectIdea, keywords: safeKeywords, selectedTheme, calls: batch
+      projectIdea: safeProjectIdea, keywords: safeKeywords, selectedTheme: safeSelectedTheme, calls: batch
     });
 
     // Call Mistral with fallback support
@@ -764,11 +786,20 @@ export default async function handler(req, res) {
     try {
       parsed = extractJsonFromText(rawText);
     } catch (parseError) {
-      console.error(`Kon ${provider}-output niet parsen:`, rawText);
-      return res.status(502).json({ error: 'AI gaf geen geldige JSON terug', rawText });
+      const rawTextPreview = String(rawText || '').slice(0, 1000);
+      console.error(`Kon ${provider}-output niet parsen:`, {
+        error: parseError.message,
+        rawTextPreview
+      });
+
+      const responseBody = { error: 'AI gaf geen geldige JSON terug' };
+      if (process.env.NODE_ENV !== 'production') {
+        responseBody.rawTextPreview = rawTextPreview;
+      }
+      return res.status(502).json(responseBody);
     }
 
-    const normalized     = normalizeAiReviews(parsed);
+    const normalized     = normalizeAiReviews(parsed, allowedIdentifiers);
     const summary        = extractSummaryFromData(parsed);
     const responseSummary = summary || {
       executiveSummary: '',
@@ -781,7 +812,7 @@ export default async function handler(req, res) {
     // ragContextUsed hoort niet in summary-output
     delete responseSummary.ragContextUsed;
 
-    const ragContext = getRagContextMetadata(selectedTheme);
+    const ragContext = getRagContextMetadata(safeSelectedTheme);
 
     return res.status(200).json({
       ...normalized,

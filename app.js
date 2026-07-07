@@ -3,9 +3,6 @@ const DATA_URL = './data/grants.json';
 const AI_API_URL = window.location.hostname.includes('vercel.app') ? '/api/score' : '';
 const PAGE_SIZE = 25;
 const SAVED_CALLS_KEY    = 'rws-eu-call-radar-saved-calls';
-const PIPELINE_KEY       = 'rws-eu-call-radar-pipeline';
-const SAVED_SEARCHES_KEY = 'rws-eu-call-radar-saved-searches';
-
 const TRACKING_BASELINE_DATE = '2026-01-01T00:00:00.000Z';
 
 // ── Supabase Client ──────────────────────────────────────────
@@ -48,13 +45,6 @@ const STATUS_OPTIONS = [
   { id: 'live',     label: 'Live',        matches: new Set(['31094501', '31094502']) },
   { id: '31094502', label: 'Open',        matches: new Set(['31094502']) },
   { id: '31094501', label: 'Forthcoming', matches: new Set(['31094501']) }
-];
-
-const PIPELINE_STAGES = [
-  { id: 'verkennen',  label: 'Verkennen',   color: '#6366f1' },
-  { id: 'beoordelen', label: 'Beoordelen',  color: '#f59e0b' },
-  { id: 'ingediend',  label: 'Ingediend',   color: '#10b981' },
-  { id: 'afgerond',   label: 'Afgerond',    color: '#64748b' }
 ];
 
 // ── Thema's & scoringsdata ────────────────────────────────────
@@ -256,9 +246,7 @@ const state = {
   data: null,
   filtered: [],
   savedIds: new Set(),
-  pipeline: {},         // identifier -> stage id
   aiReviews: new Map(),
-  aiSummary: null,
   aiRerankActive: false,
   activeView: 'radar',
   pagination: { page: 1, pageSize: PAGE_SIZE },
@@ -305,7 +293,6 @@ const elements = {
   resultsList:        document.querySelector('#results-list'),
   loadMoreButton:     document.querySelector('#load-more-button'),
   paginationControls: document.querySelector('#pagination-controls'),
-  aiBriefingPanel:    document.querySelector('#ai-briefing-panel'),
   savedCallsCount:    document.querySelector('#saved-calls-count'),
   savedCallsList:     document.querySelector('#saved-calls-list'),
   exportSavedButton:  document.querySelector('#export-saved-button'),
@@ -315,10 +302,8 @@ const elements = {
   grantCardTemplate:  document.querySelector('#grant-card-template'),
   radarView:          document.querySelector('#radar-view'),
   shortlistView:      document.querySelector('#shortlist-view'),
-  pipelineView:       document.querySelector('#pipeline-view'),
   tabRadar:           document.querySelector('#tab-radar'),
-  tabShortlist:       document.querySelector('#tab-shortlist'),
-  tabPipeline:        document.querySelector('#tab-pipeline')
+  tabShortlist:       document.querySelector('#tab-shortlist')
 };
 
 // ── Formatters ────────────────────────────────────────────────
@@ -393,22 +378,6 @@ function getGrantRecencyTimes(grant) {
     .filter((time) => Number.isFinite(time));
 }
 
-function getGrantRecencyDate(grant) {
-  const isForthcoming = grant.status?.id === '31094501';
-  const candidates = isForthcoming
-    ? [grant.publicationDate, grant.publishedDate, grant.firstPublishedDate,
-       grant.createdAt, grant.createdDate, grant.lastModifiedDate, grant.updatedAt]
-    : [grant.publicationDate, grant.publishedDate, grant.firstPublishedDate,
-       grant.createdAt, grant.createdDate, grant.startDate,
-       grant.lastModifiedDate, grant.updatedAt];
-  for (const d of candidates) {
-    if (d) {
-      const t = new Date(d).getTime();
-      if (!isNaN(t)) return t;
-    }
-  }
-  return null;
-}
 
 function getGrantDateFilterTime(grant) {
   // New status-based date filtering logic
@@ -655,21 +624,48 @@ function toggleSavedGrant(grant) {
 const getSavedGrants = () =>
   state.data?.grants?.filter(g => state.savedIds.has(getGrantSaveId(g))) || [];
 
-function exportSavedCallsHtml() {
-  const saved = getSavedGrants();
-  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
+function getSafeExternalUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
 
-  const exportDate = new Date().toISOString().slice(0, 10);
-  const exportTime = new Date().toLocaleTimeString('nl-NL');
+  try {
+    const parsed = new URL(raw, window.location.href);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
+  } catch {
+    return '';
+  }
+}
 
-  const htmlContent = `
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RWS EU Call Radar - Bewaarde calls</title>
-  <style>
+function formatExportDate(value) {
+  return value ? formatDate(value) : '';
+}
+
+function renderExportFact(label, value) {
+  if (value === null || value === undefined || value === '') return '';
+  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+
+function renderExportSection(title, bodyHtml) {
+  if (!bodyHtml) return '';
+  return `
+        <div class="call-section">
+          <h4>${escapeHtml(title)}</h4>
+          ${bodyHtml}
+        </div>`;
+}
+
+function getSafeDetailAbstractHtml(grant) {
+  const detailHtml = getDetailAbstractText(grant);
+  if (!detailHtml) return '';
+
+  return escapeHtml(detailHtml)
+    .replace(/&lt;strong&gt;/g, '<strong>')
+    .replace(/&lt;\/strong&gt;/g, '</strong>')
+    .replace(/&lt;br&gt;/g, '<br>');
+}
+
+function renderSavedCallsExportStyles() {
+  return `
     body {
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.6;
@@ -679,26 +675,22 @@ function exportSavedCallsHtml() {
       padding: 24px;
       background: white;
     }
-    
     .report-header {
       border-bottom: 2px solid #003082;
       margin-bottom: 32px;
       padding-bottom: 16px;
     }
-    
     .report-title {
       color: #003082;
       font-size: 28px;
       font-weight: 600;
       margin: 0 0 8px 0;
     }
-    
     .report-meta {
       color: #6b7280;
       font-size: 14px;
       margin: 0;
     }
-    
     .call-card {
       border: 1px solid #e5e7eb;
       border-radius: 8px;
@@ -706,7 +698,6 @@ function exportSavedCallsHtml() {
       margin-bottom: 24px;
       background: white;
     }
-    
     .call-header {
       display: flex;
       justify-content: space-between;
@@ -714,14 +705,12 @@ function exportSavedCallsHtml() {
       margin-bottom: 16px;
       gap: 16px;
     }
-    
     .call-id {
       font-family: monospace;
       font-size: 13px;
       color: #6b7280;
       white-space: nowrap;
     }
-    
     .call-title {
       font-size: 20px;
       font-weight: 600;
@@ -729,7 +718,6 @@ function exportSavedCallsHtml() {
       margin: 0;
       flex: 1;
     }
-    
     .call-meta {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -737,35 +725,31 @@ function exportSavedCallsHtml() {
       margin-bottom: 16px;
       font-size: 14px;
     }
-    
-    .call-meta dt {
+    .call-meta dt,
+    .call-section dt {
       font-weight: 500;
       color: #6b7280;
       margin-bottom: 4px;
     }
-    
-    .call-meta dd {
+    .call-meta dd,
+    .call-section dd {
       margin: 0;
       color: #1a1a2e;
     }
-    
     .call-section {
       margin-top: 20px;
     }
-    
     .call-section h4 {
       font-size: 16px;
       font-weight: 600;
       color: #003082;
       margin: 0 0 8px 0;
     }
-    
     .call-section p {
       margin: 0;
       font-size: 14px;
       line-height: 1.5;
     }
-    
     .score-badge {
       display: inline-block;
       padding: 4px 12px;
@@ -774,29 +758,27 @@ function exportSavedCallsHtml() {
       font-size: 13px;
       margin-right: 8px;
     }
-    
+    .score--high,
     .score-badge--high {
       background: #e8f5e9;
       color: #2e7d32;
     }
-    
+    .score--mid,
     .score-badge--mid {
       background: #fff3e0;
       color: #e65100;
     }
-    
+    .score--low,
     .score-badge--low {
       background: #f5f5f5;
       color: #616161;
     }
-    
     .themes-list {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       margin-top: 8px;
     }
-    
     .theme-badge {
       background: #f4f6f9;
       padding: 4px 12px;
@@ -804,99 +786,114 @@ function exportSavedCallsHtml() {
       font-size: 13px;
       color: #1a1a2e;
     }
-    
     .call-url {
       font-size: 13px;
       color: #003082;
       word-break: break-all;
     }
-    
     @media print {
-      body {
-        padding: 12px;
-      }
+      body { padding: 12px; }
       .call-card {
         break-inside: avoid;
         page-break-inside: avoid;
       }
-    }
-  </style>
-</head>
-<body>
-  <header class="report-header">
-    <h1 class="report-title">RWS EU Call Radar - Bewaarde calls</h1>
-    <p class="report-meta">Geëxporteerd op ${exportDate} om ${exportTime} | ${saved.length} calls</p>
-  </header>
-  
-  <main>
-    ${saved.map(grant => `
-      <article class="call-card">
-        <div class="call-header">
-          <span class="call-id">${escapeHtml(grant.identifier || '')}</span>
-          <h3 class="call-title">${escapeHtml(grant.title || 'Geen titel')}</h3>
-        </div>
-        
-        <dl class="call-meta">
-          ${(function() { const programme = getPrimaryProgramme(grant); return programme ? `<div><dt>Programma</dt><dd>${escapeHtml(programme)}</dd></div>` : ''; })()}
-          ${grant.status?.label ? `<div><dt>Status</dt><dd>${escapeHtml(grant.status.label)}</dd></div>` : ''}
-          ${grant.startDate || grant.plannedOpeningDate ? `<div><dt>Openingsdatum</dt><dd>${escapeHtml(grant.startDate || grant.plannedOpeningDate || '')}</dd></div>` : ''}
-          ${grant.deadlineDate ? `<div><dt>Deadline</dt><dd>${escapeHtml(grant.deadlineDate)}</dd></div>` : ''}
-          ${grant.actionType || grant.kind?.label ? `<div><dt>Actietype</dt><dd>${escapeHtml(grant.actionType || grant.kind?.label || '')}</dd></div>` : ''}
-          ${grant.budget?.totalBudgetEur ? `<div><dt>Budget</dt><dd>€${escapeHtml(formatCurrency(grant.budget.totalBudgetEur))}</dd></div>` : ''}
-          ${grant.budget?.expectedGrants ? `<div><dt>Verwachte subsidies</dt><dd>${escapeHtml(grant.budget.expectedGrants)}</dd></div>` : ''}
-        </dl>
-        
-        ${grant.relevance?.score ? `
-        <div class="call-section">
-          <h4>Relevantie</h4>
+    }`;
+}
+
+function renderSavedCallExportCard(grant) {
+  const programme = getPrimaryProgramme(grant);
+  const openingDate = formatExportDate(grant.startDate || grant.plannedOpeningDate);
+  const deadlineDate = formatExportDate(grant.deadlineDate);
+  const actionType = grant.actionType || grant.kind?.label || '';
+  const budget = grant.budget?.totalBudgetEur ? formatCurrency(grant.budget.totalBudgetEur) : '';
+  const expectedGrants = grant.budget?.expectedGrants ? fmtCompact.format(grant.budget.expectedGrants) : '';
+  const summary = grant.summary || grant.destination || grant.callTitle || '';
+  const abstractHtml = getSafeDetailAbstractHtml(grant);
+  const safeUrl = getSafeExternalUrl(grant.url);
+
+  const relevance = grant.relevance?.score ? renderExportSection('Relevantie', `
           <p><span class="score-badge ${getScoreBadgeClass(grant.relevance.score)}">${escapeHtml(grant.relevance.score)}/100</span> Non-AI relevantiescore</p>
           ${grant.relevance.matchedThemes?.length ? `
           <div class="themes-list">
             ${grant.relevance.matchedThemes.map(theme => `<span class="theme-badge">${escapeHtml(theme.label)}</span>`).join('')}
           </div>` : ''}
           ${grant.relevance.matchedTerms?.length ? `<p><strong>Gematchte zoektermen:</strong> ${escapeHtml(grant.relevance.matchedTerms.join(', '))}</p>` : ''}
-          ${grant.relevance.reasons?.length ? `<p><strong>Redenen:</strong> ${escapeHtml(grant.relevance.reasons.join('; '))}</p>` : ''}
-        </div>` : ''}
-        
-        ${grant.summary || grant.destination || grant.callTitle ? `
-        <div class="call-section">
-          <h4>Samenvatting</h4>
-          <p>${escapeHtml(grant.summary || grant.destination || grant.callTitle || 'Geen samenvatting beschikbaar')}</p>
-        </div>` : ''}
-        
-        ${getDetailAbstractText(grant) ? `
-        <div class="call-section">
-          <h4>Abstract / Scope</h4>
-          <div>${getDetailAbstractText(grant)}</div>
-        </div>` : ''}
-        
-        ${grant.url ? `
-        <div class="call-section">
-          <h4>Originele call</h4>
-          <a href="${escapeHtml(grant.url)}" class="call-url" target="_blank" rel="noreferrer">${escapeHtml(grant.url)}</a>
-        </div>` : ''}
-      </article>
-    `).join('')}
+          ${grant.relevance.reasons?.length ? `<p><strong>Redenen:</strong> ${escapeHtml(grant.relevance.reasons.join('; '))}</p>` : ''}`) : '';
+
+  return `
+      <article class="call-card">
+        <div class="call-header">
+          <span class="call-id">${escapeHtml(grant.identifier || '')}</span>
+          <h3 class="call-title">${escapeHtml(grant.title || 'Geen titel')}</h3>
+        </div>
+
+        <dl class="call-meta">
+          ${renderExportFact('Programma', programme)}
+          ${renderExportFact('Status', grant.status?.label || '')}
+          ${renderExportFact('Openingsdatum', openingDate)}
+          ${renderExportFact('Deadline', deadlineDate)}
+          ${renderExportFact('Actietype', actionType)}
+          ${renderExportFact('Budget', budget)}
+          ${renderExportFact('Verwachte subsidies', expectedGrants)}
+        </dl>
+
+        ${relevance}
+        ${summary ? renderExportSection('Samenvatting', `<p>${escapeHtml(summary)}</p>`) : ''}
+        ${abstractHtml ? renderExportSection('Abstract / Scope', `<div>${abstractHtml}</div>`) : ''}
+        ${safeUrl ? renderExportSection('Originele call', `<a href="${escapeHtml(safeUrl)}" class="call-url" target="_blank" rel="noreferrer">${escapeHtml(safeUrl)}</a>`) : ''}
+      </article>`;
+}
+
+function buildSavedCallsExportHtml(saved, exportedAt = new Date()) {
+  const exportDate = exportedAt.toISOString().slice(0, 10);
+  const exportTime = exportedAt.toLocaleTimeString('nl-NL');
+
+  return `
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RWS EU Call Radar - Bewaarde calls</title>
+  <style>${renderSavedCallsExportStyles()}</style>
+</head>
+<body>
+  <header class="report-header">
+    <h1 class="report-title">RWS EU Call Radar - Bewaarde calls</h1>
+    <p class="report-meta">Geëxporteerd op ${escapeHtml(exportDate)} om ${escapeHtml(exportTime)} | ${saved.length} calls</p>
+  </header>
+
+  <main>
+    ${saved.map(renderSavedCallExportCard).join('')}
   </main>
-  
+
   <footer style="margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280;">
     <p>RWS EU Call Radar - Rijkswaterstaat Bureau Brussel</p>
-    <p>Dit rapport is gegenereerd op ${exportDate} om ${exportTime}</p>
+    <p>Dit rapport is gegenereerd op ${escapeHtml(exportDate)} om ${escapeHtml(exportTime)}</p>
   </footer>
 </body>
-</html>
-`;
+</html>`;
+}
 
+function downloadHtmlFile(htmlContent, filename) {
   const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), {
     href: url,
-    download: `rws-eu-call-radar-bewaarde-calls.html`
+    download: filename
   });
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function exportSavedCallsHtml() {
+  const saved = getSavedGrants();
+  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
+
+  const htmlContent = buildSavedCallsExportHtml(saved);
+  downloadHtmlFile(htmlContent, 'rws-eu-call-radar-bewaarde-calls.html');
 }
 
 function getScoreBadgeClass(score) {
@@ -1081,124 +1078,6 @@ function getAiAbstractText(grant) {
   return grant.abstract || '';
 }
 
-function exportSavedCallsCsv() {
-  const saved = getSavedGrants();
-  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
-
-  const headers = ['identifier','title','programme','status','openingDate','deadlineDate','actionType','budgetEur','expectedGrants','relevanceScore','bureauBrusselThemes','matchedTerms','relevanceReasons','summary','abstract','url'];
-  const rows = saved.map(g => [
-    g.identifier, g.title, getPrimaryProgramme(g), g.status?.label || '',
-    g.startDate || g.plannedOpeningDate || '', g.deadlineDate || '',
-    g.actionType || g.kind?.label || '', g.budget?.totalBudgetEur || '',
-    g.budget?.expectedGrants || '', g.relevance?.score || '',
-    g.relevance?.matchedThemes?.map(t => t.label).join('; ') || '',
-    g.relevance?.matchedTerms?.join('; ') || '',
-    g.relevance?.reasons?.join('; ') || '',
-    g.summary || g.destination || g.callTitle || '', g.abstract || '', g.url
-  ].map(escapeCsvValue).join(','));
-
-  const csv = [headers.join(','), ...rows].join('\r\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const a   = Object.assign(document.createElement('a'), {
-    href: url,
-    download: `rws-eu-call-radar-bewaarde-calls-${new Date().toISOString().slice(0, 10)}.csv`
-  });
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-}
-
-// ── Pipeline ──────────────────────────────────────────────────
-function loadPipeline() {
-  try { state.pipeline = JSON.parse(localStorage.getItem(PIPELINE_KEY) || '{}'); }
-  catch { state.pipeline = {}; }
-}
-
-function persistPipeline() {
-  localStorage.setItem(PIPELINE_KEY, JSON.stringify(state.pipeline));
-}
-
-function setPipelineStage(identifier, stageId) {
-  if (stageId === null) { delete state.pipeline[identifier]; }
-  else                  { state.pipeline[identifier] = stageId; }
-  persistPipeline();
-  if (state.activeView === 'pipeline') renderPipeline();
-}
-
-function getPipelineGrants() {
-  if (!state.data?.grants) return {};
-  const out = {};
-  for (const stage of PIPELINE_STAGES) out[stage.id] = [];
-  for (const [id, stageId] of Object.entries(state.pipeline)) {
-    const grant = state.data.grants.find(g => g.identifier === id);
-    if (grant && out[stageId]) out[stageId].push(grant);
-  }
-  return out;
-}
-
-function renderPipeline() {
-  const view = elements.pipelineView;
-  if (!view) return;
-
-  const byStage = getPipelineGrants();
-  const total   = Object.values(state.pipeline).length;
-
-  view.innerHTML = `
-    <div class="pipeline-header">
-      <h2 class="pipeline-title">Call Pipeline</h2>
-      <span class="pipeline-meta">${total} call${total !== 1 ? 's' : ''} in de pipeline</span>
-      ${total === 0 ? '<p class="pipeline-hint">Voeg calls toe via de Bewaar-knop in de Radar en versleep ze hier door de fases.</p>' : ''}
-    </div>
-    <div class="pipeline-board">
-      ${PIPELINE_STAGES.map(stage => {
-        const grants = byStage[stage.id] || [];
-        return `
-          <div class="pipeline-column" data-stage="${escapeHtml(stage.id)}">
-            <div class="pipeline-column__header" style="border-top:3px solid ${stage.color}">
-              <span class="pipeline-column__label">${escapeHtml(stage.label)}</span>
-              <span class="pipeline-column__count">${grants.length}</span>
-            </div>
-            <div class="pipeline-column__cards">
-              ${grants.length ? grants.map(g => renderPipelineCard(g, stage)).join('') : '<div class="pipeline-empty">Geen calls</div>'}
-            </div>
-          </div>`;
-      }).join('')}
-    </div>`;
-
-  // Wire move buttons
-  view.querySelectorAll('.pipeline-card__move').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const { id, to } = btn.dataset;
-      setPipelineStage(id, to === 'remove' ? null : to);
-      renderPipeline();
-      renderSavedCallsPanel();
-    });
-  });
-}
-
-function renderPipelineCard(grant, currentStage) {
-  const stageIdx = PIPELINE_STAGES.findIndex(s => s.id === currentStage.id);
-  const prev     = PIPELINE_STAGES[stageIdx - 1];
-  const next     = PIPELINE_STAGES[stageIdx + 1];
-  const aiReview = state.aiReviews.get(grant.identifier);
-  const score    = aiReview?.aiRelevanceScore ?? grant.relevance?.score ?? 0;
-  const sc       = score >= 70 ? 'score-high' : score >= 40 ? 'score-mid' : 'score-low';
-
-  return `
-    <div class="pipeline-card">
-      <div class="pipeline-card__head">
-        <span class="pipeline-card__id">${escapeHtml(grant.identifier)}</span>
-        <span class="shortlist-score ${sc}">${score}</span>
-      </div>
-      <p class="pipeline-card__title">${escapeHtml(grant.title)}</p>
-      <p class="pipeline-card__meta">${escapeHtml(getPrimaryProgramme(grant))} &bull; Deadline: ${formatDate(grant.deadlineDate)}</p>
-      ${grant.url ? `<a class="pipeline-card__link" href="${grant.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
-      <div class="pipeline-card__actions">
-        ${prev ? `<button class="pipeline-card__move ghost-button" data-id="${escapeHtml(grant.identifier)}" data-to="${escapeHtml(prev.id)}" title="Terug naar ${escapeHtml(prev.label)}">&#8592; ${escapeHtml(prev.label)}</button>` : ''}
-        ${next ? `<button class="pipeline-card__move ghost-button" data-id="${escapeHtml(grant.identifier)}" data-to="${escapeHtml(next.id)}" title="Door naar ${escapeHtml(next.label)}">${escapeHtml(next.label)} &#8594;</button>` : ''}
-        <button class="pipeline-card__move ghost-button pipeline-card__remove" data-id="${escapeHtml(grant.identifier)}" data-to="remove" title="Verwijder uit pipeline">&#10005;</button>
-      </div>
-    </div>`;
-}
 
 // ── Filtering & sorting ───────────────────────────────────────
 function filterGrants() {
@@ -1412,20 +1291,57 @@ function toggleProgrammeFilter(id) {
   resetPagination(); syncControls(); update();
 }
 
+// ── Helper: Empty state rendering ──────────────────────────────
+function renderEmptyResultsState() {
+  const el = document.createElement('div');
+  el.className = 'empty-state'; el.textContent = 'Try a broader search or a different programme.';
+  elements.resultsList.appendChild(el);
+}
+
+// ── Helper: Result count updating ──────────────────────────────
+function updateResultCounts(filteredCount) {
+  elements.resultsCount.textContent    = `${fmtCompact.format(filteredCount)} matches`;
+  elements.resultsHeadline.textContent = filteredCount
+    ? `${fmtCompact.format(filteredCount)} grants in view`
+    : 'No grants match the current filters';
+}
+
+// ── Helper: AI review block creation ────────────────────────────
+function createAiReviewBlock(aiReview, scoreCls, pfCls, aiScore, pfScore) {
+  const block = document.createElement('div');
+  block.className = 'grant-card__ai-review';
+  block.innerHTML =
+    '<div class="grant-card__ai-scores">' +
+      '<div class="grant-card__ai-score-item">' +
+        '<span class="grant-card__ai-score-label">AI-analyse RWS</span>' +
+        '<span class="ai-score ' + scoreCls + '">' + escapeHtml(String(aiScore)) + '/100</span>' +
+      '</div>' +
+      '<div class="grant-card__ai-score-item">' +
+        '<span class="grant-card__ai-score-label">Projectfit</span>' +
+        '<span class="ai-score ' + pfCls + '">' + escapeHtml(String(pfScore)) + '/100</span>' +
+      '</div>' +
+    '</div>' +
+    (aiReview.projectFit ? '<p class="grant-card__projectfit"><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
+    '<p>' + escapeHtml(aiReview.rationale || 'Geen toelichting beschikbaar.') + '</p>' +
+    '<dl class="grant-card__facts" style="margin-top:.5rem">' +
+      (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
+      (aiReview.possibleRwsRole  ? '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(aiReview.possibleRwsRole)  + '</dd></div>' : '') +
+      (aiReview.uncertainties    ? '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(aiReview.uncertainties)    + '</dd></div>' : '') +
+      (aiReview.callRequirements?.length ? '<div><dt>Vereisten uit calltekst</dt><dd><ul class="ai-requirements">' + aiReview.callRequirements.map(req => '<li>' + escapeHtml(req) + '</li>').join('') + '</ul></dd></div>' : '') +
+      (aiReview.ragMatchedItems?.length ? '<div><dt>RAG-context</dt><dd>' + escapeHtml(aiReview.ragMatchedItems.join(', ')) + '</dd></div>' : '') +
+    '</dl>';
+  return block;
+}
+
 // ── Render: results ───────────────────────────────────────────
 function renderResults() {
   const visible = getDisplayResults();
   elements.resultsList.innerHTML = '';
-  elements.resultsCount.textContent    = `${fmtCompact.format(state.filtered.length)} matches`;
-  elements.resultsHeadline.textContent = state.filtered.length
-    ? `${fmtCompact.format(state.filtered.length)} grants in view`
-    : 'No grants match the current filters';
+  updateResultCounts(state.filtered.length);
   if (elements.loadMoreButton) elements.loadMoreButton.hidden = true;
 
   if (!visible.length) {
-    const el = document.createElement('div');
-    el.className = 'empty-state'; el.textContent = 'Try a broader search or a different programme.';
-    elements.resultsList.appendChild(el); return;
+    renderEmptyResultsState(); return;
   }
 
   const frag = document.createDocumentFragment();
@@ -1511,28 +1427,7 @@ function renderResults() {
       const pfScore    = aiReview.projectFitScore ?? 0;
       const scoreCls   = getScoreBadgeClass(aiScore);
       const pfCls      = getScoreBadgeClass(pfScore);
-      const aiBlock    = document.createElement('div');
-      aiBlock.className = 'grant-card__ai-review';
-      aiBlock.innerHTML =
-        '<div class="grant-card__ai-scores">' +
-          '<div class="grant-card__ai-score-item">' +
-            '<span class="grant-card__ai-score-label">AI-analyse RWS</span>' +
-            '<span class="ai-score ' + scoreCls + '">' + escapeHtml(String(aiScore)) + '/100</span>' +
-          '</div>' +
-          '<div class="grant-card__ai-score-item">' +
-            '<span class="grant-card__ai-score-label">Projectfit</span>' +
-            '<span class="ai-score ' + pfCls + '">' + escapeHtml(String(pfScore)) + '/100</span>' +
-          '</div>' +
-        '</div>' +
-        (aiReview.projectFit ? '<p class="grant-card__projectfit"><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
-        '<p>' + escapeHtml(aiReview.rationale || 'Geen toelichting beschikbaar.') + '</p>' +
-        '<dl class="grant-card__facts" style="margin-top:.5rem">' +
-          (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
-          (aiReview.possibleRwsRole  ? '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(aiReview.possibleRwsRole)  + '</dd></div>' : '') +
-          (aiReview.uncertainties    ? '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(aiReview.uncertainties)    + '</dd></div>' : '') +
-          (aiReview.callRequirements?.length ? '<div><dt>Vereisten uit calltekst</dt><dd><ul class="ai-requirements">' + aiReview.callRequirements.map(req => '<li>' + escapeHtml(req) + '</li>').join('') + '</ul></dd></div>' : '') +
-          (aiReview.ragMatchedItems?.length ? '<div><dt>RAG-context</dt><dd>' + escapeHtml(aiReview.ragMatchedItems.join(', ')) + '</dd></div>' : '') +
-        '</dl>';
+      const aiBlock = createAiReviewBlock(aiReview, scoreCls, pfCls, aiScore, pfScore);
       relBlock.insertAdjacentElement('afterend', aiBlock);
     }
 
@@ -1636,20 +1531,18 @@ function renderSavedCallsPanel() {
 // ── Render: views ─────────────────────────────────────────────
 function switchView(name) {
   state.activeView = name;
-  ['radar','shortlist','pipeline'].forEach(v => {
+  ['radar','shortlist'].forEach(v => {
     const tabKey  = 'tab' + v.charAt(0).toUpperCase() + v.slice(1);
     const viewKey = v + 'View';
     elements[tabKey]?.classList.toggle('is-active', v === name);
     if (elements[viewKey]) elements[viewKey].hidden = v !== name;
   });
   if (name === 'shortlist') renderAiShortlist();
-  if (name === 'pipeline')  renderPipeline();
 }
 
 function renderViewTabs() {
   elements.tabRadar?.addEventListener('click',     () => switchView('radar'));
   elements.tabShortlist?.addEventListener('click', () => switchView('shortlist'));
-  elements.tabPipeline?.addEventListener('click',  () => switchView('pipeline'));
 }
 
 const getCallByIdentifier = id => state.data?.grants?.find(g => g.identifier === id) || null;
@@ -1748,26 +1641,6 @@ function getTopCallsForBriefing(reviews) {
     .slice(0, 5);
 }
 
-function getCallVanDeWeek(topCalls) {
-  if (!topCalls.length) return null;
-  
-  const scoredCalls = topCalls.map(call => {
-    const combinedScore = 0.7 * call.aiRelevanceScore + 0.3 * call.projectFitScore;
-    const callData = getCallByIdentifier(call.identifier);
-    const deadline = callData?.deadlineDate ? new Date(callData.deadlineDate).getTime() : Infinity;
-    return { call, combinedScore, deadline };
-  });
-  
-  // Sort by combined score desc, then by deadline asc
-  scoredCalls.sort((a, b) => {
-    if (b.combinedScore !== a.combinedScore) {
-      return b.combinedScore - a.combinedScore;
-    }
-    return a.deadline - b.deadline;
-  });
-  
-  return scoredCalls[0].call;
-}
 
 function getWatchlistCalls(reviews) {
   const topCalls = getTopCallsForBriefing(reviews);
@@ -1811,31 +1684,18 @@ function getWatchlistCalls(reviews) {
     .slice(0, 5);
 }
 
-function getDeduplicatedNextActions(reviews) {
-  const actions = new Map();
-  const topCalls = getTopCallsForBriefing(reviews);
-  
-  topCalls.forEach(review => {
-    const call = getCallByIdentifier(review.identifier);
-    // Removed recommendedNextStep handling - now using callRequirements
-  });
-  
-  return Array.from(actions.values());
-}
 
 function clampActionLabel(review, call) {
   if (!review || !call) return 'Niet prioriteren';
   
-  // If AI provided an action label, use it but clamp to our allowed labels
-  const aiAction = review.actielabelVoorstel || review.actionLabel;
-  
-  // Determine based on scores if no AI action or if we need to clamp
+  // Note: aiAction parameter is currently unused - function returns labels based solely on scores
+  // Determine based on scores (aiAction clamping logic removed as it was ineffective)
   if (review.aiRelevanceScore >= 80 && review.projectFitScore >= 60) {
-    return aiAction === 'Actief verkennen' ? 'Actief verkennen' : 'Actief verkennen';
+    return 'Actief verkennen';
   } else if (review.aiRelevanceScore >= 65 && review.projectFitScore >= 45) {
-    return aiAction === 'Nader toetsen' ? 'Nader toetsen' : 'Nader toetsen';
+    return 'Nader toetsen';
   } else if (review.aiRelevanceScore >= 45) {
-    return aiAction === 'Monitoren' ? 'Monitoren' : 'Monitoren';
+    return 'Monitoren';
   } else {
     return 'Niet prioriteren';
   }
@@ -1972,48 +1832,7 @@ function sortReviewsByAiRelevance(reviews) {
   });
 }
 
-function getDisplayCallScope(review, grant) {
-  // Prefer AI-generated Dutch scope if available and valid
-  if (review.callScopeSummary) {
-    const scope = review.callScopeSummary.trim();
-    
-    // Validation: reject if too short, English title repetition, or invalid fallback
-    const isTooShort = scope.length < 30;
-    const isEnglishTitleRepetition = grant.title && 
-                                     scope.toLowerCase().startsWith(grant.title.toLowerCase()) &&
-                                     scope.length < grant.title.length + 20;
-    const isInvalidFallback = scope === 'Scope nog niet concreet beschikbaar in de callgegevens.' && 
-                             grant.summary && grant.summary.length > 50;
-    
-    if (!isTooShort && !isEnglishTitleRepetition && !isInvalidFallback) {
-      return scope;
-    }
-  }
-  
-  // Fallback to deterministic scope extraction
-  return getCallScope(grant);
-}
 
-function getStatusBadgeClass(status) {
-  if (!status) return 'compact-call__status--neutral';
-  
-  // Normalize status to handle both label and code formats
-  const statusText = status.label ? status.label.toLowerCase() : String(status).toLowerCase();
-  const statusCode = status.id ? String(status.id) : '';
-  
-  // Open for submission (green)
-  if (statusText.includes('open') || statusCode === '31094502') {
-    return 'compact-call__status--open';
-  }
-  
-  // Forthcoming (orange)
-  if (statusText.includes('forthcoming') || statusCode === '31094501') {
-    return 'compact-call__status--forthcoming';
-  }
-  
-  // Default/neutral
-  return 'compact-call__status--neutral';
-}
 
 function getStatusDotClass(status) {
   if (!status) return 'status-dot';
@@ -2109,35 +1928,22 @@ function getPossibleRwsProject(review) {
 }
 
 // ── Render: AI shortlist view ─────────────────────────────────
-function renderAiShortlist() {
-  const container = document.querySelector('#shortlist-content');
-  if (!container) return;
- 
+
+// ── Helpers: AI shortlist rendering ──────────────────────────────
+function getVisibleAiShortlistReviews() {
   const reviews = Array.from(state.aiReviews.values());
-  
-  // Minimum score filter for AI Shortlist display only
-  // Include calls where AI relevance >= 50 OR project fit >= 50
+  // Minimum score filter for AI Shortlist display only.
+  // Include calls where AI relevance >= 50 OR project fit >= 50.
   const AI_SHORTLIST_MIN_SCORE = 50;
-  const visibleReviews = reviews.filter(review => {
+  return reviews.filter(review => {
     const aiScore = Number(review.aiRelevanceScore || 0);
     const fitScore = Number(review.projectFitScore || 0);
     return aiScore >= AI_SHORTLIST_MIN_SCORE || fitScore >= AI_SHORTLIST_MIN_SCORE;
   });
-  
-  if (!visibleReviews.length) {
-    container.innerHTML = '<p class="shortlist-empty">Geen calls met AI-relevantie of projectfit vanaf 50 gevonden.</p>';
-    return;
-  }
- 
-  const filteredCount  = state.filtered.length;
-  const activePeriod   = getActivePeriodLabel();
-  const activeStatus   = state.filters.status === 'live'
-    ? 'Live (Open + Forthcoming)'
-    : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
-  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
- 
-  // 1. Header
-  let html = `
+}
+
+function renderShortlistHeaderHtml(filteredCount, activePeriod, activeStatus, activeTheme) {
+  return `
     <div class="briefing-header">
       <h2 class="briefing-title">Shortlist</h2>
       <div class="briefing-meta">
@@ -2147,27 +1953,28 @@ function renderAiShortlist() {
         <span class="briefing-meta__item">${filteredCount} calls in scope</span>
       </div>
     </div>`;
- 
-  // 2. Samenvatting
-  const summary = getDeterministicSummary(visibleReviews, filteredCount);
-  html += `
+}
+
+function renderShortlistSummaryHtml(summary) {
+  return `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Samenvatting</h3>
       <ul class="briefing-summary">
         ${summary.map(item => `<li class="briefing-summary__item">${escapeHtml(item)}</li>`).join('')}
       </ul>
     </div>`;
- 
-  // 3. Thema-overzicht
+}
+
+function renderShortlistThemeOverviewHtml(visibleReviews) {
   const selectedThemeSummary = getSelectedThemeSummary(visibleReviews, state.filters.theme);
- 
+
   if (state.filters.theme === 'all') {
     const themeOverview = getThemeOverview(visibleReviews);
-    html += `
+    let html = `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview">`;
- 
+
     const themes = [
       'Corridor Management',
       'Climate Adaptation',
@@ -2175,20 +1982,20 @@ function renderAiShortlist() {
       'Digitalisation',
       'Network Governance'
     ];
- 
+
     themes.forEach(theme => {
       const count   = themeOverview.themeCounts[theme] || 0;
       const scores  = themeOverview.themeScores[theme] || [];
       const scoreRange = scores.length ? `${Math.min(...scores)}\u2013${Math.max(...scores)}` : '\u2014';
       const actions = themeOverview.themeActions[theme] || {};
- 
+
       if (count > 0) {
         const actionLabels = [];
         if (actions['Actief verkennen'] > 0)  actionLabels.push(`A:${actions['Actief verkennen']}`);
         if (actions['Nader toetsen'] > 0)     actionLabels.push(`N:${actions['Nader toetsen']}`);
         if (actions['Monitoren'] > 0)          actionLabels.push(`M:${actions['Monitoren']}`);
         if (actions['Niet prioriteren'] > 0)   actionLabels.push(`P:${actions['Niet prioriteren']}`);
- 
+
         html += `
         <div class="theme-overview__item">
           <div class="theme-overview__header">
@@ -2202,11 +2009,13 @@ function renderAiShortlist() {
         </div>`;
       }
     });
- 
-    html += `</div></div>`;
- 
-  } else if (selectedThemeSummary) {
-    html += `
+
+    return html + `</div></div>`;
+  }
+
+  if (!selectedThemeSummary) return '';
+
+  return `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview theme-overview--compact">
@@ -2223,87 +2032,73 @@ function renderAiShortlist() {
         </div>
       </div>
     </div>`;
+}
+
+function renderCompactCallCardHtml(review, index) {
+  const call = getCallByIdentifier(review.identifier);
+  if (!call) return '';
+
+  const rank         = index + 1;
+  const isExpandable = index < 6;
+  const actionLabel  = clampActionLabel(review, call);
+  const primaryTheme = getPrimaryThemeForGrant(call);
+  const deadline     = call.deadlineDate
+    ? new Date(call.deadlineDate).toLocaleDateString('nl-NL')
+    : 'Onbekend';
+  const callId = `call-${index}`;
+
+  // Score display: separate badges for AI and Project Fit.
+  const aiScore  = review.aiRelevanceScore ?? 0;
+  const fitScore = review.projectFitScore  ?? 0;
+  const aiScoreCls = getScoreBadgeClass(aiScore);
+  const fitScoreCls = getScoreBadgeClass(fitScore);
+
+  // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback.
+  const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
+    ? review.snapshotReden
+    : getCallScope(call);
+
+  // Waarom relevant: gebruik nieuw array-veld, anders rationale splitsen.
+  let whyBullets = [];
+  if (Array.isArray(review.waaromRelevant) && review.waaromRelevant.length > 0) {
+    whyBullets = review.waaromRelevant.slice(0, 2);
+  } else if (review.rationale) {
+    whyBullets = review.rationale
+      .split(/(?<=[.!?])\s+/)
+      .slice(0, 2)
+      .map(s => cleanBulletText(s.trim()))
+      .filter(s => s.length > 10);
   }
- 
-  // 4. Calls
-  const sortedReviews = sortReviewsByAiRelevance(visibleReviews);
- 
-  if (sortedReviews.length > 0) {
-    html += `
-    <div class="briefing-section">
-      <h3 class="briefing-section__title">Alle calls</h3>
-      <div class="compact-calls-grid">`;
- 
-    sortedReviews.forEach((review, index) => {
-      const call = getCallByIdentifier(review.identifier);
-      if (!call) return;
- 
-      const rank         = index + 1;
-      const isExpandable = index < 6;
-      const actionLabel  = clampActionLabel(review, call);
-      const primaryTheme = getPrimaryThemeForGrant(call);
-      const deadline     = call.deadlineDate
-        ? new Date(call.deadlineDate).toLocaleDateString('nl-NL')
-        : 'Onbekend';
-      const callId = `call-${index}`;
- 
-      // Score display: separate badges for AI and Project Fit
-      const aiScore  = review.aiRelevanceScore ?? 0;
-      const fitScore = review.projectFitScore  ?? 0;
-      
-      // Determine score classes for both AI and Project Fit
-      
-      const aiScoreCls = getScoreBadgeClass(aiScore);
-      const fitScoreCls = getScoreBadgeClass(fitScore);
- 
-      // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback
-      const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
-        ? review.snapshotReden
-        : getCallScope(call);
- 
-      // Waarom relevant: gebruik nieuw array-veld, anders rationale splitsen
-      let whyBullets = [];
-      if (Array.isArray(review.waaromRelevant) && review.waaromRelevant.length > 0) {
-        whyBullets = review.waaromRelevant.slice(0, 2);
-      } else if (review.rationale) {
-        whyBullets = review.rationale
-          .split(/(?<=[.!?])\s+/)
-          .slice(0, 2)
-          .map(s => cleanBulletText(s.trim()))
-          .filter(s => s.length > 10);
-      }
- 
-      // Concreet RWS-project: verberg als placeholder
-      const possibleProject = getPossibleRwsProject(review);
- 
-      // Context: resterende zin(nen) uit rationale + RAG-items
-      const rationaleResterende = review.rationale
-        ? review.rationale.split(/(?<=[.!?])\s+/).slice(2, 5).map(s => s.trim()).filter(s => s.length > 10).join(' ')
-        : '';
-      const ragTag = review.ragMatchedItems?.length
-        ? `RAG: ${review.ragMatchedItems.join(', ')}.`
-        : '';
-      const contextText = [rationaleResterende, ragTag].filter(Boolean).join(' ');
- 
-      const uncertainty = review.uncertainties || '';
-      const callRequirements = Array.isArray(review.callRequirements) ? review.callRequirements : [];
-      const actionCls   = actionLabel.toLowerCase().replace(/\s+/g, '-');
- 
-      html += `
+
+  // Concreet RWS-project: verberg als placeholder.
+  const possibleProject = getPossibleRwsProject(review);
+
+  // Context: resterende zin(nen) uit rationale + RAG-items.
+  const rationaleResterende = review.rationale
+    ? review.rationale.split(/(?<=[.!?])\s+/).slice(2, 5).map(s => s.trim()).filter(s => s.length > 10).join(' ')
+    : '';
+  const ragTag = review.ragMatchedItems?.length
+    ? `RAG: ${review.ragMatchedItems.join(', ')}.`
+    : '';
+  const contextText = [rationaleResterende, ragTag].filter(Boolean).join(' ');
+
+  const uncertainty = review.uncertainties || '';
+  const callRequirements = Array.isArray(review.callRequirements) ? review.callRequirements : [];
+
+  return `
         <article class="compact-call${isExpandable ? '' : ' compact-call--static'}" id="${callId}">
- 
           <!-- Bovenrij: rank + badges -->
           <div class="compact-call__top">
             <span class="compact-call__rank">#${rank}</span>
             <div class="compact-call__badges">
               <span class="compact-call__theme">${escapeHtml(primaryTheme)}</span>
-              <span class="status-dot ${getStatusDotClass(call.status)}"></span>
+              <span class="${getStatusDotClass(call.status)}"></span>
             </div>
           </div>
- 
+
           <!-- Titel -->
           <h4 class="compact-call__title">${escapeHtml(call.title)}</h4>
- 
+
           <!-- Meta: ID · programma · deadline -->
           <div class="compact-call__meta">
             <span class="compact-call__id">${escapeHtml(call.identifier)}</span>
@@ -2312,20 +2107,20 @@ function renderAiShortlist() {
             <span class="compact-call__sep">&middot;</span>
             <span class="compact-call__deadline">Deadline: ${escapeHtml(deadline)}</span>
           </div>
- 
+
           <!-- Scores: separate badges for AI and Project Fit -->
           <div class="compact-call__scores">
             <span class="ai-score ${aiScoreCls}">AI ${aiScore}</span>
             <span class="ai-score ${fitScoreCls}">Fit ${fitScore}</span>
           </div>
- 
+
           <!-- Snapshot: 1 zin waarom relevant -->
           <p class="compact-call__snapshot">${escapeHtml(snapshotReden)}</p>
- 
+
           ${isExpandable ? `
           <!-- Expanded content -->
           <div class="compact-call__content" id="${callId}-content" aria-hidden="true">
- 
+
             ${whyBullets.length ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Waarom relevant</h5>
@@ -2333,19 +2128,19 @@ function renderAiShortlist() {
                 ${whyBullets.map(b => `<li class="compact-call__bullet">${escapeHtml(cleanBulletText(b))}</li>`).join('')}
               </ul>
             </div>` : ''}
- 
+
             ${possibleProject ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Concreet RWS-project</h5>
               <p class="compact-call__text">${escapeHtml(possibleProject)}</p>
             </div>` : ''}
- 
+
             ${uncertainty ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Onzekerheid</h5>
               <p class="compact-call__text">${escapeHtml(uncertainty)}</p>
             </div>` : ''}
- 
+
             ${callRequirements.length ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Vereisten uit calltekst</h5>
@@ -2353,59 +2148,70 @@ function renderAiShortlist() {
                 ${callRequirements.map(req => `<li class="compact-call__bullet">${escapeHtml(req)}</li>`).join('')}
               </ul>
             </div>` : ''}
- 
+
             ${contextText ? `
             <div class="compact-call__section compact-call__section--context">
               <h5 class="compact-call__section-title">Context</h5>
               <p class="compact-call__text compact-call__text--small">${escapeHtml(contextText)}</p>
             </div>` : ''}
- 
+
           </div>
- 
+
           <!-- Footer: expand-knop onderaan + open call -->
           <div class="compact-call__footer">
             <button class="compact-call__toggle" aria-expanded="false" aria-controls="${callId}-content">
               <span class="compact-call__toggle-icon">&#9660;</span>
               <span class="compact-call__toggle-text">Bekijk details</span>
             </button>
-            ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
+            ${call.url ? `<a class="compact-call__open" href="${escapeHtml(call.url)}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
           </div>` : `
           <!-- Static (rank 7+): alleen open call link -->
           <div class="compact-call__footer">
-            ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
+            ${call.url ? `<a class="compact-call__open" href="${escapeHtml(call.url)}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
           </div>`}
- 
+
         </article>`;
-    });
- 
-    html += `</div></div>`;
-  }
- 
-  // 5. Watchlist
+}
+
+function renderShortlistCallsHtml(visibleReviews) {
+  const sortedReviews = sortReviewsByAiRelevance(visibleReviews);
+  if (!sortedReviews.length) return '';
+
+  return `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Alle calls</h3>
+      <div class="compact-calls-grid">
+        ${sortedReviews.map(renderCompactCallCardHtml).join('')}
+      </div>
+    </div>`;
+}
+
+function renderWatchlistHtml(visibleReviews) {
   const watchlistCalls = getWatchlistCalls(visibleReviews);
-  if (watchlistCalls.length > 0) {
-    html += `
+  if (!watchlistCalls.length) return '';
+
+  let html = `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Watchlist</h3>
       <div class="watchlist">`;
- 
-    watchlistCalls.forEach(review => {
-      const call = getCallByIdentifier(review.identifier);
-      if (!call) return;
- 
-      const actionLabel  = clampActionLabel(review, call);
-      const primaryTheme = getPrimaryThemeForGrant(call);
- 
-      let watchlistReason = '';
-      if (review.projectFitScore >= review.aiRelevanceScore + 15) {
-        watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore}) \u2014 relevant als projectidee concreter wordt.`;
-      } else if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
-        watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100) \u2014 ${actionLabel}.`;
-      } else {
-        watchlistReason = `Actie: ${actionLabel}.`;
-      }
- 
-      html += `
+
+  watchlistCalls.forEach(review => {
+    const call = getCallByIdentifier(review.identifier);
+    if (!call) return;
+
+    const actionLabel  = clampActionLabel(review, call);
+    const primaryTheme = getPrimaryThemeForGrant(call);
+
+    let watchlistReason = '';
+    if (review.projectFitScore >= review.aiRelevanceScore + 15) {
+      watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore}) \u2014 relevant als projectidee concreter wordt.`;
+    } else if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
+      watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100) \u2014 ${actionLabel}.`;
+    } else {
+      watchlistReason = `Actie: ${actionLabel}.`;
+    }
+
+    html += `
         <article class="watchlist-item">
           <div class="watchlist-item__header">
             <h4 class="watchlist-item__title">${escapeHtml(call.title)}</h4>
@@ -2416,27 +2222,15 @@ function renderAiShortlist() {
             <span class="watchlist-item__score">AI: ${review.aiRelevanceScore}/100</span>
           </div>
           <p class="watchlist-item__reason">${escapeHtml(watchlistReason)}</p>
-          ${call.url ? `<a class="watchlist-item__open" href="${call.url}" target="_blank" rel="noreferrer">Open</a>` : ''}
+          ${call.url ? `<a class="watchlist-item__open" href="${escapeHtml(call.url)}" target="_blank" rel="noreferrer">Open</a>` : ''}
         </article>`;
-    });
- 
-    html += `</div></div>`;
-  }
- 
-  // 6. Vervolgacties
-  const nextActions = getDeduplicatedNextActions(reviews);
-  if (nextActions.length > 0) {
-    html += `
-    <div class="briefing-section">
-      <h3 class="briefing-section__title">Vervolgacties</h3>
-      <ul class="next-actions">
-        ${nextActions.map(a => `<li class="next-action"><strong>${escapeHtml(a.callId)}:</strong> ${escapeHtml(a.action)}</li>`).join('')}
-      </ul>
-    </div>`;
-  }
- 
-  // 7. Aannames en beperkingen
-  html += `
+  });
+
+  return html + `</div></div>`;
+}
+
+function renderShortlistDisclaimerHtml(activePeriod) {
+  return `
     <div class="briefing-section briefing-disclaimer">
       <h3 class="briefing-section__title">Aannames en beperkingen</h3>
       <ul class="briefing-disclaimer__items">
@@ -2446,65 +2240,54 @@ function renderAiShortlist() {
         <li class="briefing-disclaimer__item">Shortlist is een vergaderhulpmiddel, geen definitief subsidiebesluit.</li>
       </ul>
     </div>`;
- 
-  container.innerHTML = html;
- 
-  // Expand/collapse
-  setTimeout(() => {
-    document.querySelectorAll('.compact-call__toggle').forEach(button => {
-      button.addEventListener('click', () => {
-        const callArticle = button.closest('.compact-call');
-        const content     = document.getElementById(`${callArticle.id}-content`);
-        if (!content) return;
- 
-        const isExpanded = button.getAttribute('aria-expanded') === 'true';
-        button.setAttribute('aria-expanded', String(!isExpanded));
-        content.setAttribute('aria-hidden', String(isExpanded));
- 
-        button.querySelector('.compact-call__toggle-icon').innerHTML = isExpanded ? '&#9660;' : '&#9650;';
-        button.querySelector('.compact-call__toggle-text').textContent = isExpanded ? 'Bekijk details' : 'Minder';
-      });
+}
+
+function wireShortlistExpandToggles(container) {
+  container.querySelectorAll('.compact-call__toggle').forEach(button => {
+    button.addEventListener('click', () => {
+      const callArticle = button.closest('.compact-call');
+      const content     = callArticle ? document.getElementById(`${callArticle.id}-content`) : null;
+      if (!content) return;
+
+      const isExpanded = button.getAttribute('aria-expanded') === 'true';
+      button.setAttribute('aria-expanded', String(!isExpanded));
+      content.setAttribute('aria-hidden', String(isExpanded));
+
+      button.querySelector('.compact-call__toggle-icon').innerHTML = isExpanded ? '&#9660;' : '&#9650;';
+      button.querySelector('.compact-call__toggle-text').textContent = isExpanded ? 'Bekijk details' : 'Minder';
     });
-  }, 100);
+  });
+}
+function renderAiShortlist() {
+  const container = document.querySelector('#shortlist-content');
+  if (!container) return;
+
+  const visibleReviews = getVisibleAiShortlistReviews();
+  if (!visibleReviews.length) {
+    container.innerHTML = '<p class="shortlist-empty">Geen calls met AI-relevantie of projectfit vanaf 50 gevonden.</p>';
+    return;
+  }
+
+  const filteredCount  = state.filtered.length;
+  const activePeriod   = getActivePeriodLabel();
+  const activeStatus   = state.filters.status === 'live'
+    ? 'Live (Open + Forthcoming)'
+    : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
+  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
+  const summary        = getDeterministicSummary(visibleReviews, filteredCount);
+
+  container.innerHTML =
+    renderShortlistHeaderHtml(filteredCount, activePeriod, activeStatus, activeTheme) +
+    renderShortlistSummaryHtml(summary) +
+    renderShortlistThemeOverviewHtml(visibleReviews) +
+    renderShortlistCallsHtml(visibleReviews) +
+    renderWatchlistHtml(visibleReviews) +
+    renderShortlistDisclaimerHtml(activePeriod);
+
+  wireShortlistExpandToggles(container);
 }
  
 // ── Render: AI briefing panel (geen ragContextUsed) ───────────
-function renderAiBriefing() {
-  const panel = elements.aiBriefingPanel;
-  if (!panel) return;
-  if (!state.aiSummary) { panel.hidden = true; return; }
-  panel.hidden = false;
-  const s = state.aiSummary;
-
-  panel.innerHTML =
-    '<div class="ai-briefing__header">' +
-      '<h3 class="ai-briefing__title">AI Shortlist Briefing</h3>' +
-      '<span class="ai-briefing__badge">Management Samenvatting</span>' +
-    '</div>' +
-    '<div class="ai-briefing__content">' +
-      '<section class="ai-briefing__section"><h4>Executive Summary</h4><p class="ai-briefing__text">' + escapeHtml(s.executiveSummary || 'Geen samenvatting beschikbaar.') + '</p></section>' +
-      '<section class="ai-briefing__section"><h4>Overall Advice</h4><p class="ai-briefing__text ai-briefing__text--advice">' + escapeHtml(s.overallAdvice || 'Geen advies beschikbaar.') + '</p></section>' +
-      '<section class="ai-briefing__section"><h4>Top 3 Opportunities</h4><div class="ai-briefing__opportunities">' +
-        (s.topOpportunities?.length
-          ? s.topOpportunities.slice(0, 3).map((o, i) =>
-              '<div class="ai-briefing__opportunity">' +
-                '<span class="ai-briefing__opportunity-rank">#' + (i + 1) + '</span>' +
-                '<div class="ai-briefing__opportunity-content">' +
-                  '<strong class="ai-briefing__opportunity-title">' + escapeHtml(o.title || o.identifier || 'Onbekend') + '</strong>' +
-                  '<p class="ai-briefing__opportunity-rationale">' + escapeHtml(o.rationale || '') + '</p>' +
-                  '<span class="ai-briefing__opportunity-score">Score: ' + (o.score || 'N/A') + '/100</span>' +
-                '</div>' +
-              '</div>').join('')
-          : '<p class="ai-briefing__text">Geen top opportuniteiten.</p>') +
-      '</div></section>' +
-      '<section class="ai-briefing__section"><h4>Notable Exclusions</h4><p class="ai-briefing__text">' + escapeHtml(s.notableExclusions || 'Geen exclusies.') + '</p></section>' +
-      '<section class="ai-briefing__section"><h4>Recommended Next Steps</h4><ul class="ai-briefing__steps">' +
-        (s.recommendedNextSteps?.length
-          ? s.recommendedNextSteps.map(st => '<li class="ai-briefing__step">' + escapeHtml(st) + '</li>').join('')
-          : '') +
-      '</ul></section>' +
-    '</div>';
-}
 
 // ── Render: AI results list ───────────────────────────────────
 function renderAiResults() {
@@ -2563,30 +2346,15 @@ function normalizeAiReviewForDisplay(review) {
 }
 
 // ── AI: per-card scoring ──────────────────────────────────────
+// AI routes intentionally preserved: per-card analysis, top-results batch analysis, and saved-calls review.
+// All routes now share buildAiRequestPayload/toAiCallPayload to keep AI input fields consistent.
 const AI_CACHE = new Map();
 
 async function scoreGrantWithAI(grant) {
   if (!AI_API_URL) { alert('AI-backend nog niet geconfigureerd. Test AI via de Vercel-site.'); return null; }
   if (AI_CACHE.has(grant.identifier)) return AI_CACHE.get(grant.identifier);
 
-  const payload = {
-    projectIdea:   state.filters.projectIdea,
-    keywords:      state.filters.query,
-    selectedTheme: state.filters.theme === 'all' ? '' : state.filters.theme,
-    calls: [{
-      identifier:          grant.identifier,
-      title:               grant.title,
-      programme:           getPrimaryProgramme(grant),
-      destination:         grant.destination || '',
-      summary:             grant.summary || '',
-      abstract:            getAiAbstractText(grant),
-      actionType:          grant.actionType || grant.kind?.label || '',
-      frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
-      programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
-      matchedThemes:       grant.relevance?.matchedThemes?.map(t => t.label) || [],
-      matchedTerms:        grant.relevance?.matchedTerms || []
-    }]
-  };
+  const payload = buildAiRequestPayload([grant]);
 
   try {
     const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -2616,8 +2384,8 @@ async function scoreGrantWithAI(grant) {
 // ── AI: batch top-15 reranking ────────────────────────────────
 // Note: uses state.filtered.slice(0,15) — intentionally takes the top 15
 // of ALL filtered results (not just the current page) for best analysis coverage.
-function toAiCallPayload(grant) {
-  return {
+function toAiCallPayload(grant, options = {}) {
+  const payload = {
     identifier:          grant.identifier,
     title:               grant.title,
     programme:           getPrimaryProgramme(grant),
@@ -2627,8 +2395,24 @@ function toAiCallPayload(grant) {
     actionType:          grant.actionType || grant.kind?.label || '',
     frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
     programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
-    matchedThemes: grant.relevance?.matchedThemes?.map(t => t.label) || [],
-    matchedTerms:  grant.relevance?.matchedTerms || []
+    matchedThemes:       grant.relevance?.matchedThemes?.map(t => t.label) || [],
+    matchedTerms:        grant.relevance?.matchedTerms || []
+  };
+
+  if (options.includeReviewMetadata) {
+    payload.budget = grant.budget?.totalBudgetEur || null;
+    payload.deadline = grant.deadlineDate || null;
+  }
+
+  return payload;
+}
+
+function buildAiRequestPayload(calls, options = {}) {
+  return {
+    projectIdea:   state.filters.projectIdea,
+    keywords:      state.filters.query,
+    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+    calls:         calls.map(grant => toAiCallPayload(grant, options))
   };
 }
 
@@ -2650,11 +2434,11 @@ async function scoreTopResultsWithAI() {
   }
 
   // Clear previous summary for batched processing
-  state.aiSummary = null;
+  let batchIndex = 0;
 
   try {
     // Process batches sequentially
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    for (batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
       
       // Update progress for current batch
@@ -2663,12 +2447,7 @@ async function scoreTopResultsWithAI() {
       }
       console.log(`AI batch ${batchIndex + 1}/${batches.length} started`);
 
-      const payload = {
-        projectIdea:   state.filters.projectIdea,
-        keywords:      state.filters.query,
-        selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
-        calls:         batch.map(toAiCallPayload)
-      };
+      const payload = buildAiRequestPayload(batch);
 
       const res = await fetch(AI_API_URL, { 
         method: 'POST', 
@@ -2715,8 +2494,6 @@ async function scoreTopResultsWithAI() {
 
     if (statusEl) statusEl.textContent = `${state.aiReviews.size} calls succesvol geanalyseerd.`;
     if (btn)      { btn.textContent = 'Heranalyseer'; btn.disabled = false; }
-
-    renderAiBriefing();
     renderResults();
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
@@ -2734,24 +2511,7 @@ async function runAiReview() {
   const aiRevBtn = document.querySelector('#ai-review-button');
   if (aiRevBtn) { aiRevBtn.disabled = true; aiRevBtn.textContent = 'Analyseren...'; }
 
-  const payload = {
-    projectIdea:   state.filters.projectIdea,
-    keywords:      state.filters.query,
-    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
-    calls: saved.slice(0, 10).map(g => ({
-      identifier:          g.identifier,
-      title:               g.title,
-      programme:           getPrimaryProgramme(g),
-      destination:         g.destination || '',
-      summary:             g.summary || '',
-      abstract:            getAiAbstractText(g),
-      actionType:          g.actionType || g.kind?.label || '',
-      budget:              g.budget?.totalBudgetEur || null,
-      deadline:            g.deadlineDate || null,
-      matchedThemes:       g.relevance?.matchedThemes?.map(t => t.label) || [],
-      matchedTerms:        g.relevance?.matchedTerms || []
-    }))
-  };
+  const payload = buildAiRequestPayload(saved.slice(0, 10), { includeReviewMetadata: true });
 
   try {
     const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -2974,8 +2734,8 @@ function showAuthModal(type = 'signin') {
   if (type === 'signin') {
     content.innerHTML = `
       <h2>Sign In</h2>
-      ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
-      ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
+      ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
+      ${state.auth.success ? `<div class="auth-success">${escapeHtml(state.auth.success)}</div>` : ''}
       <form class="auth-form">
         <input type="email" id="email-input" placeholder="Email" required>
         <input type="password" id="password-input" placeholder="Password" required>
@@ -2988,7 +2748,7 @@ function showAuthModal(type = 'signin') {
   } else {
     content.innerHTML = `
       <h2>Sign Up</h2>
-      ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+      ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
       <form class="auth-form">
         <input type="text" id="display-name-input" placeholder="Display Name" required>
         <input type="email" id="email-input" placeholder="Email" required>
@@ -3098,12 +2858,10 @@ async function requestPasswordReset(email) {
       throw error;
     }
 
-    // Only show success if no error
-    if (!error) {
-      state.auth.success = 'Password reset email sent! Check your inbox.';
-      updateAuthUI();
-    }
-    return !error;
+    // Show success message
+    state.auth.success = 'Password reset email sent! Check your inbox.';
+    updateAuthUI();
+    return true;
 
   } catch (error) {
     console.error('Password reset failed:', error.message);
@@ -3131,8 +2889,8 @@ function showPasswordResetRequestForm() {
   
   content.innerHTML = `
     <h2>Reset Password</h2>
-    ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
-    ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
+    ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
+    ${state.auth.success ? `<div class="auth-success">${escapeHtml(state.auth.success)}</div>` : ''}
     <p>Enter your email address and we'll send you a link to reset your password.</p>
     <form class="auth-form">
       <input type="email" id="reset-email-input" placeholder="Email" required>
@@ -3185,8 +2943,8 @@ function showPasswordResetForm() {
   
   content.innerHTML = `
     <h2>Set New Password</h2>
-    ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
-    ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
+    ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
+    ${state.auth.success ? `<div class="auth-success">${escapeHtml(state.auth.success)}</div>` : ''}
     <form class="auth-form">
       <input type="password" id="new-password-input" placeholder="New Password" required>
       <input type="password" id="confirm-password-input" placeholder="Confirm New Password" required>
@@ -3437,7 +3195,7 @@ function showSaveSearchModal() {
   content.innerHTML = `
     <h2>Save Current Search</h2>
     <form class="auth-form">
-      <input type="text" id="search-name-input" placeholder="Search name" value="${defaultName}" required>
+      <input type="text" id="search-name-input" placeholder="Search name" value="${escapeHtml(defaultName)}" required>
       <button type="submit" id="confirm-save-search">Save Search</button>
       <button type="button" id="cancel-save-search" class="ghost-button">Cancel</button>
     </form>
@@ -3481,16 +3239,16 @@ function renderSavedSearchesPanel() {
       : 'All themes';
     
     return `
-      <div class="saved-search-item" data-search-id="${search.id}">
+      <div class="saved-search-item" data-search-id="${escapeHtml(search.id)}">
         <div>
-          <strong>${search.name}</strong>
+          <strong>${escapeHtml(search.name)}</strong>
           <div class="saved-search-meta">
-            <small>${themeName} • ${search.filters?.status || 'live'}</small>
+            <small>${escapeHtml(themeName)} • ${escapeHtml(search.filters?.status || 'live')}</small>
           </div>
         </div>
         <div class="saved-search-actions">
-          <button class="apply-search-btn ghost-button" data-search-id="${search.id}">Apply</button>
-          <button class="delete-search-btn ghost-button" data-search-id="${search.id}">Delete</button>
+          <button class="apply-search-btn ghost-button" data-search-id="${escapeHtml(search.id)}">Apply</button>
+          <button class="delete-search-btn ghost-button" data-search-id="${escapeHtml(search.id)}">Delete</button>
         </div>
       </div>
     `;
@@ -3552,10 +3310,8 @@ function update() {
   renderMetrics();
   renderSidebar();
   renderSavedCallsPanel();
-  renderAiBriefing();
   renderResults();
   renderPagination();
-  if (state.activeView === 'pipeline') renderPipeline();
 }
 
 // ── Wire events ───────────────────────────────────────────────
@@ -3579,7 +3335,7 @@ function wireEvents() {
 
   elements.resetButton?.addEventListener('click', () => {
     state.filters = { query: '', projectIdea: '', status: 'live', programme: 'all', theme: 'all', actionType: 'all', recentMonths: 'all', sort: 'relevance-desc' };
-    state.aiReviews.clear(); state.aiSummary = null; state.aiRerankActive = false;
+    state.aiReviews.clear(); state.aiRerankActive = false;
     const statusEl = document.querySelector('#ai-rerank-status');
     const aiBtn    = document.querySelector('#ai-rerank-button');
     if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
@@ -3600,7 +3356,6 @@ function wireEvents() {
 // ── Bootstrap ─────────────────────────────────────────────────
 async function init() {
   loadSavedCalls();
-  loadPipeline();
   parseHash();
   
   // Initialize auth
