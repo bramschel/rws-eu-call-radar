@@ -381,7 +381,7 @@ const QUERY_SYNONYMS = {
   corridor: ['transport corridor','TEN-T corridor','mobility corridor','logistics corridor','multimodal corridor'],
   corridorbeheer: ['corridor management','TEN-T corridor management','transport corridor management','multimodal corridor management'],
   vaarwegen: ['waterways','inland waterways','navigation','waterborne transport','waterway infrastructure','River Information Services','RIS'],
-  binnenvaart: ['inland navigation','inland waterways','waterborne transport','shipping','River Information Services','RIS'],
+  binnenvaart: ['inland navigation','inland waterways','waterborne transport','shipping','River Information Services','RIS','inland ports'],
   rivieren: ['rivers','river basin','river management','river systems','water management','flood risk'],
   rivierbeheer: ['river management','river basin management','integrated river management','water management','flood risk management'],
   waterbeheer: ['water management','water system management','river basin management','integrated water management','water governance'],
