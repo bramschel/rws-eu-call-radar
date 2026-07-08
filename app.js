@@ -48,103 +48,56 @@ const STATUS_OPTIONS = [
 ];
 
 // ── Thema's & scoringsdata ────────────────────────────────────
-const THEME_METADATA = {
-  'corridor-management': {
-    label: 'Corridor Management',
-    description: 'Transportcorridors, vaarwegen, TEN-T, verkeersmanagement, ITS/C-ITS en slimme mobiliteit.'
-  },
-  'climate-adaptation': {
-    label: 'Climate Adaptation',
-    description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, overstromingsrisico en waterbeheer.'
-  },
-  sustainability: {
-    label: 'Sustainability / Duurzame Leefomgeving',
-    description: 'Circulaire infrastructuur, emissieloos bouwen, biodiversiteit, natuur, waterkwaliteit en RWS-areaal.'
-  },
-  digitalisation: {
-    label: 'Digitalisation',
-    description: 'Digitalisering van infrastructuurbeheer, data, digital twins, ITS/C-ITS, sensoring en assetmanagement.'
-  },
-  'network-governance': {
-    label: 'Network Governance',
-    description: 'Assetmanagement, infrabeheerders, ketensamenwerking, uitvoeringskracht en Europese netwerkgovernance.'
-  }
-};
+const RWS_THEMES = [
+  { id: 'corridor-management', label: 'Corridor Management',
+    description: 'Transportcorridors, vaarwegen, TEN-T, multimodaliteit, verkeersmanagement en slimme mobiliteit.',
+    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
+  { id: 'climate-adaptation', label: 'Climate Adaptation',
+    description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, hitte, overstroming en resilience.',
+    terms: ['climate adaptation','climate resilience','resilient infrastructure','adaptive infrastructure','flood risk','flood safety','flood protection','flood preparedness','water security','water resilience','sea level rise','storm surge','extreme weather','heat stress','drought','freshwater availability','fresh water','water management','river basin','coastal resilience','urban resilience','climate proof','climate-proof'] },
+  { id: 'sustainability', label: 'Sustainability / Duurzame Leefomgeving',
+    description: 'Duurzame infrastructuur, circulariteit, klimaatneutraliteit, biodiversiteit, natuur en waterkwaliteit.',
+    terms: ['sustainability','sustainable infrastructure','sustainable land use','sustainable water management','circular economy','circular infrastructure','material reuse','reuse of materials','secondary raw materials','asphalt recycling','recycling','circular procurement','zero-emission construction','zero emission construction','low carbon construction','climate-neutral infrastructure','carbon neutral','carbon-neutral','energy neutral','biodiversity','nature-inclusive infrastructure','nature inclusive infrastructure','habitat restoration','ecosystem restoration','nature-based solutions','nature based solutions','building with nature','green infrastructure','blue infrastructure','green and blue infrastructure','water quality','water pollution','wastewater','ecology'] },
+  { id: 'digitalisation', label: 'Digitalisation',
+    description: 'Data, AI, digital twins, smart infrastructure, automatisering, informatievoorziening en besluitvorming.',
+    terms: ['AI-assisted infrastructure','construction automation','cyber resilience','data governance','data infrastructure','data sharing','data-driven','data driven','decision support','digitalisation','digitalization','digital twin','digital twins','information management','information systems','interoperability','machine learning','mobility data','predictive maintenance','remote sensing','smart infrastructure','smart mobility','traffic data'] },
+  { id: 'network-governance', label: 'Network Governance',
+    description: 'Internationale samenwerking, harmonisatie, standaardisatie, beleidsinstrumenten en netwerkcoördinatie.',
+    terms: ['network governance','governance','cross-border cooperation','cross border cooperation','international cooperation','European cooperation','coordination','co-ordination','harmonisation','harmonization','standardisation','standardization','interoperability','policy instruments','capacity building','institutional cooperation','stakeholder cooperation','partnerships','public authorities','public administration','regulatory framework','knowledge exchange','best practices','European networks','network operators','road authorities','water authorities'] }
+];
 
-function getThemeLabel(themeId) {
-  return THEME_METADATA[themeId]?.label || themeId || 'Niet gespecificeerd';
-}
+const IMPORTANT_PHRASES = [
+  { phrase: 'material reuse',                   theme: 'sustainability',      weight: 28 },
+  { phrase: 'reuse of materials',               theme: 'sustainability',      weight: 28 },
+  { phrase: 'circular infrastructure',          theme: 'sustainability',      weight: 32 },
+  { phrase: 'asphalt recycling',                theme: 'sustainability',      weight: 30 },
+  { phrase: 'circular procurement',             theme: 'sustainability',      weight: 24 },
+  { phrase: 'nature-based solutions',           theme: 'sustainability',      weight: 26 },
+  { phrase: 'water quality',                    theme: 'sustainability',      weight: 20 },
+  { phrase: 'climate resilient infrastructure', theme: 'climate-adaptation',  weight: 34 },
+  { phrase: 'climate resilience',               theme: 'climate-adaptation',  weight: 24 },
+  { phrase: 'flood risk',                       theme: 'climate-adaptation',  weight: 28 },
+  { phrase: 'flood protection',                 theme: 'climate-adaptation',  weight: 28 },
+  { phrase: 'sea level rise',                   theme: 'climate-adaptation',  weight: 26 },
+  { phrase: 'river basin',                      theme: 'climate-adaptation',  weight: 22 },
+  { phrase: 'inland waterways',                 theme: 'corridor-management', weight: 30 },
+  { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
+  { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
+  { phrase: 'traffic management',               theme: 'corridor-management', weight: 22 },
+  { phrase: 'digital twin',                     theme: 'digitalisation',      weight: 30 },
+  { phrase: 'decision support',                 theme: 'digitalisation',      weight: 22 },
+  { phrase: 'predictive maintenance',           theme: 'digitalisation',      weight: 26 },
+  { phrase: 'sensor data',                      theme: 'digitalisation',      weight: 20 },
+  { phrase: 'network governance',               theme: 'network-governance',  weight: 30 },
+  { phrase: 'cross-border cooperation',         theme: 'network-governance',  weight: 24 },
+  { phrase: 'dual-use infrastructure',          theme: 'corridor-management', weight: 28 },
+  { phrase: 'dual use',                         theme: 'corridor-management', weight: 18 },
+  { phrase: 'transport infrastructure',         theme: 'corridor-management', weight: 24 },
+  { phrase: 'road transport',                   theme: 'corridor-management', weight: 24 }
+];
 
-const THEME_LABELS = Object.fromEntries(
-  Object.entries(THEME_METADATA).map(([id, meta]) => [id, meta.label])
-);
+const RWS_DOMAIN_TERMS = ['infrastructure','transport infrastructure','road infrastructure','roads','highways','bridges','tunnels','asset management','maintenance','renovation','traffic management','mobility','smart mobility','corridor','TEN-T','inland waterways','waterways','navigation','shipping','ports','river','river basin','flood risk','flood protection','water safety','water management','coastal','sea level rise','drought','digital twin','sensor data','decision support','predictive maintenance','water infrastructure','flood management','flood resilience','flood defence','flood defense','stormwater','river management','coastal management','coastal protection','dike','dyke','levee','waterway infrastructure','climate-proof infrastructure','climate proof infrastructure','infrastructure resilience','road resilience','bridge resilience','tunnel resilience'];
 
-// ── RAG-derived local relevance profiles ──────────────────────
-// Deterministic profiles derived from rws_rag_context.json.
-// Generic terms are intentionally weak unless supported by RWS-specific context.
-const RWS_RELEVANCE_PROFILES = {
-  'corridor-management': {
-    label: THEME_METADATA['corridor-management'].label,
-    strongSignals: [
-      'corridor management','TEN-T','TEN-T corridor','trans-European transport network','CEF Transport','Connecting Europe Facility',
-      'military mobility','military mobility corridor','dual-use infrastructure','civilian-defence dual use','inland waterways',
-      'vaarwegen','binnenvaart','River Information Services','RIS','traffic management','verkeersmanagement','ITS','C-ITS',
-      'cooperative intelligent transport systems','vehicle-to-infrastructure communication','infrastructure-to-vehicle communication',
-      'cross-border corridor management','cross-border transport infrastructure','road network resilience','waterway depth','low water shipping',
-      'multimodal corridor','multimodal hubs','corridorhubs'
-    ],
-    weakSignals: ['navigation','shipping','ports','logistics','multimodal','smart mobility','mobility data','transport infrastructure','network management','transport corridor','mobility corridor','infrastructure adaptation','infrastructure works'],
-    requiredContextAny: ['road authority','national highway authority','waterway authority','national waterway authority','infrastructure manager','asset owner','public infrastructure manager','road network','national road network','main road network','waterway network','inland waterway network','transport corridor','cross-border infrastructure','infrastructure management','infrastructure renewal','infrastructure maintenance','asset renovation','replacement and renovation','VenR','bridges','locks','sluices','tunnels','waterways','vaarwegen'],
-    roleSignals: ['lead partner','project partner','associated partner','pilot site','asset owner','living lab','implementation','demonstration','cofinancing','beheerder','infrabeheerder','wegbeheerder','vaarwegbeheerder'],
-    programmeSignals: ['CEF Transport','Connecting Europe Facility','TEN-T'],
-    exclusionSignals: ['urban mobility','first mile','last mile','passenger transport','public transport passengers','city mobility','consumer mobility app','tourism mobility','aviation passenger services','pure logistics supply chain','commercial supply chain','freight marketplace'],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  'climate-adaptation': {
-    label: THEME_METADATA['climate-adaptation'].label,
-    strongSignals: ['climate adaptation','climate resilience','climate-proof infrastructure','climate proof infrastructure','flood risk','flood protection','flood risk management','water safety','waterveiligheid','sea level rise','zeespiegelstijging','storm surge barrier','stormvloedkering','flood barrier','dike reinforcement','dike','dyke','levee','waterkering','freshwater supply','zoetwatervoorziening','drought management','low water navigation','inland waterway resilience','river basin management','integral river management','integraal riviermanagement','IRM','Deltaprogramma','cross-border water management','coastal resilience','nature-based flood defence','stress test infrastructure','heat stress infrastructure'],
-    weakSignals: ['resilience','adaptive infrastructure','water management','extreme weather','drought','freshwater availability','stormwater management','urban resilience','climate proof','climate risk','risk assessment'],
-    requiredContextAny: ['infrastructure','infrastructure management','road infrastructure','water infrastructure','waterway infrastructure','main road network','main waterway network','water system','river system','river basin','coastal system','bridges','locks','sluices','tunnels','water barriers','flood defences','Rijkswaterstaat','public infrastructure manager','water authority','asset owner','cross-border river basin','Rhine','Meuse','Scheldt','North Sea'],
-    roleSignals: ['pilot site','demonstration','implementation','asset owner','knowledge partner','infrastructure manager','water authority','beheerder','uitvoeringsorganisatie'],
-    programmeSignals: [],
-    exclusionSignals: ['agriculture','farmer','crop resilience','crop adaptation','food production','livestock','agri-food','urban greening only','city adaptation only','building renovation only','household climate adaptation','health adaptation','tourism adaptation'],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  sustainability: {
-    label: THEME_METADATA.sustainability.label,
-    strongSignals: ['circular infrastructure','circular construction','material reuse','reuse of materials','secondary raw materials','asphalt recycling','recycled asphalt','concrete recycling','biobased materials','circular procurement','sustainable procurement','zero-emission construction','zero emission construction','clean construction','low-emission machinery','electrification of construction machinery','CO2 reduction','climate-neutral infrastructure','carbon neutral infrastructure','nature-inclusive infrastructure','nature inclusive infrastructure','nature-based solutions','building with nature','biodiversity in infrastructure','ecological management','habitat restoration','habitat improvement','fish migration','seagrass restoration','water quality','soil quality','environmental noise','noise pollution','microplastics','RWS areaal','rijkswateren','rijkswegen'],
-    weakSignals: ['sustainability','sustainable infrastructure','green infrastructure','blue infrastructure','green and blue infrastructure','circular economy','recycling','renewable energy','energy efficiency','energy transition','biodiversity','ecology','ecosystem restoration','air quality','water management','multi-functional land use','integrated territorial approach','place-based approach'],
-    requiredContextAny: ['infrastructure','infrastructure sector','road infrastructure','water infrastructure','waterways','roads','bridges','locks','sluices','tunnels','civil infrastructure','public infrastructure manager','asset owner','infrastructure manager','areaal','RWS areaal','national road network','national waterway network','rijkswateren','rijkswegen','construction works','infrastructure works','infrastructure procurement','infrabeheerders','ProRail','water authority'],
-    roleSignals: ['launching customer','pilot site','living lab','asset owner','public procurer','infrastructure manager','knowledge partner','implementation','demonstration','procurement'],
-    programmeSignals: [],
-    exclusionSignals: ['consumer sustainability','retail','food','food packaging','fashion','household waste','urban green space only','city park','social housing','private buildings','consumer behaviour','agriculture without water link','bioeconomy without infrastructure link'],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  digitalisation: {
-    label: THEME_METADATA.digitalisation.label,
-    strongSignals: ['digital twin infrastructure','digital twins for infrastructure','infrastructure digital twin','asset digital twin','asset management digitalisation','digital infrastructure management','infrastructure data platform','sensor data','condition monitoring','structural health monitoring','predictive maintenance','decision support systems','BIM','building information modelling','areaaldata','industrial automation','operational technology','cybersecurity of operational systems','cyber security of operational systems','inspection robotics','robotics for inspection','AI for infrastructure management','AI for asset management','machine learning for condition assessment','C-ITS','ITS','traffic data','mobility data','data ecosystem for infrastructure managers','data sharing for public infrastructure','European data spaces for mobility','CEF Digital','Digital Europe Programme','DSGO','DSM','NGII','EuroSDR','EuroGeographics'],
-    weakSignals: ['AI','artificial intelligence','machine learning','data','data governance','data sharing','open data','data platform','digitalisation','digitalization','digital transformation','digital infrastructure','interoperability','remote sensing','smart infrastructure','automation','robotics','cybersecurity','digital twin'],
-    requiredContextAny: ['infrastructure','infrastructure management','asset management','public infrastructure manager','asset owner','road authority','water authority','national road network','waterway network','roads','waterways','bridges','locks','sluices','tunnels','water barriers','traffic management','shipping','navigation','C-ITS','ITS','operational technology','industrial automation','condition assessment','structural health monitoring','predictive maintenance','areaaldata','BIM'],
-    roleSignals: ['data provider','knowledge partner','living lab','pilot site','asset owner','infrastructure manager','implementation','demonstration','public authority','beheerder'],
-    programmeSignals: ['Digital Europe Programme','CEF Digital'],
-    exclusionSignals: ['semiconductor','semiconductors','chips','chip manufacturing','semiconductor supply chain','microelectronics','microelectronics production','consumer electronics','electronics manufacturing','manufacturing supply chain','industrial supply chain','supply chain resilience','supply chain digital twin','factory automation','financial technology','fintech','health data','medical data','education technology','consumer app','e-commerce','retail platform','social media'],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  'network-governance': {
-    label: THEME_METADATA['network-governance'].label,
-    strongSignals: ['network governance','infrastructure asset management','asset management','ISO 55001','lifecycle management','infrastructure lifecycle management','residual lifetime','failure risk','failure risk assessment','condition assessment','network condition monitoring','structural health monitoring','bridge management','lock management','tunnel management','infrastructure maintenance governance','renovation and replacement','replacement and renovation','VenR','infrastructure renewal','infrastructure renewal pipeline','portfolio approach','portfolioaanpak','Taskforce Infra','ketensamenwerking','supply chain collaboration in infrastructure','public procurement infrastructure','performance-based contracting','cross-border infrastructure management','cross-border water management','road authorities','water authorities','national transport authority','infrabeheerders','CEDR','PIARC','PIANC','theIAM','Worldclass Maintenance','EU policy implementation','implementation gap','execution capacity','infrastructure policy influence','data governance infrastructure'],
-    weakSignals: ['governance','coordination','co-ordination','cooperation','collaboration','international cooperation','European cooperation','cross-border cooperation','harmonisation','harmonization','standardisation','standardization','interoperability','capacity building','knowledge exchange','best practices','public authorities','regulatory framework','stakeholder cooperation','partnerships','European networks','network operators','policy instruments'],
-    requiredContextAny: ['infrastructure','infrastructure manager','public infrastructure manager','asset owner','asset management','road authority','water authority','national transport authority','infrabeheerder','infrabeheerders','road network','waterway network','transport network','water management','river basin','cross-border water management','bridges','locks','sluices','tunnels','maintenance','renovation','replacement','lifecycle','network performance','public procurement infrastructure','infrastructure sector'],
-    roleSignals: ['lead partner','knowledge partner','public authority','infrastructure manager','asset owner','road authority','water authority','implementation','policy implementation','execution capacity','beheerder','uitvoeringsorganisatie'],
-    programmeSignals: [],
-    exclusionSignals: ['financial markets governance','health governance','healthcare governance','local democracy','local government only','municipal governance only','education governance','school governance','social services governance','community governance','citizen participation','consumer governance','corporate governance','semiconductor supply chain','industrial supply chain without infrastructure','supply chain resilience without infrastructure'],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  }
-};
 const QUERY_SYNONYMS = {
   assetmanagement: ['asset management','infrastructure asset management','ISO 55001','lifecycle management','asset lifecycle','network performance','condition assessment','asset data','areaaldata','infrastructure maintenance'],
   instandhouding: ['resilience','infrastructure resilience','asset management','renovation','replacement','renewal','lifecycle management','predictive maintenance','condition monitoring'],
@@ -247,6 +200,178 @@ const QUERY_SYNONYMS = {
 };
 
 const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via']);
+
+const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood',
+  'local democracy', 'social inclusion',
+  'citizens participation', 'community governance',
+  'social cohesion', 'urban residents',
+  'housing', 'social housing',
+  'school', 'education facility',
+  'health centre', 'social services'];
+
+// RWS core fit terms - focused infrastructure/water/mobility terms only
+const RWS_CORE_TERMS = [
+  'navigable inland waterways',
+  'inland waterways',
+  'waterways',
+  'water infrastructure',
+  'waterway infrastructure',
+  'hydraulic infrastructure',
+  'flood resilience',
+  'flood protection',
+  'water management',
+  'asset management',
+  'infrastructure asset management',
+  'infrastructure resilience',
+  'climate resilience',
+  'climate adaptation',
+  'bridges',
+  'locks',
+  'sluices',
+  'dikes',
+  'water barriers',
+  'transport corridors',
+  'TEN-T',
+  'corridor management',
+  'road infrastructure',
+  'mobility infrastructure',
+  'dual-use infrastructure',
+  'cross-border infrastructure'
+];
+
+const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
+// ── RAG-derived local relevance profiles ──────────────────────
+// These deterministic profiles are derived from rws_rag_context.json.
+// They replace broad theme keyword matching as the primary local relevance signal.
+// Generic terms are intentionally weak unless supported by RWS-specific context.
+const RWS_RELEVANCE_PROFILES = {
+  'corridor-management': {
+    label: 'Corridor Management',
+    strongSignals: [
+      'corridor management','TEN-T','TEN-T corridor','trans-European transport network','CEF Transport','Connecting Europe Facility',
+      'military mobility','military mobility corridor','dual-use infrastructure','civilian-defence dual use','inland waterways',
+      'vaarwegen','binnenvaart','River Information Services','RIS','traffic management','verkeersmanagement','ITS','C-ITS',
+      'cooperative intelligent transport systems','vehicle-to-infrastructure communication','infrastructure-to-vehicle communication',
+      'cross-border corridor management','cross-border transport infrastructure','road network resilience','waterway depth','low water shipping',
+      'multimodal corridor','multimodal hubs','corridorhubs'
+    ],
+    weakSignals: [
+      'navigation','shipping','ports','logistics','multimodal','smart mobility','mobility data','transport infrastructure',
+      'network management','transport corridor','mobility corridor','infrastructure adaptation','infrastructure works'
+    ],
+    requiredContextAny: [
+      'road authority','national highway authority','waterway authority','infrastructure manager','asset owner','public infrastructure manager',
+      'road network','national road network','main road network','waterway network','inland waterway network','transport corridor',
+      'cross-border infrastructure','infrastructure management','infrastructure renewal','infrastructure maintenance','asset renovation',
+      'replacement and renovation','VenR','bridges','locks','sluices','tunnels','waterways','vaarwegen'
+    ],
+    roleSignals: ['lead partner','project partner','associated partner','pilot site','asset owner','living lab','implementation','demonstration','cofinancing','beheerder','infrabeheerder','wegbeheerder','vaarwegbeheerder'],
+    programmeSignals: ['CEF','CEF Transport','Connecting Europe Facility','TEN-T','Interreg','Horizon Europe'],
+    exclusionSignals: ['urban mobility','first mile','last mile','passenger transport','public transport passengers','city mobility','consumer mobility app','tourism mobility','aviation passenger services','pure logistics supply chain','commercial supply chain','freight marketplace'],
+    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  'climate-adaptation': {
+    label: 'Climate Adaptation',
+    strongSignals: [
+      'climate adaptation','climate resilience','climate-proof infrastructure','climate proof infrastructure','flood risk','flood protection',
+      'flood risk management','water safety','waterveiligheid','sea level rise','zeespiegelstijging','storm surge barrier','stormvloedkering',
+      'flood barrier','dike reinforcement','dike','dyke','levee','waterkering','freshwater supply','zoetwatervoorziening',
+      'drought management','low water navigation','inland waterway resilience','river basin management','integral river management',
+      'integraal riviermanagement','IRM','Deltaprogramma','cross-border water management','coastal resilience','nature-based flood defence',
+      'stress test infrastructure','heat stress infrastructure'
+    ],
+    weakSignals: ['resilience','adaptive infrastructure','water management','extreme weather','drought','freshwater availability','stormwater management','urban resilience','climate proof','climate risk','risk assessment'],
+    requiredContextAny: [
+      'infrastructure','infrastructure management','road infrastructure','water infrastructure','waterway infrastructure','main road network',
+      'main waterway network','water system','river system','river basin','coastal system','bridges','locks','sluices','tunnels',
+      'water barriers','flood defences','Rijkswaterstaat','public infrastructure manager','water authority','asset owner',
+      'cross-border river basin','Rhine','Meuse','Scheldt','North Sea'
+    ],
+    roleSignals: ['pilot site','demonstration','implementation','asset owner','knowledge partner','infrastructure manager','water authority','beheerder','uitvoeringsorganisatie'],
+    programmeSignals: ['Interreg','Horizon Europe','LIFE','CEF'],
+    exclusionSignals: ['agriculture','farmer','crop resilience','crop adaptation','food production','livestock','agri-food','urban greening only','city adaptation only','building renovation only','household climate adaptation','health adaptation','tourism adaptation'],
+    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  sustainability: {
+    label: 'Sustainability / Duurzame Leefomgeving',
+    strongSignals: [
+      'circular infrastructure','circular construction','material reuse','reuse of materials','secondary raw materials','asphalt recycling',
+      'recycled asphalt','concrete recycling','biobased materials','circular procurement','sustainable procurement','zero-emission construction',
+      'zero emission construction','clean construction','low-emission machinery','electrification of construction machinery','CO2 reduction',
+      'climate-neutral infrastructure','carbon neutral infrastructure','nature-inclusive infrastructure','nature inclusive infrastructure',
+      'nature-based solutions','building with nature','biodiversity in infrastructure','ecological management','habitat restoration',
+      'habitat improvement','fish migration','seagrass restoration','water quality','soil quality','environmental noise','noise pollution',
+      'microplastics','RWS areaal','rijkswateren','rijkswegen'
+    ],
+    weakSignals: ['sustainability','sustainable infrastructure','green infrastructure','blue infrastructure','green and blue infrastructure','circular economy','recycling','renewable energy','energy efficiency','energy transition','biodiversity','ecology','ecosystem restoration','air quality','water management','multi-functional land use','integrated territorial approach','place-based approach'],
+    requiredContextAny: [
+      'infrastructure','infrastructure sector','road infrastructure','water infrastructure','waterways','roads','bridges','locks','sluices',
+      'tunnels','civil infrastructure','public infrastructure manager','asset owner','infrastructure manager','areaal','RWS areaal',
+      'national road network','national waterway network','rijkswateren','rijkswegen','construction works','infrastructure works',
+      'infrastructure procurement','infrabeheerders','ProRail','water authority'
+    ],
+    roleSignals: ['launching customer','pilot site','living lab','asset owner','public procurer','infrastructure manager','knowledge partner','implementation','demonstration','procurement'],
+    programmeSignals: ['Horizon Europe','LIFE','Interreg','CEF'],
+    exclusionSignals: ['consumer sustainability','retail','food','food packaging','fashion','household waste','urban green space only','city park','social housing','private buildings','consumer behaviour','agriculture without water link','bioeconomy without infrastructure link'],
+    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  digitalisation: {
+    label: 'Digitalisation',
+    strongSignals: [
+      'digital twin infrastructure','digital twins for infrastructure','infrastructure digital twin','asset digital twin','asset management digitalisation',
+      'digital infrastructure management','infrastructure data platform','sensor data','condition monitoring','structural health monitoring',
+      'predictive maintenance','decision support systems','BIM','building information modelling','areaaldata','industrial automation',
+      'operational technology','cybersecurity of operational systems','cyber security of operational systems','inspection robotics','robotics for inspection',
+      'AI for infrastructure management','AI for asset management','machine learning for condition assessment','C-ITS','ITS','traffic data','mobility data',
+      'data ecosystem for infrastructure managers','data sharing for public infrastructure','European data spaces for mobility','CEF Digital',
+      'Digital Europe Programme','DSGO','DSM','NGII','EuroSDR','EuroGeographics'
+    ],
+    weakSignals: ['AI','artificial intelligence','machine learning','data','data governance','data sharing','open data','data platform','digitalisation','digitalization','digital transformation','digital infrastructure','interoperability','remote sensing','smart infrastructure','automation','robotics','cybersecurity','digital twin'],
+    requiredContextAny: [
+      'infrastructure','infrastructure management','asset management','public infrastructure manager','asset owner','road authority','water authority',
+      'national road network','waterway network','roads','waterways','bridges','locks','sluices','tunnels','water barriers',
+      'traffic management','shipping','navigation','C-ITS','ITS','operational technology','industrial automation','condition assessment',
+      'structural health monitoring','predictive maintenance','areaaldata','BIM'
+    ],
+    roleSignals: ['data provider','knowledge partner','living lab','pilot site','asset owner','infrastructure manager','implementation','demonstration','public authority','beheerder'],
+    programmeSignals: ['Digital Europe Programme','CEF Digital','Horizon Europe','Interreg'],
+    exclusionSignals: [
+      'semiconductor','semiconductors','chips','microelectronics','consumer electronics','electronics manufacturing','manufacturing supply chain',
+      'industrial supply chain','supply chain resilience','supply chain digital twin','factory automation','financial technology','fintech',
+      'health data','medical data','education technology','consumer app','e-commerce','retail platform','social media'
+    ],
+    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  'network-governance': {
+    label: 'Network Governance',
+    strongSignals: [
+      'network governance','infrastructure asset management','asset management','ISO 55001','lifecycle management','infrastructure lifecycle management',
+      'residual lifetime','failure risk','failure risk assessment','condition assessment','network condition monitoring','structural health monitoring',
+      'bridge management','lock management','tunnel management','infrastructure maintenance governance','renovation and replacement',
+      'replacement and renovation','VenR','infrastructure renewal','infrastructure renewal pipeline','portfolio approach','portfolioaanpak',
+      'Taskforce Infra','ketensamenwerking','supply chain collaboration in infrastructure','public procurement infrastructure',
+      'performance-based contracting','cross-border infrastructure management','cross-border water management','road authorities','water authorities',
+      'national transport authority','infrabeheerders','CEDR','PIARC','PIANC','theIAM','Worldclass Maintenance','EU policy implementation',
+      'implementation gap','execution capacity','infrastructure policy influence','data governance infrastructure'
+    ],
+    weakSignals: ['governance','coordination','co-ordination','cooperation','collaboration','international cooperation','European cooperation','cross-border cooperation','harmonisation','harmonization','standardisation','standardization','interoperability','capacity building','knowledge exchange','best practices','public authorities','regulatory framework','stakeholder cooperation','partnerships','European networks','network operators','policy instruments'],
+    requiredContextAny: [
+      'infrastructure','infrastructure manager','public infrastructure manager','asset owner','asset management','road authority','water authority',
+      'national transport authority','infrabeheerder','infrabeheerders','road network','waterway network','transport network','water management',
+      'river basin','cross-border water management','bridges','locks','sluices','tunnels','maintenance','renovation','replacement',
+      'lifecycle','network performance','public procurement infrastructure','infrastructure sector'
+    ],
+    roleSignals: ['lead partner','knowledge partner','public authority','infrastructure manager','asset owner','road authority','water authority','implementation','policy implementation','execution capacity','beheerder','uitvoeringsorganisatie'],
+    programmeSignals: ['Interreg','Horizon Europe','CEF','LIFE'],
+    exclusionSignals: ['financial markets governance','health governance','healthcare governance','local democracy','local government only','municipal governance only','education governance','school governance','social services governance','community governance','citizen participation','consumer governance','corporate governance','semiconductor supply chain','industrial supply chain without infrastructure','supply chain resilience without infrastructure'],
+    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
+  }
+};
+
 
 // ── State ─────────────────────────────────────────────────────
 const state = {
@@ -429,6 +554,50 @@ function getGrantTextFields(grant) {
   };
 }
 
+function scoreRwsCoreFit(grantText) {
+  // Score RWS core fit based on infrastructure/water/mobility terms
+  // Phrase matches count more than single terms
+  let rwsCoreScore = 0;
+  const matchedRwsCoreTerms = [];
+  
+  for (const term of RWS_CORE_TERMS) {
+    const normalizedTerm = normalizeText(term);
+    if (grantText.includes(normalizedTerm)) {
+      // Phrase matches get higher weight
+      const weight = term.includes(' ') ? 3 : 1;
+      rwsCoreScore += weight;
+      matchedRwsCoreTerms.push(term);
+    }
+  }
+  
+  // Cap at reasonable maximum
+  return {
+    rwsCoreScore: Math.min(25, rwsCoreScore),
+    matchedRwsCoreTerms
+  };
+}
+
+function scoreImportantPhrases(fields, selectedTheme) {
+  let phraseScore = 0;
+  const matchedPhrases = [];
+  for (const item of IMPORTANT_PHRASES) {
+    const np = normalizeText(item.phrase);
+    const inTitle   = fields.title.includes(np);
+    const inSummary = fields.summary.includes(np) || fields.destination.includes(np);
+    const inOther   = fields.abstract.includes(np) || fields.searchText.includes(np);
+    if (inTitle || inSummary || inOther) {
+      let w = item.weight;
+      if (inTitle)   w += 12;
+      if (inSummary) w += 6;
+      if (selectedTheme !== 'all' && item.theme === selectedTheme) w += 10;
+      phraseScore += w;
+      matchedPhrases.push(item.phrase);
+    }
+  }
+  return { phraseScore, matchedPhrases };
+}
+
+
 function findTermMatches(grantText, terms) {
   const matches = [];
   const seen = new Set();
@@ -451,8 +620,7 @@ function evaluateRagThemeProfile(grantText, themeId, profile) {
   const programmeMatches = findTermMatches(grantText, profile.programmeSignals);
   const exclusionMatches = findTermMatches(grantText, profile.exclusionSignals);
 
-  // Programme names are supporting evidence only. They must not create RWS context by themselves.
-  const hasRwsContext = contextMatches.length > 0 || roleMatches.length > 0;
+  const hasRwsContext = contextMatches.length > 0 || roleMatches.length > 0 || programmeMatches.length > 0;
   const hasThemeSignal = strongMatches.length > 0 || weakMatches.length > 0 || contextMatches.length > 0;
 
   const strongSignalScore = Math.min(40, strongMatches.length * 10);
@@ -461,7 +629,7 @@ function evaluateRagThemeProfile(grantText, themeId, profile) {
     : Math.min(8, weakMatches.length);
   const contextScore = Math.min(25, contextMatches.length * 8);
   const roleScore = Math.min(15, roleMatches.length * 5);
-  const programmeScore = hasRwsContext ? Math.min(10, programmeMatches.length * 5) : 0;
+  const programmeScore = Math.min(10, programmeMatches.length * 5);
 
   let score = strongSignalScore + weakSignalScore + contextScore + roleScore + programmeScore;
   let capApplied = null;
@@ -496,7 +664,13 @@ function evaluateRagThemeProfile(grantText, themeId, profile) {
     hasRwsContext,
     passesThemeGate,
     capApplied,
-    components: { strongSignalScore, weakSignalScore, contextScore, roleScore, programmeScore }
+    components: {
+      strongSignalScore,
+      weakSignalScore,
+      contextScore,
+      roleScore,
+      programmeScore
+    }
   };
 }
 
@@ -508,21 +682,25 @@ function evaluateRagThemeProfiles(grantText) {
 }
 
 function getBestRagThemeEvaluation(evaluations, selectedTheme = 'all') {
-  if (selectedTheme !== 'all') return evaluations.find(result => result.id === selectedTheme) || null;
+  if (selectedTheme !== 'all') {
+    return evaluations.find(result => result.id === selectedTheme) || null;
+  }
   return evaluations.find(result => result.passesThemeGate) || evaluations[0] || null;
-}
-
-function hasRagSearchContext(evaluations) {
-  return evaluations.some(result => result.hasRwsContext || result.strongMatches.length > 0);
 }
 
 function applyRagCap(score, evaluation) {
   if (!evaluation) return Math.min(35, score);
   const profile = RWS_RELEVANCE_PROFILES[evaluation.id];
   if (!profile) return score;
-  if (evaluation.exclusionMatches.length > 0 && !evaluation.hasRwsContext) return Math.min(score, profile.caps.exclusionWithoutContext);
-  if (!evaluation.hasRwsContext && evaluation.strongMatches.length === 0 && evaluation.weakMatches.length > 0) return Math.min(score, profile.caps.weakOnly);
-  if (!evaluation.hasRwsContext) return Math.min(score, profile.caps.noRwsContext);
+  if (evaluation.exclusionMatches.length > 0 && !evaluation.hasRwsContext) {
+    return Math.min(score, profile.caps.exclusionWithoutContext);
+  }
+  if (!evaluation.hasRwsContext && evaluation.strongMatches.length === 0 && evaluation.weakMatches.length > 0) {
+    return Math.min(score, profile.caps.weakOnly);
+  }
+  if (!evaluation.hasRwsContext) {
+    return Math.min(score, profile.caps.noRwsContext);
+  }
   return score;
 }
 
@@ -531,17 +709,13 @@ function passesSelectedThemeFilter(relevance, selectedTheme) {
   const theme = relevance.ragThemeEvaluations?.find(t => t.id === selectedTheme);
   return Boolean(theme?.passesThemeGate);
 }
-
 function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   const fields    = getGrantTextFields(grant);
   const combined  = normalizeText([query, projectIdea].filter(Boolean).join(' '));
   const origTerms = splitTerms(combined);
   const terms     = expandQueryTerms(combined);
   const grantText = [fields.title, fields.summary, fields.destination, fields.abstract, fields.actionType, fields.searchText].join(' ');
-
-  const ragThemeEvaluations = evaluateRagThemeProfiles(grantText);
-  const bestRagTheme = getBestRagThemeEvaluation(ragThemeEvaluations, selectedTheme);
-  const hasSearchContext = hasRagSearchContext(ragThemeEvaluations);
+  const hasRwsDomain = textContainsAny(grantText, RWS_DOMAIN_TERMS);
 
   const matchedTerms     = new Set();
   const origMatchedTerms = new Set();
@@ -551,7 +725,7 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   for (const term of terms) {
     const isOrig   = origTerms.includes(term);
     const isPhrase = term.includes(' ');
-    if (['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis'].includes(term) && !hasSearchContext) continue;
+    if (WEAK_TERMS.has(term) && !hasRwsDomain) continue;
 
     const tw = isOrig ? 10 : isPhrase ? 9 : 3;
     const sw = isOrig ? 6  : isPhrase ? 6 : 2;
@@ -559,21 +733,24 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     const xw = isOrig ? 2  : isPhrase ? 2 : 0;
     let hit = false;
 
-    if      (fields.title.includes(term))                                       { queryRaw += tw; hit = true; }
-    else if (fields.summary.includes(term) || fields.destination.includes(term)) { queryRaw += sw; hit = true; }
-    else if (fields.abstract.includes(term))                                     { queryRaw += aw; hit = true; }
-    else if (xw > 0 && fields.searchText.includes(term))                        { queryRaw += xw; hit = true; }
+    if      (fields.title.includes(term))                                        { queryRaw += tw; hit = true; }
+    else if (fields.summary.includes(term) || fields.destination.includes(term))  { queryRaw += sw; hit = true; }
+    else if (fields.abstract.includes(term))                                      { queryRaw += aw; hit = true; }
+    else if (xw > 0 && fields.searchText.includes(term))                         { queryRaw += xw; hit = true; }
 
     if (hit) {
       matchedTerms.add(term);
-      if (isOrig) origMatchedTerms.add(term);
+      if (isOrig)   origMatchedTerms.add(term);
       if (isPhrase) expandedPhraseMatched = true;
     }
   }
 
-  const queryScore = Math.min(30, queryRaw);
-  const queryMatched = matchedTerms.size > 0;
+  const queryScore       = Math.min(30, queryRaw);
+  const queryMatched     = matchedTerms.size > 0;
   const origQueryMatched = origMatchedTerms.size > 0;
+
+  const ragThemeEvaluations = evaluateRagThemeProfiles(grantText);
+  const bestRagTheme = getBestRagThemeEvaluation(ragThemeEvaluations, selectedTheme);
   const matchedThemes = ragThemeEvaluations
     .filter(theme => theme.matches.length > 0)
     .map(theme => ({
@@ -584,13 +761,33 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
       passesThemeGate: theme.passesThemeGate,
       hasRwsContext: theme.hasRwsContext,
       capApplied: theme.capApplied
-    }))
-    .sort((a, b) => b.score - a.score);
+    }));
 
   const themeScore = bestRagTheme?.score || 0;
+
+  // Phrase score is retained but no longer allowed to overrule RAG-based RWS-fit caps.
+  const phraseResult = scoreImportantPhrases(fields, selectedTheme);
+  const phraseScore  = Math.min(15, Math.round(Math.min(30, phraseResult.phraseScore) * 0.5));
+
   const hasUserInput = Boolean(query?.trim() || projectIdea?.trim());
   const userScore = hasUserInput ? queryScore : 0;
-  let score = themeScore + userScore;
+
+  // RWS core fit is retained for diagnostics and as a small supporting signal.
+  const coreFitResult = scoreRwsCoreFit(grantText);
+  const rwsCoreScore = coreFitResult.rwsCoreScore;
+  const matchedRwsCoreTerms = coreFitResult.matchedRwsCoreTerms;
+  const rwsCoreBonus = bestRagTheme?.hasRwsContext ? Math.min(10, rwsCoreScore) : 0;
+
+  let score = themeScore + userScore + phraseScore + rwsCoreBonus;
+
+  let noisePenalty = 0;
+  for (const n of NOISE_TERMS) {
+    if (grantText.includes(normalizeText(n))) {
+      score -= 10;
+      noisePenalty += 10;
+    }
+  }
+
   const scoreBeforeRagCap = score;
   score = applyRagCap(score, bestRagTheme);
 
@@ -600,30 +797,33 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     const disp = origMatchedTerms.size > 0 ? Array.from(origMatchedTerms) : Array.from(matchedTerms);
     reasons.push('Zoektermen: ' + disp.slice(0, 6).join(', '));
   }
-  if (matchedThemes.length) reasons.push("Thema's: " + matchedThemes.map(t => `${t.label}${t.passesThemeGate ? '' : ' (zwakke fit)'}`).join(', '));
+  if (matchedThemes.length) {
+    reasons.push("Thema's: " + matchedThemes.map(t => `${t.label}${t.passesThemeGate ? '' : ' (zwakke fit)'}`).join(', '));
+  }
+  if (phraseResult.matchedPhrases.length) reasons.push('Sleuteltermen: ' + phraseResult.matchedPhrases.slice(0, 5).join(', '));
   if (bestRagTheme?.exclusionMatches.length) reasons.push('Lage-fit signalen: ' + bestRagTheme.exclusionMatches.slice(0, 5).join(', '));
   if (bestRagTheme?.hasRwsContext) reasons.push('RWS-context: ' + [...bestRagTheme.contextMatches, ...bestRagTheme.roleMatches].slice(0, 5).join(', '));
   if (fields.title && terms.some(t => fields.title.includes(t))) reasons.push('Match in titel.');
+
+  matchedThemes.sort((a, b) => b.score - a.score);
 
   return {
     score: Math.min(100, Math.max(0, Math.round(score || 1))),
     queryMatched, origQueryMatched, expandedPhraseMatched,
     matchedTerms: Array.from(matchedTerms),
     origMatchedTerms: Array.from(origMatchedTerms),
-    matchedPhrases: [],
+    matchedPhrases: phraseResult.matchedPhrases,
     matchedThemes, reasons,
-    rwsCoreScore: bestRagTheme?.components?.contextScore || 0,
-    matchedRwsCoreTerms: bestRagTheme ? [...bestRagTheme.contextMatches, ...bestRagTheme.roleMatches] : [],
-    rwsCoreBonus: 0,
+    rwsCoreScore, matchedRwsCoreTerms, rwsCoreBonus,
     ragThemeEvaluations,
     ragBestTheme: bestRagTheme,
     ragDiagnostics: {
       queryScore,
       themeScore,
-      phraseScore: 0,
-      rwsCoreScore: bestRagTheme?.components?.contextScore || 0,
-      rwsCoreBonus: 0,
-      noisePenalty: 0,
+      phraseScore,
+      rwsCoreScore,
+      rwsCoreBonus,
+      noisePenalty,
       scoreBeforeRagCap,
       appliedCap: bestRagTheme?.capApplied || null,
       hasRwsContext: Boolean(bestRagTheme?.hasRwsContext),
@@ -1924,7 +2124,7 @@ function getSelectedThemeSummary(reviews, selectedTheme) {
   if (actionCounts['Niet prioriteren'] > 0) actionLabels.push(`P:${actionCounts['Niet prioriteren']}`);
   
   return {
-    theme: getThemeLabel(selectedTheme),
+    theme: selectedTheme,
     count: themeReviews.length,
     scoreRange: scoreRange,
     actionLabels: actionLabels.join(' '),
@@ -2307,7 +2507,7 @@ function renderAiShortlist() {
   const activeStatus   = state.filters.status === 'live'
     ? 'Live (Open + Forthcoming)'
     : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
-  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : getThemeLabel(state.filters.theme);
+  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
   const summary        = getDeterministicSummary(visibleReviews, filteredCount);
 
   container.innerHTML =
@@ -3074,7 +3274,7 @@ async function saveCurrentSearch(name = null) {
   // Generate a name if not provided
   if (!name) {
     const queryParts = state.filters.query.trim().split(' ').slice(0, 3);
-    const theme = state.filters.theme !== 'all' ? getThemeLabel(state.filters.theme) : null;
+    const theme = state.filters.theme !== 'all' ? RWS_THEMES.find(t => t.id === state.filters.theme)?.label : null;
     name = queryParts.length > 0 ? queryParts.join(' ') : (theme || 'Untitled search');
   }
   
@@ -3223,7 +3423,7 @@ function showSaveSearchModal() {
   
   // Generate default name
   const queryParts = state.filters.query.trim().split(' ').slice(0, 3);
-  const theme = state.filters.theme !== 'all' ? getThemeLabel(state.filters.theme) : null;
+  const theme = state.filters.theme !== 'all' ? RWS_THEMES.find(t => t.id === state.filters.theme)?.label : null;
   const defaultName = queryParts.length > 0 ? queryParts.join(' ') : (theme || 'Untitled search');
   
   content.innerHTML = `
@@ -3269,7 +3469,7 @@ function renderSavedSearchesPanel() {
   
   const searchItems = state.savedSearches.map(search => {
     const themeName = search.filters?.theme && search.filters.theme !== 'all'
-      ? getThemeLabel(search.filters.theme)
+      ? RWS_THEMES.find(t => t.id === search.filters.theme)?.label
       : 'All themes';
     
     return `
