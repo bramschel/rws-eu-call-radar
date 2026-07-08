@@ -339,7 +339,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
   { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
   { phrase: 'traffic management',               theme: 'corridor-management', weight: 22 },
-  { phrase: 'digital twin',                     theme: 'digitalisation',      weight: 30 },
+  { phrase: 'digital twin',                     theme: 'digitalisation',      weight: 20 },
   { phrase: 'decision support',                 theme: 'digitalisation',      weight: 22 },
   { phrase: 'predictive maintenance',           theme: 'digitalisation',      weight: 26 },
   { phrase: 'sensor data',                      theme: 'digitalisation',      weight: 20 },
@@ -348,7 +348,8 @@ const IMPORTANT_PHRASES = [
   { phrase: 'dual-use infrastructure',          theme: 'corridor-management', weight: 28 },
   { phrase: 'dual use',                         theme: 'corridor-management', weight: 18 },
   { phrase: 'transport infrastructure',         theme: 'corridor-management', weight: 24 },
-  { phrase: 'road transport',                   theme: 'corridor-management', weight: 24 }
+  { phrase: 'road transport',                   theme: 'corridor-management', weight: 24 },
+  { phrase: 'CEF Infrastructure Projects'       theme: 'corridor-management', weight: 16 },
 ];
 
 const RWS_DOMAIN_TERMS = ['infrastructure','transport infrastructure','road infrastructure','roads','highways','bridges','tunnels','asset management','maintenance','renovation','traffic management','mobility','smart mobility','corridor','TEN-T','inland waterways','waterways','navigation','shipping','ports','river','river basin','flood risk','flood protection','water safety','water management','coastal','sea level rise','drought','digital twin','sensor data','decision support','predictive maintenance','water infrastructure','flood management','flood resilience','flood defence','flood defense','stormwater','river management','coastal management','coastal protection','dike','dyke','levee','waterway infrastructure','climate-proof infrastructure','climate proof infrastructure','infrastructure resilience','road resilience','bridge resilience','tunnel resilience'];
@@ -456,7 +457,7 @@ const QUERY_SYNONYMS = {
 
 const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via']);
 
-const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood',
+const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood', 'energy grid'
   'local democracy', 'social inclusion',
   'citizens participation', 'community governance',
   'social cohesion', 'urban residents',
@@ -491,10 +492,11 @@ const RWS_CORE_TERMS = [
   'road infrastructure',
   'mobility infrastructure',
   'dual-use infrastructure',
-  'cross-border infrastructure'
+  'cross-border infrastructure',
+  'CEF'
 ];
 
-const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
+const WEAK_TERMS = new Set(['data','energy','AI','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
 
 // ── State ─────────────────────────────────────────────────────
 const state = {
