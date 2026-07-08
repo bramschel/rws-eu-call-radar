@@ -3,6 +3,9 @@ const DATA_URL = './data/grants.json';
 const AI_API_URL = window.location.hostname.includes('vercel.app') ? '/api/score' : '';
 const PAGE_SIZE = 25;
 const SAVED_CALLS_KEY    = 'rws-eu-call-radar-saved-calls';
+const PIPELINE_KEY       = 'rws-eu-call-radar-pipeline';
+const SAVED_SEARCHES_KEY = 'rws-eu-call-radar-saved-searches';
+
 const TRACKING_BASELINE_DATE = '2026-01-01T00:00:00.000Z';
 
 // ── Supabase Client ──────────────────────────────────────────
@@ -47,11 +50,18 @@ const STATUS_OPTIONS = [
   { id: '31094501', label: 'Forthcoming', matches: new Set(['31094501']) }
 ];
 
+const PIPELINE_STAGES = [
+  { id: 'verkennen',  label: 'Verkennen',   color: '#6366f1' },
+  { id: 'beoordelen', label: 'Beoordelen',  color: '#f59e0b' },
+  { id: 'ingediend',  label: 'Ingediend',   color: '#10b981' },
+  { id: 'afgerond',   label: 'Afgerond',    color: '#64748b' }
+];
+
 // ── Thema's & scoringsdata ────────────────────────────────────
 const RWS_THEMES = [
   { id: 'corridor-management', label: 'Corridor Management',
     description: 'Transportcorridors, vaarwegen, TEN-T, multimodaliteit, verkeersmanagement en slimme mobiliteit.',
-    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
+    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','logistics','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
   { id: 'climate-adaptation', label: 'Climate Adaptation',
     description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, hitte, overstroming en resilience.',
     terms: ['climate adaptation','climate resilience','resilient infrastructure','adaptive infrastructure','flood risk','flood safety','flood protection','flood preparedness','water security','water resilience','sea level rise','storm surge','extreme weather','heat stress','drought','freshwater availability','fresh water','water management','river basin','coastal resilience','urban resilience','climate proof','climate-proof'] },
@@ -240,145 +250,15 @@ const RWS_CORE_TERMS = [
 ];
 
 const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
-// ── RAG-derived local relevance profiles ──────────────────────
-// These deterministic profiles are derived from rws_rag_context.json.
-// They replace broad theme keyword matching as the primary local relevance signal.
-// Generic terms are intentionally weak unless supported by RWS-specific context.
-const RWS_RELEVANCE_PROFILES = {
-  'corridor-management': {
-    label: 'Corridor Management',
-    strongSignals: [
-      'corridor management','TEN-T','TEN-T corridor','trans-European transport network','CEF Transport','Connecting Europe Facility',
-      'military mobility','military mobility corridor','dual-use infrastructure','civilian-defence dual use','inland waterways',
-      'vaarwegen','binnenvaart','River Information Services','RIS','traffic management','verkeersmanagement','ITS','C-ITS',
-      'cooperative intelligent transport systems','vehicle-to-infrastructure communication','infrastructure-to-vehicle communication',
-      'cross-border corridor management','cross-border transport infrastructure','road network resilience','waterway depth','low water shipping',
-      'multimodal corridor','multimodal hubs','corridorhubs'
-    ],
-    weakSignals: [
-      'navigation','shipping','ports','logistics','multimodal','smart mobility','mobility data','transport infrastructure',
-      'network management','transport corridor','mobility corridor','infrastructure adaptation','infrastructure works'
-    ],
-    requiredContextAny: [
-      'road authority','national highway authority','waterway authority','infrastructure manager','asset owner','public infrastructure manager',
-      'road network','national road network','main road network','waterway network','inland waterway network','transport corridor',
-      'cross-border infrastructure','infrastructure management','infrastructure renewal','infrastructure maintenance','asset renovation',
-      'replacement and renovation','VenR','bridges','locks','sluices','tunnels','waterways','vaarwegen'
-    ],
-    roleSignals: ['lead partner','project partner','associated partner','pilot site','asset owner','living lab','implementation','demonstration','cofinancing','beheerder','infrabeheerder','wegbeheerder','vaarwegbeheerder'],
-    programmeSignals: ['CEF','CEF Transport','Connecting Europe Facility','TEN-T','Interreg','Horizon Europe'],
-    exclusionSignals: ['urban mobility','first mile','last mile','passenger transport','public transport passengers','city mobility','consumer mobility app','tourism mobility','aviation passenger services','pure logistics supply chain','commercial supply chain','freight marketplace'],
-    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  'climate-adaptation': {
-    label: 'Climate Adaptation',
-    strongSignals: [
-      'climate adaptation','climate resilience','climate-proof infrastructure','climate proof infrastructure','flood risk','flood protection',
-      'flood risk management','water safety','waterveiligheid','sea level rise','zeespiegelstijging','storm surge barrier','stormvloedkering',
-      'flood barrier','dike reinforcement','dike','dyke','levee','waterkering','freshwater supply','zoetwatervoorziening',
-      'drought management','low water navigation','inland waterway resilience','river basin management','integral river management',
-      'integraal riviermanagement','IRM','Deltaprogramma','cross-border water management','coastal resilience','nature-based flood defence',
-      'stress test infrastructure','heat stress infrastructure'
-    ],
-    weakSignals: ['resilience','adaptive infrastructure','water management','extreme weather','drought','freshwater availability','stormwater management','urban resilience','climate proof','climate risk','risk assessment'],
-    requiredContextAny: [
-      'infrastructure','infrastructure management','road infrastructure','water infrastructure','waterway infrastructure','main road network',
-      'main waterway network','water system','river system','river basin','coastal system','bridges','locks','sluices','tunnels',
-      'water barriers','flood defences','Rijkswaterstaat','public infrastructure manager','water authority','asset owner',
-      'cross-border river basin','Rhine','Meuse','Scheldt','North Sea'
-    ],
-    roleSignals: ['pilot site','demonstration','implementation','asset owner','knowledge partner','infrastructure manager','water authority','beheerder','uitvoeringsorganisatie'],
-    programmeSignals: ['Interreg','Horizon Europe','LIFE','CEF'],
-    exclusionSignals: ['agriculture','farmer','crop resilience','crop adaptation','food production','livestock','agri-food','urban greening only','city adaptation only','building renovation only','household climate adaptation','health adaptation','tourism adaptation'],
-    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  sustainability: {
-    label: 'Sustainability / Duurzame Leefomgeving',
-    strongSignals: [
-      'circular infrastructure','circular construction','material reuse','reuse of materials','secondary raw materials','asphalt recycling',
-      'recycled asphalt','concrete recycling','biobased materials','circular procurement','sustainable procurement','zero-emission construction',
-      'zero emission construction','clean construction','low-emission machinery','electrification of construction machinery','CO2 reduction',
-      'climate-neutral infrastructure','carbon neutral infrastructure','nature-inclusive infrastructure','nature inclusive infrastructure',
-      'nature-based solutions','building with nature','biodiversity in infrastructure','ecological management','habitat restoration',
-      'habitat improvement','fish migration','seagrass restoration','water quality','soil quality','environmental noise','noise pollution',
-      'microplastics','RWS areaal','rijkswateren','rijkswegen'
-    ],
-    weakSignals: ['sustainability','sustainable infrastructure','green infrastructure','blue infrastructure','green and blue infrastructure','circular economy','recycling','renewable energy','energy efficiency','energy transition','biodiversity','ecology','ecosystem restoration','air quality','water management','multi-functional land use','integrated territorial approach','place-based approach'],
-    requiredContextAny: [
-      'infrastructure','infrastructure sector','road infrastructure','water infrastructure','waterways','roads','bridges','locks','sluices',
-      'tunnels','civil infrastructure','public infrastructure manager','asset owner','infrastructure manager','areaal','RWS areaal',
-      'national road network','national waterway network','rijkswateren','rijkswegen','construction works','infrastructure works',
-      'infrastructure procurement','infrabeheerders','ProRail','water authority'
-    ],
-    roleSignals: ['launching customer','pilot site','living lab','asset owner','public procurer','infrastructure manager','knowledge partner','implementation','demonstration','procurement'],
-    programmeSignals: ['Horizon Europe','LIFE','Interreg','CEF'],
-    exclusionSignals: ['consumer sustainability','retail','food','food packaging','fashion','household waste','urban green space only','city park','social housing','private buildings','consumer behaviour','agriculture without water link','bioeconomy without infrastructure link'],
-    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  digitalisation: {
-    label: 'Digitalisation',
-    strongSignals: [
-      'digital twin infrastructure','digital twins for infrastructure','infrastructure digital twin','asset digital twin','asset management digitalisation',
-      'digital infrastructure management','infrastructure data platform','sensor data','condition monitoring','structural health monitoring',
-      'predictive maintenance','decision support systems','BIM','building information modelling','areaaldata','industrial automation',
-      'operational technology','cybersecurity of operational systems','cyber security of operational systems','inspection robotics','robotics for inspection',
-      'AI for infrastructure management','AI for asset management','machine learning for condition assessment','C-ITS','ITS','traffic data','mobility data',
-      'data ecosystem for infrastructure managers','data sharing for public infrastructure','European data spaces for mobility','CEF Digital',
-      'Digital Europe Programme','DSGO','DSM','NGII','EuroSDR','EuroGeographics'
-    ],
-    weakSignals: ['AI','artificial intelligence','machine learning','data','data governance','data sharing','open data','data platform','digitalisation','digitalization','digital transformation','digital infrastructure','interoperability','remote sensing','smart infrastructure','automation','robotics','cybersecurity','digital twin'],
-    requiredContextAny: [
-      'infrastructure','infrastructure management','asset management','public infrastructure manager','asset owner','road authority','water authority',
-      'national road network','waterway network','roads','waterways','bridges','locks','sluices','tunnels','water barriers',
-      'traffic management','shipping','navigation','C-ITS','ITS','operational technology','industrial automation','condition assessment',
-      'structural health monitoring','predictive maintenance','areaaldata','BIM'
-    ],
-    roleSignals: ['data provider','knowledge partner','living lab','pilot site','asset owner','infrastructure manager','implementation','demonstration','public authority','beheerder'],
-    programmeSignals: ['Digital Europe Programme','CEF Digital','Horizon Europe','Interreg'],
-    exclusionSignals: [
-      'semiconductor','semiconductors','chips','microelectronics','consumer electronics','electronics manufacturing','manufacturing supply chain',
-      'industrial supply chain','supply chain resilience','supply chain digital twin','factory automation','financial technology','fintech',
-      'health data','medical data','education technology','consumer app','e-commerce','retail platform','social media'
-    ],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  },
-
-  'network-governance': {
-    label: 'Network Governance',
-    strongSignals: [
-      'network governance','infrastructure asset management','asset management','ISO 55001','lifecycle management','infrastructure lifecycle management',
-      'residual lifetime','failure risk','failure risk assessment','condition assessment','network condition monitoring','structural health monitoring',
-      'bridge management','lock management','tunnel management','infrastructure maintenance governance','renovation and replacement',
-      'replacement and renovation','VenR','infrastructure renewal','infrastructure renewal pipeline','portfolio approach','portfolioaanpak',
-      'Taskforce Infra','ketensamenwerking','supply chain collaboration in infrastructure','public procurement infrastructure',
-      'performance-based contracting','cross-border infrastructure management','cross-border water management','road authorities','water authorities',
-      'national transport authority','infrabeheerders','CEDR','PIARC','PIANC','theIAM','Worldclass Maintenance','EU policy implementation',
-      'implementation gap','execution capacity','infrastructure policy influence','data governance infrastructure'
-    ],
-    weakSignals: ['governance','coordination','co-ordination','cooperation','collaboration','international cooperation','European cooperation','cross-border cooperation','harmonisation','harmonization','standardisation','standardization','interoperability','capacity building','knowledge exchange','best practices','public authorities','regulatory framework','stakeholder cooperation','partnerships','European networks','network operators','policy instruments'],
-    requiredContextAny: [
-      'infrastructure','infrastructure manager','public infrastructure manager','asset owner','asset management','road authority','water authority',
-      'national transport authority','infrabeheerder','infrabeheerders','road network','waterway network','transport network','water management',
-      'river basin','cross-border water management','bridges','locks','sluices','tunnels','maintenance','renovation','replacement',
-      'lifecycle','network performance','public procurement infrastructure','infrastructure sector'
-    ],
-    roleSignals: ['lead partner','knowledge partner','public authority','infrastructure manager','asset owner','road authority','water authority','implementation','policy implementation','execution capacity','beheerder','uitvoeringsorganisatie'],
-    programmeSignals: ['Interreg','Horizon Europe','CEF','LIFE'],
-    exclusionSignals: ['financial markets governance','health governance','healthcare governance','local democracy','local government only','municipal governance only','education governance','school governance','social services governance','community governance','citizen participation','consumer governance','corporate governance','semiconductor supply chain','industrial supply chain without infrastructure','supply chain resilience without infrastructure'],
-    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
-  }
-};
-
 
 // ── State ─────────────────────────────────────────────────────
 const state = {
   data: null,
   filtered: [],
   savedIds: new Set(),
+  pipeline: {},         // identifier -> stage id
   aiReviews: new Map(),
+  aiSummary: null,
   aiRerankActive: false,
   activeView: 'radar',
   pagination: { page: 1, pageSize: PAGE_SIZE },
@@ -425,6 +305,7 @@ const elements = {
   resultsList:        document.querySelector('#results-list'),
   loadMoreButton:     document.querySelector('#load-more-button'),
   paginationControls: document.querySelector('#pagination-controls'),
+  aiBriefingPanel:    document.querySelector('#ai-briefing-panel'),
   savedCallsCount:    document.querySelector('#saved-calls-count'),
   savedCallsList:     document.querySelector('#saved-calls-list'),
   exportSavedButton:  document.querySelector('#export-saved-button'),
@@ -434,8 +315,10 @@ const elements = {
   grantCardTemplate:  document.querySelector('#grant-card-template'),
   radarView:          document.querySelector('#radar-view'),
   shortlistView:      document.querySelector('#shortlist-view'),
+  pipelineView:       document.querySelector('#pipeline-view'),
   tabRadar:           document.querySelector('#tab-radar'),
-  tabShortlist:       document.querySelector('#tab-shortlist')
+  tabShortlist:       document.querySelector('#tab-shortlist'),
+  tabPipeline:        document.querySelector('#tab-pipeline')
 };
 
 // ── Formatters ────────────────────────────────────────────────
@@ -510,6 +393,22 @@ function getGrantRecencyTimes(grant) {
     .filter((time) => Number.isFinite(time));
 }
 
+function getGrantRecencyDate(grant) {
+  const isForthcoming = grant.status?.id === '31094501';
+  const candidates = isForthcoming
+    ? [grant.publicationDate, grant.publishedDate, grant.firstPublishedDate,
+       grant.createdAt, grant.createdDate, grant.lastModifiedDate, grant.updatedAt]
+    : [grant.publicationDate, grant.publishedDate, grant.firstPublishedDate,
+       grant.createdAt, grant.createdDate, grant.startDate,
+       grant.lastModifiedDate, grant.updatedAt];
+  for (const d of candidates) {
+    if (d) {
+      const t = new Date(d).getTime();
+      if (!isNaN(t)) return t;
+    }
+  }
+  return null;
+}
 
 function getGrantDateFilterTime(grant) {
   // New status-based date filtering logic
@@ -597,118 +496,6 @@ function scoreImportantPhrases(fields, selectedTheme) {
   return { phraseScore, matchedPhrases };
 }
 
-
-function findTermMatches(grantText, terms) {
-  const matches = [];
-  const seen = new Set();
-  for (const term of terms || []) {
-    const normalized = normalizeText(term);
-    if (!normalized || seen.has(normalized)) continue;
-    if (grantText.includes(normalized)) {
-      matches.push(term);
-      seen.add(normalized);
-    }
-  }
-  return matches;
-}
-
-function evaluateRagThemeProfile(grantText, themeId, profile) {
-  const strongMatches = findTermMatches(grantText, profile.strongSignals);
-  const weakMatches = findTermMatches(grantText, profile.weakSignals);
-  const contextMatches = findTermMatches(grantText, profile.requiredContextAny);
-  const roleMatches = findTermMatches(grantText, profile.roleSignals);
-  const programmeMatches = findTermMatches(grantText, profile.programmeSignals);
-  const exclusionMatches = findTermMatches(grantText, profile.exclusionSignals);
-
-  const hasRwsContext = contextMatches.length > 0 || roleMatches.length > 0 || programmeMatches.length > 0;
-  const hasThemeSignal = strongMatches.length > 0 || weakMatches.length > 0 || contextMatches.length > 0;
-
-  const strongSignalScore = Math.min(40, strongMatches.length * 10);
-  const weakSignalScore = hasRwsContext
-    ? Math.min(20, weakMatches.length * 3)
-    : Math.min(8, weakMatches.length);
-  const contextScore = Math.min(25, contextMatches.length * 8);
-  const roleScore = Math.min(15, roleMatches.length * 5);
-  const programmeScore = Math.min(10, programmeMatches.length * 5);
-
-  let score = strongSignalScore + weakSignalScore + contextScore + roleScore + programmeScore;
-  let capApplied = null;
-
-  if (exclusionMatches.length > 0 && !hasRwsContext) {
-    score = Math.min(score, profile.caps.exclusionWithoutContext);
-    capApplied = 'exclusionWithoutContext';
-  } else if (!hasRwsContext && strongMatches.length === 0 && weakMatches.length > 0) {
-    score = Math.min(score, profile.caps.weakOnly);
-    capApplied = 'weakOnly';
-  } else if (!hasRwsContext && hasThemeSignal) {
-    score = Math.min(score, profile.caps.noRwsContext);
-    capApplied = 'noRwsContext';
-  }
-
-  const passesThemeGate = hasThemeSignal && (
-    hasRwsContext ||
-    (strongMatches.length >= 2 && exclusionMatches.length === 0)
-  );
-
-  return {
-    id: themeId,
-    label: profile.label,
-    score: Math.min(100, Math.round(score)),
-    matches: [...strongMatches, ...weakMatches, ...contextMatches],
-    strongMatches,
-    weakMatches,
-    contextMatches,
-    roleMatches,
-    programmeMatches,
-    exclusionMatches,
-    hasRwsContext,
-    passesThemeGate,
-    capApplied,
-    components: {
-      strongSignalScore,
-      weakSignalScore,
-      contextScore,
-      roleScore,
-      programmeScore
-    }
-  };
-}
-
-function evaluateRagThemeProfiles(grantText) {
-  return Object.entries(RWS_RELEVANCE_PROFILES)
-    .map(([themeId, profile]) => evaluateRagThemeProfile(grantText, themeId, profile))
-    .filter(result => result.score > 0 || result.matches.length || result.exclusionMatches.length)
-    .sort((a, b) => b.score - a.score);
-}
-
-function getBestRagThemeEvaluation(evaluations, selectedTheme = 'all') {
-  if (selectedTheme !== 'all') {
-    return evaluations.find(result => result.id === selectedTheme) || null;
-  }
-  return evaluations.find(result => result.passesThemeGate) || evaluations[0] || null;
-}
-
-function applyRagCap(score, evaluation) {
-  if (!evaluation) return Math.min(35, score);
-  const profile = RWS_RELEVANCE_PROFILES[evaluation.id];
-  if (!profile) return score;
-  if (evaluation.exclusionMatches.length > 0 && !evaluation.hasRwsContext) {
-    return Math.min(score, profile.caps.exclusionWithoutContext);
-  }
-  if (!evaluation.hasRwsContext && evaluation.strongMatches.length === 0 && evaluation.weakMatches.length > 0) {
-    return Math.min(score, profile.caps.weakOnly);
-  }
-  if (!evaluation.hasRwsContext) {
-    return Math.min(score, profile.caps.noRwsContext);
-  }
-  return score;
-}
-
-function passesSelectedThemeFilter(relevance, selectedTheme) {
-  if (selectedTheme === 'all') return true;
-  const theme = relevance.ragThemeEvaluations?.find(t => t.id === selectedTheme);
-  return Boolean(theme?.passesThemeGate);
-}
 function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   const fields    = getGrantTextFields(grant);
   const combined  = normalizeText([query, projectIdea].filter(Boolean).join(' '));
@@ -731,12 +518,12 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     const sw = isOrig ? 6  : isPhrase ? 6 : 2;
     const aw = isOrig ? 4  : isPhrase ? 4 : 1;
     const xw = isOrig ? 2  : isPhrase ? 2 : 0;
-    let hit = false;
 
-    if      (fields.title.includes(term))                                        { queryRaw += tw; hit = true; }
-    else if (fields.summary.includes(term) || fields.destination.includes(term))  { queryRaw += sw; hit = true; }
-    else if (fields.abstract.includes(term))                                      { queryRaw += aw; hit = true; }
-    else if (xw > 0 && fields.searchText.includes(term))                         { queryRaw += xw; hit = true; }
+    let hit = false;
+    if      (fields.title.includes(term))                                          { queryRaw += tw; hit = true; }
+    else if (fields.summary.includes(term) || fields.destination.includes(term))   { queryRaw += sw; hit = true; }
+    else if (fields.abstract.includes(term))                                        { queryRaw += aw; hit = true; }
+    else if (xw > 0 && fields.searchText.includes(term))                           { queryRaw += xw; hit = true; }
 
     if (hit) {
       matchedTerms.add(term);
@@ -745,90 +532,100 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     }
   }
 
-  const queryScore       = Math.min(30, queryRaw);
-  const queryMatched     = matchedTerms.size > 0;
+  const queryScore     = Math.min(30, queryRaw);
+  const queryMatched   = matchedTerms.size > 0;
   const origQueryMatched = origMatchedTerms.size > 0;
 
-  const ragThemeEvaluations = evaluateRagThemeProfiles(grantText);
-  const bestRagTheme = getBestRagThemeEvaluation(ragThemeEvaluations, selectedTheme);
-  const matchedThemes = ragThemeEvaluations
-    .filter(theme => theme.matches.length > 0)
-    .map(theme => ({
-      id: theme.id,
-      label: theme.label,
-      score: theme.score,
-      matches: theme.matches,
-      passesThemeGate: theme.passesThemeGate,
-      hasRwsContext: theme.hasRwsContext,
-      capApplied: theme.capApplied
-    }));
+  // Theme score (max 40)
+  let themeRaw = 0;
+  const matchedThemes = [];
+  for (const theme of RWS_THEMES) {
+    let ts = 0; const hits = [];
+    for (const phrase of theme.terms) {
+      const np = normalizeText(phrase);
+      if (grantText.includes(np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
+    }
+    if (ts > 0) {
+      if (selectedTheme !== 'all' && theme.id === selectedTheme) ts += 8;
+      themeRaw += ts;
+      matchedThemes.push({ id: theme.id, label: theme.label, score: ts, matches: hits });
+    }
+  }
+  
+  // Focused theme scoring: use only strongest theme matches
+  // Sort themes by score descending to get top contributors
+  const sortedThemes = [...matchedThemes].sort((a, b) => b.score - a.score);
+  
+  // Focused theme scoring: top theme + 50% of second theme
+  const topThemeScore = sortedThemes[0]?.score || 0;
+  const secondThemeScore = sortedThemes[1]?.score || 0;
+  const themeRawFocused = topThemeScore + 0.5 * secondThemeScore;
+  
+  const themeScore = Math.min(40, Math.round(themeRawFocused));
 
-  const themeScore = bestRagTheme?.score || 0;
-
-  // Phrase score is retained but no longer allowed to overrule RAG-based RWS-fit caps.
+  // Phrase score (max 30)
   const phraseResult = scoreImportantPhrases(fields, selectedTheme);
-  const phraseScore  = Math.min(15, Math.round(Math.min(30, phraseResult.phraseScore) * 0.5));
+  const phraseScore  = Math.min(30, phraseResult.phraseScore);
 
+  // Check if there is user input
   const hasUserInput = Boolean(query?.trim() || projectIdea?.trim());
-  const userScore = hasUserInput ? queryScore : 0;
 
-  // RWS core fit is retained for diagnostics and as a small supporting signal.
+  let score;
+  if (!hasUserInput) {
+    // No user input: scale themeScore + phraseScore from max 70 to max 100.
+    // queryScore is excluded when there is no user input.
+    score = Math.round((themeScore + phraseScore) * (100 / 70));
+  } else {
+    // Normal calculation with all three components.
+    score = queryScore + themeScore + phraseScore;
+  }
+
+  // RWS core fit scoring
   const coreFitResult = scoreRwsCoreFit(grantText);
   const rwsCoreScore = coreFitResult.rwsCoreScore;
   const matchedRwsCoreTerms = coreFitResult.matchedRwsCoreTerms;
-  const rwsCoreBonus = bestRagTheme?.hasRwsContext ? Math.min(10, rwsCoreScore) : 0;
 
-  let score = themeScore + userScore + phraseScore + rwsCoreBonus;
-
-  let noisePenalty = 0;
+  // Noise penalty - unchanged behavior
   for (const n of NOISE_TERMS) {
-    if (grantText.includes(normalizeText(n))) {
-      score -= 10;
-      noisePenalty += 10;
-    }
+    if (grantText.includes(normalizeText(n))) score -= 10;
   }
 
-  const scoreBeforeRagCap = score;
-  score = applyRagCap(score, bestRagTheme);
+  // RWS core fit bonus: add positive points for strong RWS core fit
+  const rwsCoreBonus = Math.min(20, rwsCoreScore);
+  score += rwsCoreBonus;
 
+  // RWS core fit gate: limit high scores for non-core calls
+  const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
+  if (rwsCoreScore === 0) {
+    // No RWS core fit: cap at 75
+    score = Math.min(score, 75);
+  } else if (rwsCoreScore < 8 && matchedNoiseTerms.length > 0) {
+    // Weak core fit with noise: cap at 60
+    score = Math.min(score, 60);
+  }
+  // Strong core fit (8+): no cap applied
+
+  // Reasons
   const reasons = [];
-  if (!combined && !matchedThemes.length) reasons.push('Geen zoekterm of RAG-themamatch; standaard live call getoond.');
+  if (!combined && !matchedThemes.length) reasons.push('Geen zoekterm of themamatch; standaard live call getoond.');
   if (matchedTerms.size > 0) {
     const disp = origMatchedTerms.size > 0 ? Array.from(origMatchedTerms) : Array.from(matchedTerms);
     reasons.push('Zoektermen: ' + disp.slice(0, 6).join(', '));
   }
-  if (matchedThemes.length) {
-    reasons.push("Thema's: " + matchedThemes.map(t => `${t.label}${t.passesThemeGate ? '' : ' (zwakke fit)'}`).join(', '));
-  }
+  if (matchedThemes.length)              reasons.push("Thema's: " + matchedThemes.map(t => t.label).join(', '));
   if (phraseResult.matchedPhrases.length) reasons.push('Sleuteltermen: ' + phraseResult.matchedPhrases.slice(0, 5).join(', '));
-  if (bestRagTheme?.exclusionMatches.length) reasons.push('Lage-fit signalen: ' + bestRagTheme.exclusionMatches.slice(0, 5).join(', '));
-  if (bestRagTheme?.hasRwsContext) reasons.push('RWS-context: ' + [...bestRagTheme.contextMatches, ...bestRagTheme.roleMatches].slice(0, 5).join(', '));
   if (fields.title && terms.some(t => fields.title.includes(t))) reasons.push('Match in titel.');
 
   matchedThemes.sort((a, b) => b.score - a.score);
 
   return {
-    score: Math.min(100, Math.max(0, Math.round(score || 1))),
+    score: Math.min(100, Math.max(0, score || 1)),
     queryMatched, origQueryMatched, expandedPhraseMatched,
     matchedTerms: Array.from(matchedTerms),
     origMatchedTerms: Array.from(origMatchedTerms),
     matchedPhrases: phraseResult.matchedPhrases,
     matchedThemes, reasons,
-    rwsCoreScore, matchedRwsCoreTerms, rwsCoreBonus,
-    ragThemeEvaluations,
-    ragBestTheme: bestRagTheme,
-    ragDiagnostics: {
-      queryScore,
-      themeScore,
-      phraseScore,
-      rwsCoreScore,
-      rwsCoreBonus,
-      noisePenalty,
-      scoreBeforeRagCap,
-      appliedCap: bestRagTheme?.capApplied || null,
-      hasRwsContext: Boolean(bestRagTheme?.hasRwsContext),
-      exclusionMatches: bestRagTheme?.exclusionMatches || []
-    }
+    rwsCoreScore, matchedRwsCoreTerms, rwsCoreBonus
   };
 }
 
@@ -858,48 +655,21 @@ function toggleSavedGrant(grant) {
 const getSavedGrants = () =>
   state.data?.grants?.filter(g => state.savedIds.has(getGrantSaveId(g))) || [];
 
-function getSafeExternalUrl(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
+function exportSavedCallsHtml() {
+  const saved = getSavedGrants();
+  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
 
-  try {
-    const parsed = new URL(raw, window.location.href);
-    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
-  } catch {
-    return '';
-  }
-}
+  const exportDate = new Date().toISOString().slice(0, 10);
+  const exportTime = new Date().toLocaleTimeString('nl-NL');
 
-function formatExportDate(value) {
-  return value ? formatDate(value) : '';
-}
-
-function renderExportFact(label, value) {
-  if (value === null || value === undefined || value === '') return '';
-  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
-}
-
-function renderExportSection(title, bodyHtml) {
-  if (!bodyHtml) return '';
-  return `
-        <div class="call-section">
-          <h4>${escapeHtml(title)}</h4>
-          ${bodyHtml}
-        </div>`;
-}
-
-function getSafeDetailAbstractHtml(grant) {
-  const detailHtml = getDetailAbstractText(grant);
-  if (!detailHtml) return '';
-
-  return escapeHtml(detailHtml)
-    .replace(/&lt;strong&gt;/g, '<strong>')
-    .replace(/&lt;\/strong&gt;/g, '</strong>')
-    .replace(/&lt;br&gt;/g, '<br>');
-}
-
-function renderSavedCallsExportStyles() {
-  return `
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RWS EU Call Radar - Bewaarde calls</title>
+  <style>
     body {
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.6;
@@ -909,22 +679,26 @@ function renderSavedCallsExportStyles() {
       padding: 24px;
       background: white;
     }
+    
     .report-header {
       border-bottom: 2px solid #003082;
       margin-bottom: 32px;
       padding-bottom: 16px;
     }
+    
     .report-title {
       color: #003082;
       font-size: 28px;
       font-weight: 600;
       margin: 0 0 8px 0;
     }
+    
     .report-meta {
       color: #6b7280;
       font-size: 14px;
       margin: 0;
     }
+    
     .call-card {
       border: 1px solid #e5e7eb;
       border-radius: 8px;
@@ -932,6 +706,7 @@ function renderSavedCallsExportStyles() {
       margin-bottom: 24px;
       background: white;
     }
+    
     .call-header {
       display: flex;
       justify-content: space-between;
@@ -939,12 +714,14 @@ function renderSavedCallsExportStyles() {
       margin-bottom: 16px;
       gap: 16px;
     }
+    
     .call-id {
       font-family: monospace;
       font-size: 13px;
       color: #6b7280;
       white-space: nowrap;
     }
+    
     .call-title {
       font-size: 20px;
       font-weight: 600;
@@ -952,6 +729,7 @@ function renderSavedCallsExportStyles() {
       margin: 0;
       flex: 1;
     }
+    
     .call-meta {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -959,31 +737,35 @@ function renderSavedCallsExportStyles() {
       margin-bottom: 16px;
       font-size: 14px;
     }
-    .call-meta dt,
-    .call-section dt {
+    
+    .call-meta dt {
       font-weight: 500;
       color: #6b7280;
       margin-bottom: 4px;
     }
-    .call-meta dd,
-    .call-section dd {
+    
+    .call-meta dd {
       margin: 0;
       color: #1a1a2e;
     }
+    
     .call-section {
       margin-top: 20px;
     }
+    
     .call-section h4 {
       font-size: 16px;
       font-weight: 600;
       color: #003082;
       margin: 0 0 8px 0;
     }
+    
     .call-section p {
       margin: 0;
       font-size: 14px;
       line-height: 1.5;
     }
+    
     .score-badge {
       display: inline-block;
       padding: 4px 12px;
@@ -992,27 +774,29 @@ function renderSavedCallsExportStyles() {
       font-size: 13px;
       margin-right: 8px;
     }
-    .score--high,
+    
     .score-badge--high {
       background: #e8f5e9;
       color: #2e7d32;
     }
-    .score--mid,
+    
     .score-badge--mid {
       background: #fff3e0;
       color: #e65100;
     }
-    .score--low,
+    
     .score-badge--low {
       background: #f5f5f5;
       color: #616161;
     }
+    
     .themes-list {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       margin-top: 8px;
     }
+    
     .theme-badge {
       background: #f4f6f9;
       padding: 4px 12px;
@@ -1020,114 +804,99 @@ function renderSavedCallsExportStyles() {
       font-size: 13px;
       color: #1a1a2e;
     }
+    
     .call-url {
       font-size: 13px;
       color: #003082;
       word-break: break-all;
     }
+    
     @media print {
-      body { padding: 12px; }
+      body {
+        padding: 12px;
+      }
       .call-card {
         break-inside: avoid;
         page-break-inside: avoid;
       }
-    }`;
-}
-
-function renderSavedCallExportCard(grant) {
-  const programme = getPrimaryProgramme(grant);
-  const openingDate = formatExportDate(grant.startDate || grant.plannedOpeningDate);
-  const deadlineDate = formatExportDate(grant.deadlineDate);
-  const actionType = grant.actionType || grant.kind?.label || '';
-  const budget = grant.budget?.totalBudgetEur ? formatCurrency(grant.budget.totalBudgetEur) : '';
-  const expectedGrants = grant.budget?.expectedGrants ? fmtCompact.format(grant.budget.expectedGrants) : '';
-  const summary = grant.summary || grant.destination || grant.callTitle || '';
-  const abstractHtml = getSafeDetailAbstractHtml(grant);
-  const safeUrl = getSafeExternalUrl(grant.url);
-
-  const relevance = grant.relevance?.score ? renderExportSection('Relevantie', `
+    }
+  </style>
+</head>
+<body>
+  <header class="report-header">
+    <h1 class="report-title">RWS EU Call Radar - Bewaarde calls</h1>
+    <p class="report-meta">Geëxporteerd op ${exportDate} om ${exportTime} | ${saved.length} calls</p>
+  </header>
+  
+  <main>
+    ${saved.map(grant => `
+      <article class="call-card">
+        <div class="call-header">
+          <span class="call-id">${escapeHtml(grant.identifier || '')}</span>
+          <h3 class="call-title">${escapeHtml(grant.title || 'Geen titel')}</h3>
+        </div>
+        
+        <dl class="call-meta">
+          ${(function() { const programme = getPrimaryProgramme(grant); return programme ? `<div><dt>Programma</dt><dd>${escapeHtml(programme)}</dd></div>` : ''; })()}
+          ${grant.status?.label ? `<div><dt>Status</dt><dd>${escapeHtml(grant.status.label)}</dd></div>` : ''}
+          ${grant.startDate || grant.plannedOpeningDate ? `<div><dt>Openingsdatum</dt><dd>${escapeHtml(grant.startDate || grant.plannedOpeningDate || '')}</dd></div>` : ''}
+          ${grant.deadlineDate ? `<div><dt>Deadline</dt><dd>${escapeHtml(grant.deadlineDate)}</dd></div>` : ''}
+          ${grant.actionType || grant.kind?.label ? `<div><dt>Actietype</dt><dd>${escapeHtml(grant.actionType || grant.kind?.label || '')}</dd></div>` : ''}
+          ${grant.budget?.totalBudgetEur ? `<div><dt>Budget</dt><dd>€${escapeHtml(formatCurrency(grant.budget.totalBudgetEur))}</dd></div>` : ''}
+          ${grant.budget?.expectedGrants ? `<div><dt>Verwachte subsidies</dt><dd>${escapeHtml(grant.budget.expectedGrants)}</dd></div>` : ''}
+        </dl>
+        
+        ${grant.relevance?.score ? `
+        <div class="call-section">
+          <h4>Relevantie</h4>
           <p><span class="score-badge ${getScoreBadgeClass(grant.relevance.score)}">${escapeHtml(grant.relevance.score)}/100</span> Non-AI relevantiescore</p>
           ${grant.relevance.matchedThemes?.length ? `
           <div class="themes-list">
             ${grant.relevance.matchedThemes.map(theme => `<span class="theme-badge">${escapeHtml(theme.label)}</span>`).join('')}
           </div>` : ''}
           ${grant.relevance.matchedTerms?.length ? `<p><strong>Gematchte zoektermen:</strong> ${escapeHtml(grant.relevance.matchedTerms.join(', '))}</p>` : ''}
-          ${grant.relevance.reasons?.length ? `<p><strong>Redenen:</strong> ${escapeHtml(grant.relevance.reasons.join('; '))}</p>` : ''}`) : '';
-
-  return `
-      <article class="call-card">
-        <div class="call-header">
-          <span class="call-id">${escapeHtml(grant.identifier || '')}</span>
-          <h3 class="call-title">${escapeHtml(grant.title || 'Geen titel')}</h3>
-        </div>
-
-        <dl class="call-meta">
-          ${renderExportFact('Programma', programme)}
-          ${renderExportFact('Status', grant.status?.label || '')}
-          ${renderExportFact('Openingsdatum', openingDate)}
-          ${renderExportFact('Deadline', deadlineDate)}
-          ${renderExportFact('Actietype', actionType)}
-          ${renderExportFact('Budget', budget)}
-          ${renderExportFact('Verwachte subsidies', expectedGrants)}
-        </dl>
-
-        ${relevance}
-        ${summary ? renderExportSection('Samenvatting', `<p>${escapeHtml(summary)}</p>`) : ''}
-        ${abstractHtml ? renderExportSection('Abstract / Scope', `<div>${abstractHtml}</div>`) : ''}
-        ${safeUrl ? renderExportSection('Originele call', `<a href="${escapeHtml(safeUrl)}" class="call-url" target="_blank" rel="noreferrer">${escapeHtml(safeUrl)}</a>`) : ''}
-      </article>`;
-}
-
-function buildSavedCallsExportHtml(saved, exportedAt = new Date()) {
-  const exportDate = exportedAt.toISOString().slice(0, 10);
-  const exportTime = exportedAt.toLocaleTimeString('nl-NL');
-
-  return `
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RWS EU Call Radar - Bewaarde calls</title>
-  <style>${renderSavedCallsExportStyles()}</style>
-</head>
-<body>
-  <header class="report-header">
-    <h1 class="report-title">RWS EU Call Radar - Bewaarde calls</h1>
-    <p class="report-meta">Geëxporteerd op ${escapeHtml(exportDate)} om ${escapeHtml(exportTime)} | ${saved.length} calls</p>
-  </header>
-
-  <main>
-    ${saved.map(renderSavedCallExportCard).join('')}
+          ${grant.relevance.reasons?.length ? `<p><strong>Redenen:</strong> ${escapeHtml(grant.relevance.reasons.join('; '))}</p>` : ''}
+        </div>` : ''}
+        
+        ${grant.summary || grant.destination || grant.callTitle ? `
+        <div class="call-section">
+          <h4>Samenvatting</h4>
+          <p>${escapeHtml(grant.summary || grant.destination || grant.callTitle || 'Geen samenvatting beschikbaar')}</p>
+        </div>` : ''}
+        
+        ${getDetailAbstractText(grant) ? `
+        <div class="call-section">
+          <h4>Abstract / Scope</h4>
+          <div>${getDetailAbstractText(grant)}</div>
+        </div>` : ''}
+        
+        ${grant.url ? `
+        <div class="call-section">
+          <h4>Originele call</h4>
+          <a href="${escapeHtml(grant.url)}" class="call-url" target="_blank" rel="noreferrer">${escapeHtml(grant.url)}</a>
+        </div>` : ''}
+      </article>
+    `).join('')}
   </main>
-
+  
   <footer style="margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280;">
     <p>RWS EU Call Radar - Rijkswaterstaat Bureau Brussel</p>
-    <p>Dit rapport is gegenereerd op ${escapeHtml(exportDate)} om ${escapeHtml(exportTime)}</p>
+    <p>Dit rapport is gegenereerd op ${exportDate} om ${exportTime}</p>
   </footer>
 </body>
-</html>`;
-}
+</html>
+`;
 
-function downloadHtmlFile(htmlContent, filename) {
   const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), {
     href: url,
-    download: filename
+    download: `rws-eu-call-radar-bewaarde-calls.html`
   });
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-}
-
-function exportSavedCallsHtml() {
-  const saved = getSavedGrants();
-  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
-
-  const htmlContent = buildSavedCallsExportHtml(saved);
-  downloadHtmlFile(htmlContent, 'rws-eu-call-radar-bewaarde-calls.html');
 }
 
 function getScoreBadgeClass(score) {
@@ -1312,6 +1081,124 @@ function getAiAbstractText(grant) {
   return grant.abstract || '';
 }
 
+function exportSavedCallsCsv() {
+  const saved = getSavedGrants();
+  if (!saved.length) { alert('Er zijn nog geen bewaarde calls om te exporteren.'); return; }
+
+  const headers = ['identifier','title','programme','status','openingDate','deadlineDate','actionType','budgetEur','expectedGrants','relevanceScore','bureauBrusselThemes','matchedTerms','relevanceReasons','summary','abstract','url'];
+  const rows = saved.map(g => [
+    g.identifier, g.title, getPrimaryProgramme(g), g.status?.label || '',
+    g.startDate || g.plannedOpeningDate || '', g.deadlineDate || '',
+    g.actionType || g.kind?.label || '', g.budget?.totalBudgetEur || '',
+    g.budget?.expectedGrants || '', g.relevance?.score || '',
+    g.relevance?.matchedThemes?.map(t => t.label).join('; ') || '',
+    g.relevance?.matchedTerms?.join('; ') || '',
+    g.relevance?.reasons?.join('; ') || '',
+    g.summary || g.destination || g.callTitle || '', g.abstract || '', g.url
+  ].map(escapeCsvValue).join(','));
+
+  const csv = [headers.join(','), ...rows].join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a   = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `rws-eu-call-radar-bewaarde-calls-${new Date().toISOString().slice(0, 10)}.csv`
+  });
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ── Pipeline ──────────────────────────────────────────────────
+function loadPipeline() {
+  try { state.pipeline = JSON.parse(localStorage.getItem(PIPELINE_KEY) || '{}'); }
+  catch { state.pipeline = {}; }
+}
+
+function persistPipeline() {
+  localStorage.setItem(PIPELINE_KEY, JSON.stringify(state.pipeline));
+}
+
+function setPipelineStage(identifier, stageId) {
+  if (stageId === null) { delete state.pipeline[identifier]; }
+  else                  { state.pipeline[identifier] = stageId; }
+  persistPipeline();
+  if (state.activeView === 'pipeline') renderPipeline();
+}
+
+function getPipelineGrants() {
+  if (!state.data?.grants) return {};
+  const out = {};
+  for (const stage of PIPELINE_STAGES) out[stage.id] = [];
+  for (const [id, stageId] of Object.entries(state.pipeline)) {
+    const grant = state.data.grants.find(g => g.identifier === id);
+    if (grant && out[stageId]) out[stageId].push(grant);
+  }
+  return out;
+}
+
+function renderPipeline() {
+  const view = elements.pipelineView;
+  if (!view) return;
+
+  const byStage = getPipelineGrants();
+  const total   = Object.values(state.pipeline).length;
+
+  view.innerHTML = `
+    <div class="pipeline-header">
+      <h2 class="pipeline-title">Call Pipeline</h2>
+      <span class="pipeline-meta">${total} call${total !== 1 ? 's' : ''} in de pipeline</span>
+      ${total === 0 ? '<p class="pipeline-hint">Voeg calls toe via de Bewaar-knop in de Radar en versleep ze hier door de fases.</p>' : ''}
+    </div>
+    <div class="pipeline-board">
+      ${PIPELINE_STAGES.map(stage => {
+        const grants = byStage[stage.id] || [];
+        return `
+          <div class="pipeline-column" data-stage="${escapeHtml(stage.id)}">
+            <div class="pipeline-column__header" style="border-top:3px solid ${stage.color}">
+              <span class="pipeline-column__label">${escapeHtml(stage.label)}</span>
+              <span class="pipeline-column__count">${grants.length}</span>
+            </div>
+            <div class="pipeline-column__cards">
+              ${grants.length ? grants.map(g => renderPipelineCard(g, stage)).join('') : '<div class="pipeline-empty">Geen calls</div>'}
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+
+  // Wire move buttons
+  view.querySelectorAll('.pipeline-card__move').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const { id, to } = btn.dataset;
+      setPipelineStage(id, to === 'remove' ? null : to);
+      renderPipeline();
+      renderSavedCallsPanel();
+    });
+  });
+}
+
+function renderPipelineCard(grant, currentStage) {
+  const stageIdx = PIPELINE_STAGES.findIndex(s => s.id === currentStage.id);
+  const prev     = PIPELINE_STAGES[stageIdx - 1];
+  const next     = PIPELINE_STAGES[stageIdx + 1];
+  const aiReview = state.aiReviews.get(grant.identifier);
+  const score    = aiReview?.aiRelevanceScore ?? grant.relevance?.score ?? 0;
+  const sc       = score >= 70 ? 'score-high' : score >= 40 ? 'score-mid' : 'score-low';
+
+  return `
+    <div class="pipeline-card">
+      <div class="pipeline-card__head">
+        <span class="pipeline-card__id">${escapeHtml(grant.identifier)}</span>
+        <span class="shortlist-score ${sc}">${score}</span>
+      </div>
+      <p class="pipeline-card__title">${escapeHtml(grant.title)}</p>
+      <p class="pipeline-card__meta">${escapeHtml(getPrimaryProgramme(grant))} &bull; Deadline: ${formatDate(grant.deadlineDate)}</p>
+      ${grant.url ? `<a class="pipeline-card__link" href="${grant.url}" target="_blank" rel="noreferrer">Open call</a>` : ''}
+      <div class="pipeline-card__actions">
+        ${prev ? `<button class="pipeline-card__move ghost-button" data-id="${escapeHtml(grant.identifier)}" data-to="${escapeHtml(prev.id)}" title="Terug naar ${escapeHtml(prev.label)}">&#8592; ${escapeHtml(prev.label)}</button>` : ''}
+        ${next ? `<button class="pipeline-card__move ghost-button" data-id="${escapeHtml(grant.identifier)}" data-to="${escapeHtml(next.id)}" title="Door naar ${escapeHtml(next.label)}">${escapeHtml(next.label)} &#8594;</button>` : ''}
+        <button class="pipeline-card__move ghost-button pipeline-card__remove" data-id="${escapeHtml(grant.identifier)}" data-to="remove" title="Verwijder uit pipeline">&#10005;</button>
+      </div>
+    </div>`;
+}
 
 // ── Filtering & sorting ───────────────────────────────────────
 function filterGrants() {
@@ -1356,7 +1243,7 @@ if (state.filters.recentMonths === '14d') {
       const rel = calculateRelevance(grant, query, idea, state.filters.theme);
       grant.relevance = rel;
 
-      if (!passesSelectedThemeFilter(rel, state.filters.theme)) return false;
+      if (state.filters.theme !== 'all' && !rel.matchedThemes.some(t => t.id === state.filters.theme)) return false;
       if (combined && !rel.origQueryMatched && !rel.expandedPhraseMatched && !rel.matchedPhrases?.length && rel.score < 50) return false;
       return true;
     })
@@ -1765,18 +1652,20 @@ function renderSavedCallsPanel() {
 // ── Render: views ─────────────────────────────────────────────
 function switchView(name) {
   state.activeView = name;
-  ['radar','shortlist'].forEach(v => {
+  ['radar','shortlist','pipeline'].forEach(v => {
     const tabKey  = 'tab' + v.charAt(0).toUpperCase() + v.slice(1);
     const viewKey = v + 'View';
     elements[tabKey]?.classList.toggle('is-active', v === name);
     if (elements[viewKey]) elements[viewKey].hidden = v !== name;
   });
   if (name === 'shortlist') renderAiShortlist();
+  if (name === 'pipeline')  renderPipeline();
 }
 
 function renderViewTabs() {
   elements.tabRadar?.addEventListener('click',     () => switchView('radar'));
   elements.tabShortlist?.addEventListener('click', () => switchView('shortlist'));
+  elements.tabPipeline?.addEventListener('click',  () => switchView('pipeline'));
 }
 
 const getCallByIdentifier = id => state.data?.grants?.find(g => g.identifier === id) || null;
@@ -1875,6 +1764,26 @@ function getTopCallsForBriefing(reviews) {
     .slice(0, 5);
 }
 
+function getCallVanDeWeek(topCalls) {
+  if (!topCalls.length) return null;
+  
+  const scoredCalls = topCalls.map(call => {
+    const combinedScore = 0.7 * call.aiRelevanceScore + 0.3 * call.projectFitScore;
+    const callData = getCallByIdentifier(call.identifier);
+    const deadline = callData?.deadlineDate ? new Date(callData.deadlineDate).getTime() : Infinity;
+    return { call, combinedScore, deadline };
+  });
+  
+  // Sort by combined score desc, then by deadline asc
+  scoredCalls.sort((a, b) => {
+    if (b.combinedScore !== a.combinedScore) {
+      return b.combinedScore - a.combinedScore;
+    }
+    return a.deadline - b.deadline;
+  });
+  
+  return scoredCalls[0].call;
+}
 
 function getWatchlistCalls(reviews) {
   const topCalls = getTopCallsForBriefing(reviews);
@@ -1918,6 +1827,11 @@ function getWatchlistCalls(reviews) {
     .slice(0, 5);
 }
 
+function getDeduplicatedNextActions(reviews) {
+  // Note: This function is intentionally no-op since recommendedNextStep was replaced by callRequirements.
+  // It remains for compatibility but always returns an empty array.
+  return [];
+}
 
 function clampActionLabel(review, call) {
   if (!review || !call) return 'Niet prioriteren';
@@ -2066,7 +1980,48 @@ function sortReviewsByAiRelevance(reviews) {
   });
 }
 
+function getDisplayCallScope(review, grant) {
+  // Prefer AI-generated Dutch scope if available and valid
+  if (review.callScopeSummary) {
+    const scope = review.callScopeSummary.trim();
+    
+    // Validation: reject if too short, English title repetition, or invalid fallback
+    const isTooShort = scope.length < 30;
+    const isEnglishTitleRepetition = grant.title && 
+                                     scope.toLowerCase().startsWith(grant.title.toLowerCase()) &&
+                                     scope.length < grant.title.length + 20;
+    const isInvalidFallback = scope === 'Scope nog niet concreet beschikbaar in de callgegevens.' && 
+                             grant.summary && grant.summary.length > 50;
+    
+    if (!isTooShort && !isEnglishTitleRepetition && !isInvalidFallback) {
+      return scope;
+    }
+  }
+  
+  // Fallback to deterministic scope extraction
+  return getCallScope(grant);
+}
 
+function getStatusBadgeClass(status) {
+  if (!status) return 'compact-call__status--neutral';
+  
+  // Normalize status to handle both label and code formats
+  const statusText = status.label ? status.label.toLowerCase() : String(status).toLowerCase();
+  const statusCode = status.id ? String(status.id) : '';
+  
+  // Open for submission (green)
+  if (statusText.includes('open') || statusCode === '31094502') {
+    return 'compact-call__status--open';
+  }
+  
+  // Forthcoming (orange)
+  if (statusText.includes('forthcoming') || statusCode === '31094501') {
+    return 'compact-call__status--forthcoming';
+  }
+  
+  // Default/neutral
+  return 'compact-call__status--neutral';
+}
 
 function getStatusDotClass(status) {
   if (!status) return 'status-dot';
@@ -2162,22 +2117,35 @@ function getPossibleRwsProject(review) {
 }
 
 // ── Render: AI shortlist view ─────────────────────────────────
-
-// ── Helpers: AI shortlist rendering ──────────────────────────────
-function getVisibleAiShortlistReviews() {
+function renderAiShortlist() {
+  const container = document.querySelector('#shortlist-content');
+  if (!container) return;
+ 
   const reviews = Array.from(state.aiReviews.values());
-  // Minimum score filter for AI Shortlist display only.
-  // Include calls where AI relevance >= 50 OR project fit >= 50.
+  
+  // Minimum score filter for AI Shortlist display only
+  // Include calls where AI relevance >= 50 OR project fit >= 50
   const AI_SHORTLIST_MIN_SCORE = 50;
-  return reviews.filter(review => {
+  const visibleReviews = reviews.filter(review => {
     const aiScore = Number(review.aiRelevanceScore || 0);
     const fitScore = Number(review.projectFitScore || 0);
     return aiScore >= AI_SHORTLIST_MIN_SCORE || fitScore >= AI_SHORTLIST_MIN_SCORE;
   });
-}
-
-function renderShortlistHeaderHtml(filteredCount, activePeriod, activeStatus, activeTheme) {
-  return `
+  
+  if (!visibleReviews.length) {
+    container.innerHTML = '<p class="shortlist-empty">Geen calls met AI-relevantie of projectfit vanaf 50 gevonden.</p>';
+    return;
+  }
+ 
+  const filteredCount  = state.filtered.length;
+  const activePeriod   = getActivePeriodLabel();
+  const activeStatus   = state.filters.status === 'live'
+    ? 'Live (Open + Forthcoming)'
+    : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
+  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
+ 
+  // 1. Header
+  let html = `
     <div class="briefing-header">
       <h2 class="briefing-title">Shortlist</h2>
       <div class="briefing-meta">
@@ -2187,28 +2155,27 @@ function renderShortlistHeaderHtml(filteredCount, activePeriod, activeStatus, ac
         <span class="briefing-meta__item">${filteredCount} calls in scope</span>
       </div>
     </div>`;
-}
-
-function renderShortlistSummaryHtml(summary) {
-  return `
+ 
+  // 2. Samenvatting
+  const summary = getDeterministicSummary(visibleReviews, filteredCount);
+  html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Samenvatting</h3>
       <ul class="briefing-summary">
         ${summary.map(item => `<li class="briefing-summary__item">${escapeHtml(item)}</li>`).join('')}
       </ul>
     </div>`;
-}
-
-function renderShortlistThemeOverviewHtml(visibleReviews) {
+ 
+  // 3. Thema-overzicht
   const selectedThemeSummary = getSelectedThemeSummary(visibleReviews, state.filters.theme);
-
+ 
   if (state.filters.theme === 'all') {
     const themeOverview = getThemeOverview(visibleReviews);
-    let html = `
+    html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview">`;
-
+ 
     const themes = [
       'Corridor Management',
       'Climate Adaptation',
@@ -2216,20 +2183,20 @@ function renderShortlistThemeOverviewHtml(visibleReviews) {
       'Digitalisation',
       'Network Governance'
     ];
-
+ 
     themes.forEach(theme => {
       const count   = themeOverview.themeCounts[theme] || 0;
       const scores  = themeOverview.themeScores[theme] || [];
       const scoreRange = scores.length ? `${Math.min(...scores)}\u2013${Math.max(...scores)}` : '\u2014';
       const actions = themeOverview.themeActions[theme] || {};
-
+ 
       if (count > 0) {
         const actionLabels = [];
         if (actions['Actief verkennen'] > 0)  actionLabels.push(`A:${actions['Actief verkennen']}`);
         if (actions['Nader toetsen'] > 0)     actionLabels.push(`N:${actions['Nader toetsen']}`);
         if (actions['Monitoren'] > 0)          actionLabels.push(`M:${actions['Monitoren']}`);
         if (actions['Niet prioriteren'] > 0)   actionLabels.push(`P:${actions['Niet prioriteren']}`);
-
+ 
         html += `
         <div class="theme-overview__item">
           <div class="theme-overview__header">
@@ -2243,13 +2210,11 @@ function renderShortlistThemeOverviewHtml(visibleReviews) {
         </div>`;
       }
     });
-
-    return html + `</div></div>`;
-  }
-
-  if (!selectedThemeSummary) return '';
-
-  return `
+ 
+    html += `</div></div>`;
+ 
+  } else if (selectedThemeSummary) {
+    html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Thema-overzicht</h3>
       <div class="theme-overview theme-overview--compact">
@@ -2266,73 +2231,87 @@ function renderShortlistThemeOverviewHtml(visibleReviews) {
         </div>
       </div>
     </div>`;
-}
-
-function renderCompactCallCardHtml(review, index) {
-  const call = getCallByIdentifier(review.identifier);
-  if (!call) return '';
-
-  const rank         = index + 1;
-  const isExpandable = index < 6;
-  const actionLabel  = clampActionLabel(review, call);
-  const primaryTheme = getPrimaryThemeForGrant(call);
-  const deadline     = call.deadlineDate
-    ? new Date(call.deadlineDate).toLocaleDateString('nl-NL')
-    : 'Onbekend';
-  const callId = `call-${index}`;
-
-  // Score display: separate badges for AI and Project Fit.
-  const aiScore  = review.aiRelevanceScore ?? 0;
-  const fitScore = review.projectFitScore  ?? 0;
-  const aiScoreCls = getScoreBadgeClass(aiScore);
-  const fitScoreCls = getScoreBadgeClass(fitScore);
-
-  // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback.
-  const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
-    ? review.snapshotReden
-    : getCallScope(call);
-
-  // Waarom relevant: gebruik nieuw array-veld, anders rationale splitsen.
-  let whyBullets = [];
-  if (Array.isArray(review.waaromRelevant) && review.waaromRelevant.length > 0) {
-    whyBullets = review.waaromRelevant.slice(0, 2);
-  } else if (review.rationale) {
-    whyBullets = review.rationale
-      .split(/(?<=[.!?])\s+/)
-      .slice(0, 2)
-      .map(s => cleanBulletText(s.trim()))
-      .filter(s => s.length > 10);
   }
-
-  // Concreet RWS-project: verberg als placeholder.
-  const possibleProject = getPossibleRwsProject(review);
-
-  // Context: resterende zin(nen) uit rationale + RAG-items.
-  const rationaleResterende = review.rationale
-    ? review.rationale.split(/(?<=[.!?])\s+/).slice(2, 5).map(s => s.trim()).filter(s => s.length > 10).join(' ')
-    : '';
-  const ragTag = review.ragMatchedItems?.length
-    ? `RAG: ${review.ragMatchedItems.join(', ')}.`
-    : '';
-  const contextText = [rationaleResterende, ragTag].filter(Boolean).join(' ');
-
-  const uncertainty = review.uncertainties || '';
-  const callRequirements = Array.isArray(review.callRequirements) ? review.callRequirements : [];
-
-  return `
+ 
+  // 4. Calls
+  const sortedReviews = sortReviewsByAiRelevance(visibleReviews);
+ 
+  if (sortedReviews.length > 0) {
+    html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Alle calls</h3>
+      <div class="compact-calls-grid">`;
+ 
+    sortedReviews.forEach((review, index) => {
+      const call = getCallByIdentifier(review.identifier);
+      if (!call) return;
+ 
+      const rank         = index + 1;
+      const isExpandable = index < 6;
+      const actionLabel  = clampActionLabel(review, call);
+      const primaryTheme = getPrimaryThemeForGrant(call);
+      const deadline     = call.deadlineDate
+        ? new Date(call.deadlineDate).toLocaleDateString('nl-NL')
+        : 'Onbekend';
+      const callId = `call-${index}`;
+ 
+      // Score display: separate badges for AI and Project Fit
+      const aiScore  = review.aiRelevanceScore ?? 0;
+      const fitScore = review.projectFitScore  ?? 0;
+      
+      // Determine score classes for both AI and Project Fit
+      
+      const aiScoreCls = getScoreBadgeClass(aiScore);
+      const fitScoreCls = getScoreBadgeClass(fitScore);
+ 
+      // Snapshot: AI-gegenereerde reden (1 zin) of deterministisch fallback
+      const snapshotReden = (review.snapshotReden && review.snapshotReden.length > 20)
+        ? review.snapshotReden
+        : getCallScope(call);
+ 
+      // Waarom relevant: gebruik nieuw array-veld, anders rationale splitsen
+      let whyBullets = [];
+      if (Array.isArray(review.waaromRelevant) && review.waaromRelevant.length > 0) {
+        whyBullets = review.waaromRelevant.slice(0, 2);
+      } else if (review.rationale) {
+        whyBullets = review.rationale
+          .split(/(?<=[.!?])\s+/)
+          .slice(0, 2)
+          .map(s => cleanBulletText(s.trim()))
+          .filter(s => s.length > 10);
+      }
+ 
+      // Concreet RWS-project: verberg als placeholder
+      const possibleProject = getPossibleRwsProject(review);
+ 
+      // Context: resterende zin(nen) uit rationale + RAG-items
+      const rationaleResterende = review.rationale
+        ? review.rationale.split(/(?<=[.!?])\s+/).slice(2, 5).map(s => s.trim()).filter(s => s.length > 10).join(' ')
+        : '';
+      const ragTag = review.ragMatchedItems?.length
+        ? `RAG: ${review.ragMatchedItems.join(', ')}.`
+        : '';
+      const contextText = [rationaleResterende, ragTag].filter(Boolean).join(' ');
+ 
+      const uncertainty = review.uncertainties || '';
+      const callRequirements = Array.isArray(review.callRequirements) ? review.callRequirements : [];
+      const actionCls   = actionLabel.toLowerCase().replace(/\s+/g, '-');
+ 
+      html += `
         <article class="compact-call${isExpandable ? '' : ' compact-call--static'}" id="${callId}">
+ 
           <!-- Bovenrij: rank + badges -->
           <div class="compact-call__top">
             <span class="compact-call__rank">#${rank}</span>
             <div class="compact-call__badges">
               <span class="compact-call__theme">${escapeHtml(primaryTheme)}</span>
-              <span class="${getStatusDotClass(call.status)}"></span>
+              <span class="status-dot ${getStatusDotClass(call.status)}"></span>
             </div>
           </div>
-
+ 
           <!-- Titel -->
           <h4 class="compact-call__title">${escapeHtml(call.title)}</h4>
-
+ 
           <!-- Meta: ID · programma · deadline -->
           <div class="compact-call__meta">
             <span class="compact-call__id">${escapeHtml(call.identifier)}</span>
@@ -2341,20 +2320,20 @@ function renderCompactCallCardHtml(review, index) {
             <span class="compact-call__sep">&middot;</span>
             <span class="compact-call__deadline">Deadline: ${escapeHtml(deadline)}</span>
           </div>
-
+ 
           <!-- Scores: separate badges for AI and Project Fit -->
           <div class="compact-call__scores">
             <span class="ai-score ${aiScoreCls}">AI ${aiScore}</span>
             <span class="ai-score ${fitScoreCls}">Fit ${fitScore}</span>
           </div>
-
+ 
           <!-- Snapshot: 1 zin waarom relevant -->
           <p class="compact-call__snapshot">${escapeHtml(snapshotReden)}</p>
-
+ 
           ${isExpandable ? `
           <!-- Expanded content -->
           <div class="compact-call__content" id="${callId}-content" aria-hidden="true">
-
+ 
             ${whyBullets.length ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Waarom relevant</h5>
@@ -2362,19 +2341,19 @@ function renderCompactCallCardHtml(review, index) {
                 ${whyBullets.map(b => `<li class="compact-call__bullet">${escapeHtml(cleanBulletText(b))}</li>`).join('')}
               </ul>
             </div>` : ''}
-
+ 
             ${possibleProject ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Concreet RWS-project</h5>
               <p class="compact-call__text">${escapeHtml(possibleProject)}</p>
             </div>` : ''}
-
+ 
             ${uncertainty ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Onzekerheid</h5>
               <p class="compact-call__text">${escapeHtml(uncertainty)}</p>
             </div>` : ''}
-
+ 
             ${callRequirements.length ? `
             <div class="compact-call__section">
               <h5 class="compact-call__section-title">Vereisten uit calltekst</h5>
@@ -2382,70 +2361,59 @@ function renderCompactCallCardHtml(review, index) {
                 ${callRequirements.map(req => `<li class="compact-call__bullet">${escapeHtml(req)}</li>`).join('')}
               </ul>
             </div>` : ''}
-
+ 
             ${contextText ? `
             <div class="compact-call__section compact-call__section--context">
               <h5 class="compact-call__section-title">Context</h5>
               <p class="compact-call__text compact-call__text--small">${escapeHtml(contextText)}</p>
             </div>` : ''}
-
+ 
           </div>
-
+ 
           <!-- Footer: expand-knop onderaan + open call -->
           <div class="compact-call__footer">
             <button class="compact-call__toggle" aria-expanded="false" aria-controls="${callId}-content">
               <span class="compact-call__toggle-icon">&#9660;</span>
               <span class="compact-call__toggle-text">Bekijk details</span>
             </button>
-            ${call.url ? `<a class="compact-call__open" href="${escapeHtml(call.url)}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
+            ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
           </div>` : `
           <!-- Static (rank 7+): alleen open call link -->
           <div class="compact-call__footer">
-            ${call.url ? `<a class="compact-call__open" href="${escapeHtml(call.url)}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
+            ${call.url ? `<a class="compact-call__open" href="${call.url}" target="_blank" rel="noreferrer">Open call &#8594;</a>` : ''}
           </div>`}
-
+ 
         </article>`;
-}
-
-function renderShortlistCallsHtml(visibleReviews) {
-  const sortedReviews = sortReviewsByAiRelevance(visibleReviews);
-  if (!sortedReviews.length) return '';
-
-  return `
-    <div class="briefing-section">
-      <h3 class="briefing-section__title">Alle calls</h3>
-      <div class="compact-calls-grid">
-        ${sortedReviews.map(renderCompactCallCardHtml).join('')}
-      </div>
-    </div>`;
-}
-
-function renderWatchlistHtml(visibleReviews) {
+    });
+ 
+    html += `</div></div>`;
+  }
+ 
+  // 5. Watchlist
   const watchlistCalls = getWatchlistCalls(visibleReviews);
-  if (!watchlistCalls.length) return '';
-
-  let html = `
+  if (watchlistCalls.length > 0) {
+    html += `
     <div class="briefing-section">
       <h3 class="briefing-section__title">Watchlist</h3>
       <div class="watchlist">`;
-
-  watchlistCalls.forEach(review => {
-    const call = getCallByIdentifier(review.identifier);
-    if (!call) return;
-
-    const actionLabel  = clampActionLabel(review, call);
-    const primaryTheme = getPrimaryThemeForGrant(call);
-
-    let watchlistReason = '';
-    if (review.projectFitScore >= review.aiRelevanceScore + 15) {
-      watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore}) \u2014 relevant als projectidee concreter wordt.`;
-    } else if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
-      watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100) \u2014 ${actionLabel}.`;
-    } else {
-      watchlistReason = `Actie: ${actionLabel}.`;
-    }
-
-    html += `
+ 
+    watchlistCalls.forEach(review => {
+      const call = getCallByIdentifier(review.identifier);
+      if (!call) return;
+ 
+      const actionLabel  = clampActionLabel(review, call);
+      const primaryTheme = getPrimaryThemeForGrant(call);
+ 
+      let watchlistReason = '';
+      if (review.projectFitScore >= review.aiRelevanceScore + 15) {
+        watchlistReason = `Projectfit (${review.projectFitScore}) hoger dan AI-score (${review.aiRelevanceScore}) \u2014 relevant als projectidee concreter wordt.`;
+      } else if (review.aiRelevanceScore >= 45 && review.aiRelevanceScore <= 70) {
+        watchlistReason = `Score in monitorrange (${review.aiRelevanceScore}/100) \u2014 ${actionLabel}.`;
+      } else {
+        watchlistReason = `Actie: ${actionLabel}.`;
+      }
+ 
+      html += `
         <article class="watchlist-item">
           <div class="watchlist-item__header">
             <h4 class="watchlist-item__title">${escapeHtml(call.title)}</h4>
@@ -2456,15 +2424,27 @@ function renderWatchlistHtml(visibleReviews) {
             <span class="watchlist-item__score">AI: ${review.aiRelevanceScore}/100</span>
           </div>
           <p class="watchlist-item__reason">${escapeHtml(watchlistReason)}</p>
-          ${call.url ? `<a class="watchlist-item__open" href="${escapeHtml(call.url)}" target="_blank" rel="noreferrer">Open</a>` : ''}
+          ${call.url ? `<a class="watchlist-item__open" href="${call.url}" target="_blank" rel="noreferrer">Open</a>` : ''}
         </article>`;
-  });
-
-  return html + `</div></div>`;
-}
-
-function renderShortlistDisclaimerHtml(activePeriod) {
-  return `
+    });
+ 
+    html += `</div></div>`;
+  }
+ 
+  // 6. Vervolgacties
+  const nextActions = getDeduplicatedNextActions(reviews);
+  if (nextActions.length > 0) {
+    html += `
+    <div class="briefing-section">
+      <h3 class="briefing-section__title">Vervolgacties</h3>
+      <ul class="next-actions">
+        ${nextActions.map(a => `<li class="next-action"><strong>${escapeHtml(a.callId)}:</strong> ${escapeHtml(a.action)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+ 
+  // 7. Aannames en beperkingen
+  html += `
     <div class="briefing-section briefing-disclaimer">
       <h3 class="briefing-section__title">Aannames en beperkingen</h3>
       <ul class="briefing-disclaimer__items">
@@ -2474,54 +2454,65 @@ function renderShortlistDisclaimerHtml(activePeriod) {
         <li class="briefing-disclaimer__item">Shortlist is een vergaderhulpmiddel, geen definitief subsidiebesluit.</li>
       </ul>
     </div>`;
-}
-
-function wireShortlistExpandToggles(container) {
-  container.querySelectorAll('.compact-call__toggle').forEach(button => {
-    button.addEventListener('click', () => {
-      const callArticle = button.closest('.compact-call');
-      const content     = callArticle ? document.getElementById(`${callArticle.id}-content`) : null;
-      if (!content) return;
-
-      const isExpanded = button.getAttribute('aria-expanded') === 'true';
-      button.setAttribute('aria-expanded', String(!isExpanded));
-      content.setAttribute('aria-hidden', String(isExpanded));
-
-      button.querySelector('.compact-call__toggle-icon').innerHTML = isExpanded ? '&#9660;' : '&#9650;';
-      button.querySelector('.compact-call__toggle-text').textContent = isExpanded ? 'Bekijk details' : 'Minder';
+ 
+  container.innerHTML = html;
+ 
+  // Expand/collapse
+  setTimeout(() => {
+    document.querySelectorAll('.compact-call__toggle').forEach(button => {
+      button.addEventListener('click', () => {
+        const callArticle = button.closest('.compact-call');
+        const content     = document.getElementById(`${callArticle.id}-content`);
+        if (!content) return;
+ 
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', String(!isExpanded));
+        content.setAttribute('aria-hidden', String(isExpanded));
+ 
+        button.querySelector('.compact-call__toggle-icon').innerHTML = isExpanded ? '&#9660;' : '&#9650;';
+        button.querySelector('.compact-call__toggle-text').textContent = isExpanded ? 'Bekijk details' : 'Minder';
+      });
     });
-  });
-}
-function renderAiShortlist() {
-  const container = document.querySelector('#shortlist-content');
-  if (!container) return;
-
-  const visibleReviews = getVisibleAiShortlistReviews();
-  if (!visibleReviews.length) {
-    container.innerHTML = '<p class="shortlist-empty">Geen calls met AI-relevantie of projectfit vanaf 50 gevonden.</p>';
-    return;
-  }
-
-  const filteredCount  = state.filtered.length;
-  const activePeriod   = getActivePeriodLabel();
-  const activeStatus   = state.filters.status === 'live'
-    ? 'Live (Open + Forthcoming)'
-    : state.filters.status === '31094502' ? 'Open for submission' : 'Forthcoming';
-  const activeTheme    = state.filters.theme === 'all' ? 'Alle thema\'s' : state.filters.theme;
-  const summary        = getDeterministicSummary(visibleReviews, filteredCount);
-
-  container.innerHTML =
-    renderShortlistHeaderHtml(filteredCount, activePeriod, activeStatus, activeTheme) +
-    renderShortlistSummaryHtml(summary) +
-    renderShortlistThemeOverviewHtml(visibleReviews) +
-    renderShortlistCallsHtml(visibleReviews) +
-    renderWatchlistHtml(visibleReviews) +
-    renderShortlistDisclaimerHtml(activePeriod);
-
-  wireShortlistExpandToggles(container);
+  }, 100);
 }
  
 // ── Render: AI briefing panel (geen ragContextUsed) ───────────
+function renderAiBriefing() {
+  const panel = elements.aiBriefingPanel;
+  if (!panel) return;
+  if (!state.aiSummary) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const s = state.aiSummary;
+
+  panel.innerHTML =
+    '<div class="ai-briefing__header">' +
+      '<h3 class="ai-briefing__title">AI Shortlist Briefing</h3>' +
+      '<span class="ai-briefing__badge">Management Samenvatting</span>' +
+    '</div>' +
+    '<div class="ai-briefing__content">' +
+      '<section class="ai-briefing__section"><h4>Executive Summary</h4><p class="ai-briefing__text">' + escapeHtml(s.executiveSummary || 'Geen samenvatting beschikbaar.') + '</p></section>' +
+      '<section class="ai-briefing__section"><h4>Overall Advice</h4><p class="ai-briefing__text ai-briefing__text--advice">' + escapeHtml(s.overallAdvice || 'Geen advies beschikbaar.') + '</p></section>' +
+      '<section class="ai-briefing__section"><h4>Top 3 Opportunities</h4><div class="ai-briefing__opportunities">' +
+        (s.topOpportunities?.length
+          ? s.topOpportunities.slice(0, 3).map((o, i) =>
+              '<div class="ai-briefing__opportunity">' +
+                '<span class="ai-briefing__opportunity-rank">#' + (i + 1) + '</span>' +
+                '<div class="ai-briefing__opportunity-content">' +
+                  '<strong class="ai-briefing__opportunity-title">' + escapeHtml(o.title || o.identifier || 'Onbekend') + '</strong>' +
+                  '<p class="ai-briefing__opportunity-rationale">' + escapeHtml(o.rationale || '') + '</p>' +
+                  '<span class="ai-briefing__opportunity-score">Score: ' + (o.score || 'N/A') + '/100</span>' +
+                '</div>' +
+              '</div>').join('')
+          : '<p class="ai-briefing__text">Geen top opportuniteiten.</p>') +
+      '</div></section>' +
+      '<section class="ai-briefing__section"><h4>Notable Exclusions</h4><p class="ai-briefing__text">' + escapeHtml(s.notableExclusions || 'Geen exclusies.') + '</p></section>' +
+      '<section class="ai-briefing__section"><h4>Recommended Next Steps</h4><ul class="ai-briefing__steps">' +
+        (s.recommendedNextSteps?.length
+          ? s.recommendedNextSteps.map(st => '<li class="ai-briefing__step">' + escapeHtml(st) + '</li>').join('')
+          : '') +
+      '</ul></section>' +
+    '</div>';
+}
 
 // ── Render: AI results list ───────────────────────────────────
 function renderAiResults() {
@@ -2580,15 +2571,30 @@ function normalizeAiReviewForDisplay(review) {
 }
 
 // ── AI: per-card scoring ──────────────────────────────────────
-// AI routes intentionally preserved: per-card analysis, top-results batch analysis, and saved-calls review.
-// All routes now share buildAiRequestPayload/toAiCallPayload to keep AI input fields consistent.
 const AI_CACHE = new Map();
 
 async function scoreGrantWithAI(grant) {
   if (!AI_API_URL) { alert('AI-backend nog niet geconfigureerd. Test AI via de Vercel-site.'); return null; }
   if (AI_CACHE.has(grant.identifier)) return AI_CACHE.get(grant.identifier);
 
-  const payload = buildAiRequestPayload([grant]);
+  const payload = {
+    projectIdea:   state.filters.projectIdea,
+    keywords:      state.filters.query,
+    selectedTheme: state.filters.theme === 'all' ? '' : state.filters.theme,
+    calls: [{
+      identifier:          grant.identifier,
+      title:               grant.title,
+      programme:           getPrimaryProgramme(grant),
+      destination:         grant.destination || '',
+      summary:             grant.summary || '',
+      abstract:            getAiAbstractText(grant),
+      actionType:          grant.actionType || grant.kind?.label || '',
+      frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
+      programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
+      matchedThemes:       grant.relevance?.matchedThemes?.map(t => t.label) || [],
+      matchedTerms:        grant.relevance?.matchedTerms || []
+    }]
+  };
 
   try {
     const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -2618,8 +2624,8 @@ async function scoreGrantWithAI(grant) {
 // ── AI: batch top-15 reranking ────────────────────────────────
 // Note: uses state.filtered.slice(0,15) — intentionally takes the top 15
 // of ALL filtered results (not just the current page) for best analysis coverage.
-function toAiCallPayload(grant, options = {}) {
-  const payload = {
+function toAiCallPayload(grant) {
+  return {
     identifier:          grant.identifier,
     title:               grant.title,
     programme:           getPrimaryProgramme(grant),
@@ -2629,24 +2635,8 @@ function toAiCallPayload(grant, options = {}) {
     actionType:          grant.actionType || grant.kind?.label || '',
     frameworkProgrammes: grant.frameworkProgrammes?.map(p => p.label) || [],
     programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
-    matchedThemes:       grant.relevance?.matchedThemes?.map(t => t.label) || [],
-    matchedTerms:        grant.relevance?.matchedTerms || []
-  };
-
-  if (options.includeReviewMetadata) {
-    payload.budget = grant.budget?.totalBudgetEur || null;
-    payload.deadline = grant.deadlineDate || null;
-  }
-
-  return payload;
-}
-
-function buildAiRequestPayload(calls, options = {}) {
-  return {
-    projectIdea:   state.filters.projectIdea,
-    keywords:      state.filters.query,
-    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
-    calls:         calls.map(grant => toAiCallPayload(grant, options))
+    matchedThemes: grant.relevance?.matchedThemes?.map(t => t.label) || [],
+    matchedTerms:  grant.relevance?.matchedTerms || []
   };
 }
 
@@ -2668,10 +2658,11 @@ async function scoreTopResultsWithAI() {
   }
 
   // Clear previous summary for batched processing
-  let batchIndex = 0;
+  state.aiSummary = null;
 
   try {
     // Process batches sequentially
+    let batchIndex;
     for (batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
       
@@ -2681,7 +2672,12 @@ async function scoreTopResultsWithAI() {
       }
       console.log(`AI batch ${batchIndex + 1}/${batches.length} started`);
 
-      const payload = buildAiRequestPayload(batch);
+      const payload = {
+        projectIdea:   state.filters.projectIdea,
+        keywords:      state.filters.query,
+        selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+        calls:         batch.map(toAiCallPayload)
+      };
 
       const res = await fetch(AI_API_URL, { 
         method: 'POST', 
@@ -2728,6 +2724,8 @@ async function scoreTopResultsWithAI() {
 
     if (statusEl) statusEl.textContent = `${state.aiReviews.size} calls succesvol geanalyseerd.`;
     if (btn)      { btn.textContent = 'Heranalyseer'; btn.disabled = false; }
+
+    renderAiBriefing();
     renderResults();
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
@@ -2745,7 +2743,24 @@ async function runAiReview() {
   const aiRevBtn = document.querySelector('#ai-review-button');
   if (aiRevBtn) { aiRevBtn.disabled = true; aiRevBtn.textContent = 'Analyseren...'; }
 
-  const payload = buildAiRequestPayload(saved.slice(0, 10), { includeReviewMetadata: true });
+  const payload = {
+    projectIdea:   state.filters.projectIdea,
+    keywords:      state.filters.query,
+    selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+    calls: saved.slice(0, 10).map(g => ({
+      identifier:          g.identifier,
+      title:               g.title,
+      programme:           getPrimaryProgramme(g),
+      destination:         g.destination || '',
+      summary:             g.summary || '',
+      abstract:            getAiAbstractText(g),
+      actionType:          g.actionType || g.kind?.label || '',
+      budget:              g.budget?.totalBudgetEur || null,
+      deadline:            g.deadlineDate || null,
+      matchedThemes:       g.relevance?.matchedThemes?.map(t => t.label) || [],
+      matchedTerms:        g.relevance?.matchedTerms || []
+    }))
+  };
 
   try {
     const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -2968,8 +2983,8 @@ function showAuthModal(type = 'signin') {
   if (type === 'signin') {
     content.innerHTML = `
       <h2>Sign In</h2>
-      ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
-      ${state.auth.success ? `<div class="auth-success">${escapeHtml(state.auth.success)}</div>` : ''}
+      ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+      ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
       <form class="auth-form">
         <input type="email" id="email-input" placeholder="Email" required>
         <input type="password" id="password-input" placeholder="Password" required>
@@ -2982,7 +2997,7 @@ function showAuthModal(type = 'signin') {
   } else {
     content.innerHTML = `
       <h2>Sign Up</h2>
-      ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
+      ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
       <form class="auth-form">
         <input type="text" id="display-name-input" placeholder="Display Name" required>
         <input type="email" id="email-input" placeholder="Email" required>
@@ -3123,8 +3138,8 @@ function showPasswordResetRequestForm() {
   
   content.innerHTML = `
     <h2>Reset Password</h2>
-    ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
-    ${state.auth.success ? `<div class="auth-success">${escapeHtml(state.auth.success)}</div>` : ''}
+    ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+    ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
     <p>Enter your email address and we'll send you a link to reset your password.</p>
     <form class="auth-form">
       <input type="email" id="reset-email-input" placeholder="Email" required>
@@ -3177,8 +3192,8 @@ function showPasswordResetForm() {
   
   content.innerHTML = `
     <h2>Set New Password</h2>
-    ${state.auth.error ? `<div class="auth-error">${escapeHtml(state.auth.error)}</div>` : ''}
-    ${state.auth.success ? `<div class="auth-success">${escapeHtml(state.auth.success)}</div>` : ''}
+    ${state.auth.error ? `<div class="auth-error">${state.auth.error}</div>` : ''}
+    ${state.auth.success ? `<div class="auth-success">${state.auth.success}</div>` : ''}
     <form class="auth-form">
       <input type="password" id="new-password-input" placeholder="New Password" required>
       <input type="password" id="confirm-password-input" placeholder="Confirm New Password" required>
@@ -3429,7 +3444,7 @@ function showSaveSearchModal() {
   content.innerHTML = `
     <h2>Save Current Search</h2>
     <form class="auth-form">
-      <input type="text" id="search-name-input" placeholder="Search name" value="${escapeHtml(defaultName)}" required>
+      <input type="text" id="search-name-input" placeholder="Search name" value="${defaultName}" required>
       <button type="submit" id="confirm-save-search">Save Search</button>
       <button type="button" id="cancel-save-search" class="ghost-button">Cancel</button>
     </form>
@@ -3473,16 +3488,16 @@ function renderSavedSearchesPanel() {
       : 'All themes';
     
     return `
-      <div class="saved-search-item" data-search-id="${escapeHtml(search.id)}">
+      <div class="saved-search-item" data-search-id="${search.id}">
         <div>
-          <strong>${escapeHtml(search.name)}</strong>
+          <strong>${search.name}</strong>
           <div class="saved-search-meta">
-            <small>${escapeHtml(themeName)} • ${escapeHtml(search.filters?.status || 'live')}</small>
+            <small>${themeName} • ${search.filters?.status || 'live'}</small>
           </div>
         </div>
         <div class="saved-search-actions">
-          <button class="apply-search-btn ghost-button" data-search-id="${escapeHtml(search.id)}">Apply</button>
-          <button class="delete-search-btn ghost-button" data-search-id="${escapeHtml(search.id)}">Delete</button>
+          <button class="apply-search-btn ghost-button" data-search-id="${search.id}">Apply</button>
+          <button class="delete-search-btn ghost-button" data-search-id="${search.id}">Delete</button>
         </div>
       </div>
     `;
@@ -3544,8 +3559,10 @@ function update() {
   renderMetrics();
   renderSidebar();
   renderSavedCallsPanel();
+  renderAiBriefing();
   renderResults();
   renderPagination();
+  if (state.activeView === 'pipeline') renderPipeline();
 }
 
 // ── Wire events ───────────────────────────────────────────────
@@ -3569,7 +3586,7 @@ function wireEvents() {
 
   elements.resetButton?.addEventListener('click', () => {
     state.filters = { query: '', projectIdea: '', status: 'live', programme: 'all', theme: 'all', actionType: 'all', recentMonths: 'all', sort: 'relevance-desc' };
-    state.aiReviews.clear(); state.aiRerankActive = false;
+    state.aiReviews.clear(); state.aiSummary = null; state.aiRerankActive = false;
     const statusEl = document.querySelector('#ai-rerank-status');
     const aiBtn    = document.querySelector('#ai-rerank-button');
     if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
@@ -3590,6 +3607,7 @@ function wireEvents() {
 // ── Bootstrap ─────────────────────────────────────────────────
 async function init() {
   loadSavedCalls();
+  loadPipeline();
   parseHash();
   
   // Initialize auth
