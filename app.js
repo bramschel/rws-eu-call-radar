@@ -576,7 +576,7 @@ const state = {
   savedSearches: [],
   filters: {
     query: '', projectIdea: '', status: 'live',
-    programme: 'all', theme: 'all', actionType: 'all',
+    programme: 'all', theme: 'all',
     recentMonths: 'all', sort: 'relevance-desc'
   }
 };
@@ -588,7 +588,6 @@ const elements = {
   statusPills:        document.querySelector('#status-pills'),
   programmeSelect:    document.querySelector('#programme-select'),
   themeSelect:        document.querySelector('#theme-select'),
-  actionTypeSelect:   document.querySelector('#action-type-select'),
   recentSelect:       document.querySelector('#recent-select'),
   sortSelect:         document.querySelector('#sort-select'),
   resetButton:        document.querySelector('#reset-button'),
@@ -1553,11 +1552,6 @@ if (state.filters.recentMonths === '14d') {
 }
 
       // Action type filter
-      if (state.filters.actionType !== 'all') {
-        const at = normalizeText(grant.actionType || grant.kind?.label || '');
-        if (!at.includes(normalizeText(state.filters.actionType))) return false;
-      }
-
       const rel = calculateRelevance(grant, query, idea, state.filters.theme);
       grant.relevance = rel;
 
@@ -1619,7 +1613,6 @@ function parseHash() {
   state.filters.status       = p.get('s')       || 'live';
   state.filters.programme    = p.get('p')       || 'all';
   state.filters.theme        = p.get('theme')   || 'all';
-  state.filters.actionType   = p.get('at')      || 'all';
   state.filters.recentMonths = p.get('recent')  || 'all';
   state.filters.sort         = p.get('sort')    || 'relevance-desc';
 }
@@ -1631,7 +1624,6 @@ function writeHash() {
   if (state.filters.status       !== 'live')    p.set('s',      state.filters.status);
   if (state.filters.programme    !== 'all')     p.set('p',      state.filters.programme);
   if (state.filters.theme        !== 'all')     p.set('theme',  state.filters.theme);
-  if (state.filters.actionType   !== 'all')     p.set('at',     state.filters.actionType);
   if (state.filters.recentMonths !== 'all')     p.set('recent', state.filters.recentMonths);
   if (state.filters.sort !== 'relevance-desc')  p.set('sort',   state.filters.sort);
   const hash = p.toString();
@@ -1708,22 +1700,7 @@ function renderProgrammeOptions() {
   }
 }
 
-function renderActionTypeOptions() {
-  if (!elements.actionTypeSelect) return;
-  const types = [...new Set(
-    state.data.grants.map(g => g.actionType || g.kind?.label || '').filter(Boolean)
-  )].sort();
-  const frag = document.createDocumentFragment();
-  const allOpt = document.createElement('option');
-  allOpt.value = 'all'; allOpt.textContent = 'All action types';
-  frag.appendChild(allOpt);
-  for (const t of types) {
-    const o = document.createElement('option');
-    o.value = t; o.textContent = t;
-    frag.appendChild(o);
-  }
-  elements.actionTypeSelect.appendChild(frag);
-}
+
 
 function toggleProgrammeFilter(id) {
   state.filters.programme = state.filters.programme === id ? 'all' : id;
@@ -3620,7 +3597,6 @@ async function saveCurrentSearch(name = null) {
       status: state.filters.status,
       programme: state.filters.programme,
       theme: state.filters.theme,
-      actionType: state.filters.actionType,
       recentMonths: state.filters.recentMonths,
       sort: state.filters.sort
     }
@@ -3662,7 +3638,6 @@ async function recordSearchRun(savedSearchId = null) {
           status: state.filters.status,
           programme: state.filters.programme,
           theme: state.filters.theme,
-          actionType: state.filters.actionType,
           recentMonths: state.filters.recentMonths,
           sort: state.filters.sort
         },
@@ -3695,7 +3670,6 @@ async function applySavedSearch(searchId) {
     state.filters.status = data.filters?.status || 'live';
     state.filters.programme = data.filters?.programme || 'all';
     state.filters.theme = data.filters?.theme || 'all';
-    state.filters.actionType = data.filters?.actionType || 'all';
     state.filters.recentMonths = data.filters?.recentMonths || 'all';
     state.filters.sort = data.filters?.sort || 'relevance-desc';
     
@@ -3866,7 +3840,6 @@ function syncControls() {
   elements.themeSelect.value     = state.filters.theme;
   elements.recentSelect.value    = state.filters.recentMonths;
   elements.sortSelect.value      = state.filters.sort;
-  if (elements.actionTypeSelect) elements.actionTypeSelect.value = state.filters.actionType;
 }
 
 function update() {
@@ -3891,7 +3864,6 @@ function wireEvents() {
   onInput('query',       elements.searchInput);
   onInput('projectIdea', elements.projectInput);
   onChange('theme',       elements.themeSelect);
-  onChange('actionType',  elements.actionTypeSelect);
   onChange('recentMonths',elements.recentSelect);
   onChange('programme',   elements.programmeSelect);
   elements.sortSelect?.addEventListener('change', e => { state.filters.sort = e.target.value; update(); });
@@ -3903,7 +3875,7 @@ function wireEvents() {
   });
 
   elements.resetButton?.addEventListener('click', () => {
-    state.filters = { query: '', projectIdea: '', status: 'live', programme: 'all', theme: 'all', actionType: 'all', recentMonths: 'all', sort: 'relevance-desc' };
+    state.filters = { query: '', projectIdea: '', status: 'live', programme: 'all', theme: 'all', recentMonths: 'all', sort: 'relevance-desc' };
     state.aiReviews.clear(); state.aiSummary = null; state.aiRerankActive = false;
     const statusEl = document.querySelector('#ai-rerank-status');
     const aiBtn    = document.querySelector('#ai-rerank-button');
@@ -3935,7 +3907,6 @@ async function init() {
   if (!res.ok) throw new Error(`Could not load data: ${res.status}`);
   state.data = await res.json();
   renderProgrammeOptions();
-  renderActionTypeOptions();
   renderMetrics();
   syncControls();
   wireEvents();
