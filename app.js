@@ -510,7 +510,17 @@ const LOW_RWS_FIT_TERMS = [
   'food system',
   'food systems',
   'agri-food',
-  'farm2fork'
+  'farm2fork',
+  'Antarctica',
+  'Antarctic',
+  'Southern Ocean',
+  'polar region',
+  'polar regions',
+  'Arctic ocean',
+  'deep ocean',
+  'remote ocean',
+  'high seas',
+  'open ocean'
 ];
 
 // RWS core fit terms - focused infrastructure/water/mobility terms only
@@ -527,7 +537,6 @@ const RWS_CORE_TERMS = [
   'asset management',
   'infrastructure asset management',
   'infrastructure resilience',
-  'climate resilience',
   'climate adaptation',
   'bridges',
   'locks',
@@ -541,7 +550,8 @@ const RWS_CORE_TERMS = [
   'mobility infrastructure',
   'dual-use infrastructure',
   'cross-border infrastructure',
-  'CEF'
+  'CEF',
+  'dual use'
 ];
 
 const WEAK_TERMS = new Set(['data','energy','AI','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
