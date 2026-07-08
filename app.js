@@ -465,6 +465,43 @@ const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncolog
   'school', 'education facility',
   'health centre', 'social services'];
 
+const LOW_RWS_FIT_TERMS = [
+  'quantum computing',
+  'quantum computer',
+  'quantum computers',
+  'quantum algorithm',
+  'quantum algorithms',
+  'quantum hardware',
+  'quantum processor',
+  'qubit',
+  'qubits',
+  'quantum error correction',
+  'quantum software',
+  'semiconductor',
+  'semiconductors',
+  'chips',
+  'microelectronics',
+  'consumer electronics',
+  'manufacturing supply chain',
+  'industrial supply chain',
+  'healthcare',
+  'medical device',
+  'clinical trial',
+  'pharmaceutical',
+  'education technology',
+  'school curriculum',
+  'financial services',
+  'fintech',
+  'retail',
+  'consumer app',
+  'social services',
+  'housing',
+  'social housing',
+  'urban residents',
+  'local democracy',
+  'citizen participation'
+];
+
 // RWS core fit terms - focused infrastructure/water/mobility terms only
 const RWS_CORE_TERMS = [
   'navigable inland waterways',
@@ -841,15 +878,20 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   const rwsCoreBonus = Math.min(20, rwsCoreScore);
   score += rwsCoreBonus;
 
-  // RWS core fit gate: limit high scores for non-core calls
-  const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
-  if (rwsCoreScore === 0) {
-    // No RWS core fit: cap at 75
-    score = Math.min(score, 75);
-  } else if (rwsCoreScore < 8 && matchedNoiseTerms.length > 0) {
-    // Weak core fit with noise: cap at 60
-    score = Math.min(score, 60);
-  }
+  // RWS core fit gate: stricter caps for calls without clear RWS relevance
+const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
+const matchedLowRwsFitTerms = LOW_RWS_FIT_TERMS.filter(n => grantText.includes(normalizeText(n)));
+
+if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
+  // No RWS core fit and explicit low-fit domain: keep low in all-theme ranking
+  score = Math.min(score, 30);
+} else if (rwsCoreScore === 0) {
+  // No RWS core fit: stricter than previous cap of 75
+  score = Math.min(score, 55);
+} else if (rwsCoreScore < 8 && (matchedNoiseTerms.length > 0 || matchedLowRwsFitTerms.length > 0)) {
+  // Weak RWS core fit with low-fit or noise signals
+  score = Math.min(score, 60);
+}
   // Strong core fit (8+): no cap applied
 
   // Reasons
