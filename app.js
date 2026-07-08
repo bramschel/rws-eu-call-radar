@@ -51,7 +51,7 @@ const STATUS_OPTIONS = [
 const RWS_THEMES = [
   { id: 'corridor-management', label: 'Corridor Management',
     description: 'Transportcorridors, vaarwegen, TEN-T, multimodaliteit, verkeersmanagement en slimme mobiliteit.',
-    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','logistics','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
+    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
   { id: 'climate-adaptation', label: 'Climate Adaptation',
     description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, hitte, overstroming en resilience.',
     terms: ['climate adaptation','climate resilience','resilient infrastructure','adaptive infrastructure','flood risk','flood safety','flood protection','flood preparedness','water security','water resilience','sea level rise','storm surge','extreme weather','heat stress','drought','freshwater availability','fresh water','water management','river basin','coastal resilience','urban resilience','climate proof','climate-proof'] },
@@ -240,6 +240,138 @@ const RWS_CORE_TERMS = [
 ];
 
 const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
+// ── RAG-derived local relevance profiles ──────────────────────
+// These deterministic profiles are derived from rws_rag_context.json.
+// They replace broad theme keyword matching as the primary local relevance signal.
+// Generic terms are intentionally weak unless supported by RWS-specific context.
+const RWS_RELEVANCE_PROFILES = {
+  'corridor-management': {
+    label: 'Corridor Management',
+    strongSignals: [
+      'corridor management','TEN-T','TEN-T corridor','trans-European transport network','CEF Transport','Connecting Europe Facility',
+      'military mobility','military mobility corridor','dual-use infrastructure','civilian-defence dual use','inland waterways',
+      'vaarwegen','binnenvaart','River Information Services','RIS','traffic management','verkeersmanagement','ITS','C-ITS',
+      'cooperative intelligent transport systems','vehicle-to-infrastructure communication','infrastructure-to-vehicle communication',
+      'cross-border corridor management','cross-border transport infrastructure','road network resilience','waterway depth','low water shipping',
+      'multimodal corridor','multimodal hubs','corridorhubs'
+    ],
+    weakSignals: [
+      'navigation','shipping','ports','logistics','multimodal','smart mobility','mobility data','transport infrastructure',
+      'network management','transport corridor','mobility corridor','infrastructure adaptation','infrastructure works'
+    ],
+    requiredContextAny: [
+      'road authority','national highway authority','waterway authority','infrastructure manager','asset owner','public infrastructure manager',
+      'road network','national road network','main road network','waterway network','inland waterway network','transport corridor',
+      'cross-border infrastructure','infrastructure management','infrastructure renewal','infrastructure maintenance','asset renovation',
+      'replacement and renovation','VenR','bridges','locks','sluices','tunnels','waterways','vaarwegen'
+    ],
+    roleSignals: ['lead partner','project partner','associated partner','pilot site','asset owner','living lab','implementation','demonstration','cofinancing','beheerder','infrabeheerder','wegbeheerder','vaarwegbeheerder'],
+    programmeSignals: ['CEF','CEF Transport','Connecting Europe Facility','TEN-T','Interreg','Horizon Europe'],
+    exclusionSignals: ['urban mobility','first mile','last mile','passenger transport','public transport passengers','city mobility','consumer mobility app','tourism mobility','aviation passenger services','pure logistics supply chain','commercial supply chain','freight marketplace'],
+    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  'climate-adaptation': {
+    label: 'Climate Adaptation',
+    strongSignals: [
+      'climate adaptation','climate resilience','climate-proof infrastructure','climate proof infrastructure','flood risk','flood protection',
+      'flood risk management','water safety','waterveiligheid','sea level rise','zeespiegelstijging','storm surge barrier','stormvloedkering',
+      'flood barrier','dike reinforcement','dike','dyke','levee','waterkering','freshwater supply','zoetwatervoorziening',
+      'drought management','low water navigation','inland waterway resilience','river basin management','integral river management',
+      'integraal riviermanagement','IRM','Deltaprogramma','cross-border water management','coastal resilience','nature-based flood defence',
+      'stress test infrastructure','heat stress infrastructure'
+    ],
+    weakSignals: ['resilience','adaptive infrastructure','water management','extreme weather','drought','freshwater availability','stormwater management','urban resilience','climate proof','climate risk','risk assessment'],
+    requiredContextAny: [
+      'infrastructure','infrastructure management','road infrastructure','water infrastructure','waterway infrastructure','main road network',
+      'main waterway network','water system','river system','river basin','coastal system','bridges','locks','sluices','tunnels',
+      'water barriers','flood defences','Rijkswaterstaat','public infrastructure manager','water authority','asset owner',
+      'cross-border river basin','Rhine','Meuse','Scheldt','North Sea'
+    ],
+    roleSignals: ['pilot site','demonstration','implementation','asset owner','knowledge partner','infrastructure manager','water authority','beheerder','uitvoeringsorganisatie'],
+    programmeSignals: ['Interreg','Horizon Europe','LIFE','CEF'],
+    exclusionSignals: ['agriculture','farmer','crop resilience','crop adaptation','food production','livestock','agri-food','urban greening only','city adaptation only','building renovation only','household climate adaptation','health adaptation','tourism adaptation'],
+    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  sustainability: {
+    label: 'Sustainability / Duurzame Leefomgeving',
+    strongSignals: [
+      'circular infrastructure','circular construction','material reuse','reuse of materials','secondary raw materials','asphalt recycling',
+      'recycled asphalt','concrete recycling','biobased materials','circular procurement','sustainable procurement','zero-emission construction',
+      'zero emission construction','clean construction','low-emission machinery','electrification of construction machinery','CO2 reduction',
+      'climate-neutral infrastructure','carbon neutral infrastructure','nature-inclusive infrastructure','nature inclusive infrastructure',
+      'nature-based solutions','building with nature','biodiversity in infrastructure','ecological management','habitat restoration',
+      'habitat improvement','fish migration','seagrass restoration','water quality','soil quality','environmental noise','noise pollution',
+      'microplastics','RWS areaal','rijkswateren','rijkswegen'
+    ],
+    weakSignals: ['sustainability','sustainable infrastructure','green infrastructure','blue infrastructure','green and blue infrastructure','circular economy','recycling','renewable energy','energy efficiency','energy transition','biodiversity','ecology','ecosystem restoration','air quality','water management','multi-functional land use','integrated territorial approach','place-based approach'],
+    requiredContextAny: [
+      'infrastructure','infrastructure sector','road infrastructure','water infrastructure','waterways','roads','bridges','locks','sluices',
+      'tunnels','civil infrastructure','public infrastructure manager','asset owner','infrastructure manager','areaal','RWS areaal',
+      'national road network','national waterway network','rijkswateren','rijkswegen','construction works','infrastructure works',
+      'infrastructure procurement','infrabeheerders','ProRail','water authority'
+    ],
+    roleSignals: ['launching customer','pilot site','living lab','asset owner','public procurer','infrastructure manager','knowledge partner','implementation','demonstration','procurement'],
+    programmeSignals: ['Horizon Europe','LIFE','Interreg','CEF'],
+    exclusionSignals: ['consumer sustainability','retail','food','food packaging','fashion','household waste','urban green space only','city park','social housing','private buildings','consumer behaviour','agriculture without water link','bioeconomy without infrastructure link'],
+    caps: { noRwsContext: 35, weakOnly: 50, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  digitalisation: {
+    label: 'Digitalisation',
+    strongSignals: [
+      'digital twin infrastructure','digital twins for infrastructure','infrastructure digital twin','asset digital twin','asset management digitalisation',
+      'digital infrastructure management','infrastructure data platform','sensor data','condition monitoring','structural health monitoring',
+      'predictive maintenance','decision support systems','BIM','building information modelling','areaaldata','industrial automation',
+      'operational technology','cybersecurity of operational systems','cyber security of operational systems','inspection robotics','robotics for inspection',
+      'AI for infrastructure management','AI for asset management','machine learning for condition assessment','C-ITS','ITS','traffic data','mobility data',
+      'data ecosystem for infrastructure managers','data sharing for public infrastructure','European data spaces for mobility','CEF Digital',
+      'Digital Europe Programme','DSGO','DSM','NGII','EuroSDR','EuroGeographics'
+    ],
+    weakSignals: ['AI','artificial intelligence','machine learning','data','data governance','data sharing','open data','data platform','digitalisation','digitalization','digital transformation','digital infrastructure','interoperability','remote sensing','smart infrastructure','automation','robotics','cybersecurity','digital twin'],
+    requiredContextAny: [
+      'infrastructure','infrastructure management','asset management','public infrastructure manager','asset owner','road authority','water authority',
+      'national road network','waterway network','roads','waterways','bridges','locks','sluices','tunnels','water barriers',
+      'traffic management','shipping','navigation','C-ITS','ITS','operational technology','industrial automation','condition assessment',
+      'structural health monitoring','predictive maintenance','areaaldata','BIM'
+    ],
+    roleSignals: ['data provider','knowledge partner','living lab','pilot site','asset owner','infrastructure manager','implementation','demonstration','public authority','beheerder'],
+    programmeSignals: ['Digital Europe Programme','CEF Digital','Horizon Europe','Interreg'],
+    exclusionSignals: [
+      'semiconductor','semiconductors','chips','microelectronics','consumer electronics','electronics manufacturing','manufacturing supply chain',
+      'industrial supply chain','supply chain resilience','supply chain digital twin','factory automation','financial technology','fintech',
+      'health data','medical data','education technology','consumer app','e-commerce','retail platform','social media'
+    ],
+    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
+  },
+
+  'network-governance': {
+    label: 'Network Governance',
+    strongSignals: [
+      'network governance','infrastructure asset management','asset management','ISO 55001','lifecycle management','infrastructure lifecycle management',
+      'residual lifetime','failure risk','failure risk assessment','condition assessment','network condition monitoring','structural health monitoring',
+      'bridge management','lock management','tunnel management','infrastructure maintenance governance','renovation and replacement',
+      'replacement and renovation','VenR','infrastructure renewal','infrastructure renewal pipeline','portfolio approach','portfolioaanpak',
+      'Taskforce Infra','ketensamenwerking','supply chain collaboration in infrastructure','public procurement infrastructure',
+      'performance-based contracting','cross-border infrastructure management','cross-border water management','road authorities','water authorities',
+      'national transport authority','infrabeheerders','CEDR','PIARC','PIANC','theIAM','Worldclass Maintenance','EU policy implementation',
+      'implementation gap','execution capacity','infrastructure policy influence','data governance infrastructure'
+    ],
+    weakSignals: ['governance','coordination','co-ordination','cooperation','collaboration','international cooperation','European cooperation','cross-border cooperation','harmonisation','harmonization','standardisation','standardization','interoperability','capacity building','knowledge exchange','best practices','public authorities','regulatory framework','stakeholder cooperation','partnerships','European networks','network operators','policy instruments'],
+    requiredContextAny: [
+      'infrastructure','infrastructure manager','public infrastructure manager','asset owner','asset management','road authority','water authority',
+      'national transport authority','infrabeheerder','infrabeheerders','road network','waterway network','transport network','water management',
+      'river basin','cross-border water management','bridges','locks','sluices','tunnels','maintenance','renovation','replacement',
+      'lifecycle','network performance','public procurement infrastructure','infrastructure sector'
+    ],
+    roleSignals: ['lead partner','knowledge partner','public authority','infrastructure manager','asset owner','road authority','water authority','implementation','policy implementation','execution capacity','beheerder','uitvoeringsorganisatie'],
+    programmeSignals: ['Interreg','Horizon Europe','CEF','LIFE'],
+    exclusionSignals: ['financial markets governance','health governance','healthcare governance','local democracy','local government only','municipal governance only','education governance','school governance','social services governance','community governance','citizen participation','consumer governance','corporate governance','semiconductor supply chain','industrial supply chain without infrastructure','supply chain resilience without infrastructure'],
+    caps: { noRwsContext: 35, weakOnly: 45, exclusionWithoutContext: 25, strongWithContext: 100 }
+  }
+};
+
 
 // ── State ─────────────────────────────────────────────────────
 const state = {
@@ -465,6 +597,118 @@ function scoreImportantPhrases(fields, selectedTheme) {
   return { phraseScore, matchedPhrases };
 }
 
+
+function findTermMatches(grantText, terms) {
+  const matches = [];
+  const seen = new Set();
+  for (const term of terms || []) {
+    const normalized = normalizeText(term);
+    if (!normalized || seen.has(normalized)) continue;
+    if (grantText.includes(normalized)) {
+      matches.push(term);
+      seen.add(normalized);
+    }
+  }
+  return matches;
+}
+
+function evaluateRagThemeProfile(grantText, themeId, profile) {
+  const strongMatches = findTermMatches(grantText, profile.strongSignals);
+  const weakMatches = findTermMatches(grantText, profile.weakSignals);
+  const contextMatches = findTermMatches(grantText, profile.requiredContextAny);
+  const roleMatches = findTermMatches(grantText, profile.roleSignals);
+  const programmeMatches = findTermMatches(grantText, profile.programmeSignals);
+  const exclusionMatches = findTermMatches(grantText, profile.exclusionSignals);
+
+  const hasRwsContext = contextMatches.length > 0 || roleMatches.length > 0 || programmeMatches.length > 0;
+  const hasThemeSignal = strongMatches.length > 0 || weakMatches.length > 0 || contextMatches.length > 0;
+
+  const strongSignalScore = Math.min(40, strongMatches.length * 10);
+  const weakSignalScore = hasRwsContext
+    ? Math.min(20, weakMatches.length * 3)
+    : Math.min(8, weakMatches.length);
+  const contextScore = Math.min(25, contextMatches.length * 8);
+  const roleScore = Math.min(15, roleMatches.length * 5);
+  const programmeScore = Math.min(10, programmeMatches.length * 5);
+
+  let score = strongSignalScore + weakSignalScore + contextScore + roleScore + programmeScore;
+  let capApplied = null;
+
+  if (exclusionMatches.length > 0 && !hasRwsContext) {
+    score = Math.min(score, profile.caps.exclusionWithoutContext);
+    capApplied = 'exclusionWithoutContext';
+  } else if (!hasRwsContext && strongMatches.length === 0 && weakMatches.length > 0) {
+    score = Math.min(score, profile.caps.weakOnly);
+    capApplied = 'weakOnly';
+  } else if (!hasRwsContext && hasThemeSignal) {
+    score = Math.min(score, profile.caps.noRwsContext);
+    capApplied = 'noRwsContext';
+  }
+
+  const passesThemeGate = hasThemeSignal && (
+    hasRwsContext ||
+    (strongMatches.length >= 2 && exclusionMatches.length === 0)
+  );
+
+  return {
+    id: themeId,
+    label: profile.label,
+    score: Math.min(100, Math.round(score)),
+    matches: [...strongMatches, ...weakMatches, ...contextMatches],
+    strongMatches,
+    weakMatches,
+    contextMatches,
+    roleMatches,
+    programmeMatches,
+    exclusionMatches,
+    hasRwsContext,
+    passesThemeGate,
+    capApplied,
+    components: {
+      strongSignalScore,
+      weakSignalScore,
+      contextScore,
+      roleScore,
+      programmeScore
+    }
+  };
+}
+
+function evaluateRagThemeProfiles(grantText) {
+  return Object.entries(RWS_RELEVANCE_PROFILES)
+    .map(([themeId, profile]) => evaluateRagThemeProfile(grantText, themeId, profile))
+    .filter(result => result.score > 0 || result.matches.length || result.exclusionMatches.length)
+    .sort((a, b) => b.score - a.score);
+}
+
+function getBestRagThemeEvaluation(evaluations, selectedTheme = 'all') {
+  if (selectedTheme !== 'all') {
+    return evaluations.find(result => result.id === selectedTheme) || null;
+  }
+  return evaluations.find(result => result.passesThemeGate) || evaluations[0] || null;
+}
+
+function applyRagCap(score, evaluation) {
+  if (!evaluation) return Math.min(35, score);
+  const profile = RWS_RELEVANCE_PROFILES[evaluation.id];
+  if (!profile) return score;
+  if (evaluation.exclusionMatches.length > 0 && !evaluation.hasRwsContext) {
+    return Math.min(score, profile.caps.exclusionWithoutContext);
+  }
+  if (!evaluation.hasRwsContext && evaluation.strongMatches.length === 0 && evaluation.weakMatches.length > 0) {
+    return Math.min(score, profile.caps.weakOnly);
+  }
+  if (!evaluation.hasRwsContext) {
+    return Math.min(score, profile.caps.noRwsContext);
+  }
+  return score;
+}
+
+function passesSelectedThemeFilter(relevance, selectedTheme) {
+  if (selectedTheme === 'all') return true;
+  const theme = relevance.ragThemeEvaluations?.find(t => t.id === selectedTheme);
+  return Boolean(theme?.passesThemeGate);
+}
 function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   const fields    = getGrantTextFields(grant);
   const combined  = normalizeText([query, projectIdea].filter(Boolean).join(' '));
@@ -487,12 +731,12 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     const sw = isOrig ? 6  : isPhrase ? 6 : 2;
     const aw = isOrig ? 4  : isPhrase ? 4 : 1;
     const xw = isOrig ? 2  : isPhrase ? 2 : 0;
-
     let hit = false;
-    if      (fields.title.includes(term))                                          { queryRaw += tw; hit = true; }
-    else if (fields.summary.includes(term) || fields.destination.includes(term))   { queryRaw += sw; hit = true; }
-    else if (fields.abstract.includes(term))                                        { queryRaw += aw; hit = true; }
-    else if (xw > 0 && fields.searchText.includes(term))                           { queryRaw += xw; hit = true; }
+
+    if      (fields.title.includes(term))                                        { queryRaw += tw; hit = true; }
+    else if (fields.summary.includes(term) || fields.destination.includes(term))  { queryRaw += sw; hit = true; }
+    else if (fields.abstract.includes(term))                                      { queryRaw += aw; hit = true; }
+    else if (xw > 0 && fields.searchText.includes(term))                         { queryRaw += xw; hit = true; }
 
     if (hit) {
       matchedTerms.add(term);
@@ -501,100 +745,90 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     }
   }
 
-  const queryScore     = Math.min(30, queryRaw);
-  const queryMatched   = matchedTerms.size > 0;
+  const queryScore       = Math.min(30, queryRaw);
+  const queryMatched     = matchedTerms.size > 0;
   const origQueryMatched = origMatchedTerms.size > 0;
 
-  // Theme score (max 40)
-  let themeRaw = 0;
-  const matchedThemes = [];
-  for (const theme of RWS_THEMES) {
-    let ts = 0; const hits = [];
-    for (const phrase of theme.terms) {
-      const np = normalizeText(phrase);
-      if (grantText.includes(np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
-    }
-    if (ts > 0) {
-      if (selectedTheme !== 'all' && theme.id === selectedTheme) ts += 8;
-      themeRaw += ts;
-      matchedThemes.push({ id: theme.id, label: theme.label, score: ts, matches: hits });
-    }
-  }
-  
-  // Focused theme scoring: use only strongest theme matches
-  // Sort themes by score descending to get top contributors
-  const sortedThemes = [...matchedThemes].sort((a, b) => b.score - a.score);
-  
-  // Focused theme scoring: top theme + 50% of second theme
-  const topThemeScore = sortedThemes[0]?.score || 0;
-  const secondThemeScore = sortedThemes[1]?.score || 0;
-  const themeRawFocused = topThemeScore + 0.5 * secondThemeScore;
-  
-  const themeScore = Math.min(40, Math.round(themeRawFocused));
+  const ragThemeEvaluations = evaluateRagThemeProfiles(grantText);
+  const bestRagTheme = getBestRagThemeEvaluation(ragThemeEvaluations, selectedTheme);
+  const matchedThemes = ragThemeEvaluations
+    .filter(theme => theme.matches.length > 0)
+    .map(theme => ({
+      id: theme.id,
+      label: theme.label,
+      score: theme.score,
+      matches: theme.matches,
+      passesThemeGate: theme.passesThemeGate,
+      hasRwsContext: theme.hasRwsContext,
+      capApplied: theme.capApplied
+    }));
 
-  // Phrase score (max 30)
+  const themeScore = bestRagTheme?.score || 0;
+
+  // Phrase score is retained but no longer allowed to overrule RAG-based RWS-fit caps.
   const phraseResult = scoreImportantPhrases(fields, selectedTheme);
-  const phraseScore  = Math.min(30, phraseResult.phraseScore);
+  const phraseScore  = Math.min(15, Math.round(Math.min(30, phraseResult.phraseScore) * 0.5));
 
-  // Check if there is user input
   const hasUserInput = Boolean(query?.trim() || projectIdea?.trim());
+  const userScore = hasUserInput ? queryScore : 0;
 
-  let score;
-  if (!hasUserInput) {
-    // No user input: scale themeScore + phraseScore from max 70 to max 100.
-    // queryScore is excluded when there is no user input.
-    score = Math.round((themeScore + phraseScore) * (100 / 70));
-  } else {
-    // Normal calculation with all three components.
-    score = queryScore + themeScore + phraseScore;
-  }
-
-  // RWS core fit scoring
+  // RWS core fit is retained for diagnostics and as a small supporting signal.
   const coreFitResult = scoreRwsCoreFit(grantText);
   const rwsCoreScore = coreFitResult.rwsCoreScore;
   const matchedRwsCoreTerms = coreFitResult.matchedRwsCoreTerms;
+  const rwsCoreBonus = bestRagTheme?.hasRwsContext ? Math.min(10, rwsCoreScore) : 0;
 
-  // Noise penalty - unchanged behavior
+  let score = themeScore + userScore + phraseScore + rwsCoreBonus;
+
+  let noisePenalty = 0;
   for (const n of NOISE_TERMS) {
-    if (grantText.includes(normalizeText(n))) score -= 10;
+    if (grantText.includes(normalizeText(n))) {
+      score -= 10;
+      noisePenalty += 10;
+    }
   }
 
-  // RWS core fit bonus: add positive points for strong RWS core fit
-  const rwsCoreBonus = Math.min(20, rwsCoreScore);
-  score += rwsCoreBonus;
+  const scoreBeforeRagCap = score;
+  score = applyRagCap(score, bestRagTheme);
 
-  // RWS core fit gate: limit high scores for non-core calls
-  const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
-  if (rwsCoreScore === 0) {
-    // No RWS core fit: cap at 75
-    score = Math.min(score, 75);
-  } else if (rwsCoreScore < 8 && matchedNoiseTerms.length > 0) {
-    // Weak core fit with noise: cap at 60
-    score = Math.min(score, 60);
-  }
-  // Strong core fit (8+): no cap applied
-
-  // Reasons
   const reasons = [];
-  if (!combined && !matchedThemes.length) reasons.push('Geen zoekterm of themamatch; standaard live call getoond.');
+  if (!combined && !matchedThemes.length) reasons.push('Geen zoekterm of RAG-themamatch; standaard live call getoond.');
   if (matchedTerms.size > 0) {
     const disp = origMatchedTerms.size > 0 ? Array.from(origMatchedTerms) : Array.from(matchedTerms);
     reasons.push('Zoektermen: ' + disp.slice(0, 6).join(', '));
   }
-  if (matchedThemes.length)              reasons.push("Thema's: " + matchedThemes.map(t => t.label).join(', '));
+  if (matchedThemes.length) {
+    reasons.push("Thema's: " + matchedThemes.map(t => `${t.label}${t.passesThemeGate ? '' : ' (zwakke fit)'}`).join(', '));
+  }
   if (phraseResult.matchedPhrases.length) reasons.push('Sleuteltermen: ' + phraseResult.matchedPhrases.slice(0, 5).join(', '));
+  if (bestRagTheme?.exclusionMatches.length) reasons.push('Lage-fit signalen: ' + bestRagTheme.exclusionMatches.slice(0, 5).join(', '));
+  if (bestRagTheme?.hasRwsContext) reasons.push('RWS-context: ' + [...bestRagTheme.contextMatches, ...bestRagTheme.roleMatches].slice(0, 5).join(', '));
   if (fields.title && terms.some(t => fields.title.includes(t))) reasons.push('Match in titel.');
 
   matchedThemes.sort((a, b) => b.score - a.score);
 
   return {
-    score: Math.min(100, Math.max(0, score || 1)),
+    score: Math.min(100, Math.max(0, Math.round(score || 1))),
     queryMatched, origQueryMatched, expandedPhraseMatched,
     matchedTerms: Array.from(matchedTerms),
     origMatchedTerms: Array.from(origMatchedTerms),
     matchedPhrases: phraseResult.matchedPhrases,
     matchedThemes, reasons,
-    rwsCoreScore, matchedRwsCoreTerms, rwsCoreBonus
+    rwsCoreScore, matchedRwsCoreTerms, rwsCoreBonus,
+    ragThemeEvaluations,
+    ragBestTheme: bestRagTheme,
+    ragDiagnostics: {
+      queryScore,
+      themeScore,
+      phraseScore,
+      rwsCoreScore,
+      rwsCoreBonus,
+      noisePenalty,
+      scoreBeforeRagCap,
+      appliedCap: bestRagTheme?.capApplied || null,
+      hasRwsContext: Boolean(bestRagTheme?.hasRwsContext),
+      exclusionMatches: bestRagTheme?.exclusionMatches || []
+    }
   };
 }
 
@@ -1122,7 +1356,7 @@ if (state.filters.recentMonths === '14d') {
       const rel = calculateRelevance(grant, query, idea, state.filters.theme);
       grant.relevance = rel;
 
-      if (state.filters.theme !== 'all' && !rel.matchedThemes.some(t => t.id === state.filters.theme)) return false;
+      if (!passesSelectedThemeFilter(rel, state.filters.theme)) return false;
       if (combined && !rel.origQueryMatched && !rel.expandedPhraseMatched && !rel.matchedPhrases?.length && rel.score < 50) return false;
       return true;
     })
