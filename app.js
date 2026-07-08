@@ -59,21 +59,266 @@ const PIPELINE_STAGES = [
 
 // ── Thema's & scoringsdata ────────────────────────────────────
 const RWS_THEMES = [
-  { id: 'corridor-management', label: 'Corridor Management',
-    description: 'Transportcorridors, vaarwegen, TEN-T, multimodaliteit, verkeersmanagement en slimme mobiliteit.',
-    terms: ['corridor management','TEN-T','trans-European transport network','transport corridor','inland waterways','waterborne transport','navigation','shipping','ports','port areas','multimodal transport','logistics','traffic management','network management','smart mobility','cooperative intelligent transport systems','C-ITS','ITS','River Information Services','RIS','cross-border transport','transport infrastructure','mobility corridor','military mobility','civilian-defence dual use','infrastructure adaptation','infrastructure works'] },
-  { id: 'climate-adaptation', label: 'Climate Adaptation',
-    description: 'Klimaatbestendige infrastructuur, waterveiligheid, droogte, hitte, overstroming en resilience.',
-    terms: ['climate adaptation','climate resilience','resilient infrastructure','adaptive infrastructure','flood risk','flood safety','flood protection','flood preparedness','water security','water resilience','sea level rise','storm surge','extreme weather','heat stress','drought','freshwater availability','fresh water','water management','river basin','coastal resilience','urban resilience','climate proof','climate-proof'] },
-  { id: 'sustainability', label: 'Sustainability / Duurzame Leefomgeving',
-    description: 'Duurzame infrastructuur, circulariteit, klimaatneutraliteit, biodiversiteit, natuur en waterkwaliteit.',
-    terms: ['sustainability','sustainable infrastructure','sustainable land use','sustainable water management','circular economy','circular infrastructure','material reuse','reuse of materials','secondary raw materials','asphalt recycling','recycling','circular procurement','zero-emission construction','zero emission construction','low carbon construction','climate-neutral infrastructure','carbon neutral','carbon-neutral','energy neutral','biodiversity','nature-inclusive infrastructure','nature inclusive infrastructure','habitat restoration','ecosystem restoration','nature-based solutions','nature based solutions','building with nature','green infrastructure','blue infrastructure','green and blue infrastructure','water quality','water pollution','wastewater','ecology'] },
-  { id: 'digitalisation', label: 'Digitalisation',
-    description: 'Data, AI, digital twins, smart infrastructure, automatisering, informatievoorziening en besluitvorming.',
-    terms: ['AI-assisted infrastructure','construction automation','cyber resilience','data governance','data infrastructure','data sharing','data-driven','data driven','decision support','digitalisation','digitalization','digital twin','digital twins','information management','information systems','interoperability','machine learning','mobility data','predictive maintenance','remote sensing','smart infrastructure','smart mobility','traffic data'] },
-  { id: 'network-governance', label: 'Network Governance',
-    description: 'Internationale samenwerking, harmonisatie, standaardisatie, beleidsinstrumenten en netwerkcoördinatie.',
-    terms: ['network governance','governance','cross-border cooperation','cross border cooperation','international cooperation','European cooperation','coordination','co-ordination','harmonisation','harmonization','standardisation','standardization','interoperability','policy instruments','capacity building','institutional cooperation','stakeholder cooperation','partnerships','public authorities','public administration','regulatory framework','knowledge exchange','best practices','European networks','network operators','road authorities','water authorities'] }
+  {
+    id: 'corridor-management',
+    label: 'Corridor Management',
+    description:
+      'Europese transportcorridors, TEN-T, vaarwegen, verkeersmanagement, ITS/C-ITS en corridorgerichte infrastructuur.',
+    terms: [
+      "corridor management",
+    "TEN-T",
+    "Dual use",
+    "military mobility",
+    "military mobility corridor",
+    "trans-European transport network",
+    "CEF",
+    "CEF Transport",
+    "Connecting Europe Facility",
+    "transport infrastructure renewal",
+    "infrastructure maintenance",
+    "asset renovation",
+    "inland waterways",
+    "vaarwegen",
+    "binnenvaart",
+    "River Information Services",
+    "RIS",
+    "traffic management",
+    "ITS",
+    "C-ITS",
+    "cooperative intelligent transport systems",
+    "vehicle-to-infrastructure communication",
+    "smart mobility",
+    "multimodal",
+    "multimodal hubs",
+    "corridorhubs",
+    "corridor logistics",
+    "cross-border transport",
+    "cross-border network management",
+    "transport infrastructure",
+    "navigation",
+    "ports",
+    "shipping",
+    "low water shipping",
+    "waterway depth",
+    "road network resilience",
+    "grensoverschrijdend corridorbeheer",
+    "infrastructure interoperability",
+    "road authority",
+    "national highway authority",
+    "datagedreven assetmanagement",
+    "digital twin infrastructure",
+    "CEDR",
+    "infra4Dfuture",
+    "CCAM"
+    ]
+  },
+
+  {
+    id: 'climate-adaptation',
+    label: 'Climate Adaptation',
+    description:
+      'Klimaatadaptatie voor hoofdwegen, vaarwegen, hoofdwatersysteem, waterveiligheid, droogte en klimaatbestendige infrastructuur.',
+    terms: [
+      "climate adaptation",
+    "climate resilience",
+    "climate-proof infrastructure",
+    "flood risk",
+    "flood protection",
+    "flood risk management",
+    "sea level rise",
+    "drought",
+    "water safety",
+    "water management",
+    "integrated water resource management",
+    "river basin management",
+    "coastal resilience",
+    "dike",
+    "dyke",
+    "levee",
+    "dike reinforcement",
+    "flood barrier",
+    "storm surge barrier",
+    "stormwater management",
+    "freshwater supply",
+    "low water navigation",
+    "inland waterway resilience",
+    "heat stress infrastructure",
+    "stress test infrastructure",
+    "nature-based flood defence",
+    "integral river management",
+    "cross-border water management",
+    "Deltaprogramma",
+    "IRM",
+    "klimaatadaptatie",
+    "zeespiegelstijging",
+    "waterveiligheid",
+    "zoetwatervoorziening",
+    "integraal riviermanagement",
+    "klimaatbestendige netwerken"
+    ]
+  },
+
+  {
+    id: 'sustainability',
+    label: 'Sustainability / Duurzame Leefomgeving',
+    description:
+      'Circulaire infrastructuur, emissieloos bouwen, klimaatneutraal beheer, biodiversiteit, waterkwaliteit en RWS-areaal.',
+    terms: [
+       "energy efficiency",
+    "renewable energy",
+    "concrete recycling",
+    "recycling infrastructure",
+    "nature quality",
+    "sustainability",
+    "circular economy",
+    "circular infrastructure",
+    "material reuse",
+    "secondary raw materials",
+    "asphalt recycling",
+    "recycled asphalt",
+    "biobased materials",
+    "circular procurement",
+    "sustainable procurement",
+    "zero-emission construction",
+    "clean construction",
+    "low-emission machinery",
+    "electrification of construction machinery",
+    "CO2 reduction",
+    "climate-neutral infrastructure",
+    "carbon neutral",
+    "energy transition",
+    "nature-based solutions",
+    "nature-inclusive infrastructure",
+    "building with nature",
+    "biodiversity",
+    "ecological management",
+    "habitat restoration",
+    "habitat improvement",
+    "ecosystem restoration",
+    "Natura 2000",
+    "fish migration",
+    "species protection",
+    "seagrass restoration",
+    "water quality",
+    "soil quality",
+    "air quality",
+    "environmental noise",
+    "noise pollution",
+    "water management",
+    "microplastics",
+    "green infrastructure",
+    "sustainable area development",
+    "multi-functional land use",
+    "integrated territorial approach",
+    "place-based approach",
+    "NOVEX",
+    "infrabeheerders"
+    ]
+  },
+
+  {
+    id: 'digitalisation',
+    label: 'Digitalisation',
+    description:
+      'Digitalisering van infrastructuurbeheer, assetmanagement, sensoring, digital twins, ITS/C-ITS, operationele systemen en data-ecosystemen.',
+    terms: [
+     "digitalisation",
+    "digital twin",
+    "digital twin infrastructure",
+    "sensor data",
+    "AI",
+    "artificial intelligence",
+    "machine learning",
+    "data governance",
+    "data ecosystem",
+    "data sharing",
+    "open data",
+    "DSGO",
+    "DSM",
+    "NGII",
+    "BIM",
+    "building information modelling",
+    "predictive maintenance",
+    "smart infrastructure",
+    "cybersecurity",
+    "industrial automation",
+    "automation",
+    "robotics",
+    "inspection robotics",
+    "decision support systems",
+    "ITS",
+    "C-ITS",
+    "asset management digitalisation",
+    "industriële automatisering",
+    "datascience",
+    "datagedreven assetmanagement",
+    "digital infrastructure management",
+    "infrastructure data platform",
+    "once-only data collection",
+    "digital services infrastructure",
+    "European data spaces",
+    "Digital Europe Programme",
+    "CEF Digital",
+    "interoperability",
+    "EuroSDR",
+    "EuroGeographics"
+    ]
+  },
+
+  {
+    id: 'network-governance',
+    label: 'Network Governance',
+    description:
+      'Assetmanagement, samenwerking tussen infrabeheerders, netwerkgovernance, standaardisatie, uitvoeringskracht en EU-beleidsbeïnvloeding.',
+    terms: [
+       "network governance",
+    "asset management",
+    "infrastructure asset management",
+    "ISO 55001",
+    "lifecycle management",
+    "cross-border cooperation",
+    "international cooperation",
+    "harmonisation",
+    "standardisation",
+    "interoperability",
+    "road authorities",
+    "water authorities",
+    "national transport authority",
+    "infrabeheerders",
+    "infrastructure maintenance governance",
+    "renovation and replacement",
+    "VenR",
+    "infrastructure renewal",
+    "Taskforce Infra",
+    "portfolioaanpak",
+    "ketensamenwerking",
+    "supply chain collaboration",
+    "public procurement infrastructure",
+    "performance-based contracting",
+    "PIARC",
+    "PIANC",
+    "CEDR",
+    "theIAM",
+    "capacity building",
+    "knowledge exchange",
+    "peer review",
+    "regulatory framework",
+    "EU policy implementation",
+    "implementation gap",
+    "execution capacity",
+    "public authorities",
+    "transnational research",
+    "infrastructure policy influence",
+    "data governance infrastructure",
+    "network condition monitoring",
+    "structural health monitoring",
+    "bridge management",
+    "lock management",
+    "tunnel management",
+    "infrastructure residual lifetime",
+    "failure risk assessment"
+    ]
+  }
 ];
 
 const IMPORTANT_PHRASES = [
@@ -94,7 +339,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
   { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
   { phrase: 'traffic management',               theme: 'corridor-management', weight: 22 },
-  { phrase: 'digital twin',                     theme: 'digitalisation',      weight: 30 },
+  { phrase: 'digital twin',                     theme: 'digitalisation',      weight: 20 },
   { phrase: 'decision support',                 theme: 'digitalisation',      weight: 22 },
   { phrase: 'predictive maintenance',           theme: 'digitalisation',      weight: 26 },
   { phrase: 'sensor data',                      theme: 'digitalisation',      weight: 20 },
@@ -103,7 +348,8 @@ const IMPORTANT_PHRASES = [
   { phrase: 'dual-use infrastructure',          theme: 'corridor-management', weight: 28 },
   { phrase: 'dual use',                         theme: 'corridor-management', weight: 18 },
   { phrase: 'transport infrastructure',         theme: 'corridor-management', weight: 24 },
-  { phrase: 'road transport',                   theme: 'corridor-management', weight: 24 }
+  { phrase: 'road transport',                   theme: 'corridor-management', weight: 24 },
+  { phrase: 'CEF Infrastructure Projects',       theme: 'corridor-management', weight: 16 },
 ];
 
 const RWS_DOMAIN_TERMS = ['infrastructure','transport infrastructure','road infrastructure','roads','highways','bridges','tunnels','asset management','maintenance','renovation','traffic management','mobility','smart mobility','corridor','TEN-T','inland waterways','waterways','navigation','shipping','ports','river','river basin','flood risk','flood protection','water safety','water management','coastal','sea level rise','drought','digital twin','sensor data','decision support','predictive maintenance','water infrastructure','flood management','flood resilience','flood defence','flood defense','stormwater','river management','coastal management','coastal protection','dike','dyke','levee','waterway infrastructure','climate-proof infrastructure','climate proof infrastructure','infrastructure resilience','road resilience','bridge resilience','tunnel resilience'];
@@ -211,13 +457,61 @@ const QUERY_SYNONYMS = {
 
 const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via']);
 
-const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood',
+const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood', 'energy grid', 
   'local democracy', 'social inclusion',
   'citizens participation', 'community governance',
   'social cohesion', 'urban residents',
   'housing', 'social housing',
   'school', 'education facility',
   'health centre', 'social services'];
+
+const LOW_RWS_FIT_TERMS = [
+  'quantum computing',
+  'quantum computer',
+  'quantum computers',
+  'quantum algorithm',
+  'quantum algorithms',
+  'quantum hardware',
+  'quantum processor',
+  'qubit',
+  'qubits',
+  'quantum error correction',
+  'quantum software',
+  'semiconductor',
+  'semiconductors',
+  'chips',
+  'microelectronics',
+  'consumer electronics',
+  'manufacturing supply chain',
+  'industrial supply chain',
+  'healthcare',
+  'medical device',
+  'clinical trial',
+  'pharmaceutical',
+  'education technology',
+  'school curriculum',
+  'financial services',
+  'fintech',
+  'retail',
+  'consumer app',
+  'social services',
+  'housing',
+  'social housing',
+  'urban residents',
+  'local democracy',
+  'citizen participation', 
+  'agriculture', 
+  'farm',
+  'farmer',  
+  'farming',
+  'crop',
+  'crops',
+  'livestock',
+  'food system',
+  'food systems',
+  'agri-food',
+  'farm2fork'
+];
 
 // RWS core fit terms - focused infrastructure/water/mobility terms only
 const RWS_CORE_TERMS = [
@@ -246,10 +540,11 @@ const RWS_CORE_TERMS = [
   'road infrastructure',
   'mobility infrastructure',
   'dual-use infrastructure',
-  'cross-border infrastructure'
+  'cross-border infrastructure',
+  'CEF'
 ];
 
-const WEAK_TERMS = new Set(['data','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
+const WEAK_TERMS = new Set(['data','energy','AI','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);
 
 // ── State ─────────────────────────────────────────────────────
 const state = {
@@ -479,20 +774,28 @@ function scoreRwsCoreFit(grantText) {
 function scoreImportantPhrases(fields, selectedTheme) {
   let phraseScore = 0;
   const matchedPhrases = [];
+
   for (const item of IMPORTANT_PHRASES) {
+    // Als een specifiek thema geselecteerd is, tellen alleen sleuteltermen van dat thema mee.
+    // Zo verschijnen Climate/Sustainability-sleuteltermen niet als "waarom relevant" bij Corridor Management.
+    if (selectedTheme !== 'all' && item.theme !== selectedTheme) continue;
+
     const np = normalizeText(item.phrase);
     const inTitle   = fields.title.includes(np);
     const inSummary = fields.summary.includes(np) || fields.destination.includes(np);
     const inOther   = fields.abstract.includes(np) || fields.searchText.includes(np);
+
     if (inTitle || inSummary || inOther) {
       let w = item.weight;
       if (inTitle)   w += 12;
       if (inSummary) w += 6;
       if (selectedTheme !== 'all' && item.theme === selectedTheme) w += 10;
+
       phraseScore += w;
       matchedPhrases.push(item.phrase);
     }
   }
+
   return { phraseScore, matchedPhrases };
 }
 
@@ -594,15 +897,20 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   const rwsCoreBonus = Math.min(20, rwsCoreScore);
   score += rwsCoreBonus;
 
-  // RWS core fit gate: limit high scores for non-core calls
-  const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
-  if (rwsCoreScore === 0) {
-    // No RWS core fit: cap at 75
-    score = Math.min(score, 75);
-  } else if (rwsCoreScore < 8 && matchedNoiseTerms.length > 0) {
-    // Weak core fit with noise: cap at 60
-    score = Math.min(score, 60);
-  }
+  // RWS core fit gate: stricter caps for calls without clear RWS relevance
+const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
+const matchedLowRwsFitTerms = LOW_RWS_FIT_TERMS.filter(n => grantText.includes(normalizeText(n)));
+
+if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
+  // No RWS core fit and explicit low-fit domain: keep low in all-theme ranking
+  score = Math.min(score, 30);
+} else if (rwsCoreScore === 0) {
+  // No RWS core fit: stricter than previous cap of 75
+  score = Math.min(score, 55);
+} else if (rwsCoreScore < 8 && (matchedNoiseTerms.length > 0 || matchedLowRwsFitTerms.length > 0)) {
+  // Weak RWS core fit with low-fit or noise signals
+  score = Math.min(score, 60);
+}
   // Strong core fit (8+): no cap applied
 
   // Reasons
@@ -1412,20 +1720,57 @@ function toggleProgrammeFilter(id) {
   resetPagination(); syncControls(); update();
 }
 
+// ── Helper: Empty state rendering ──────────────────────────────
+function renderEmptyResultsState() {
+  const el = document.createElement('div');
+  el.className = 'empty-state'; el.textContent = 'Try a broader search or a different programme.';
+  elements.resultsList.appendChild(el);
+}
+
+// ── Helper: Result count updating ──────────────────────────────
+function updateResultCounts(filteredCount) {
+  elements.resultsCount.textContent    = `${fmtCompact.format(filteredCount)} matches`;
+  elements.resultsHeadline.textContent = filteredCount
+    ? `${fmtCompact.format(filteredCount)} grants in view`
+    : 'No grants match the current filters';
+}
+
+// ── Helper: AI review block creation ────────────────────────────
+function createAiReviewBlock(aiReview, scoreCls, pfCls, aiScore, pfScore) {
+  const block = document.createElement('div');
+  block.className = 'grant-card__ai-review';
+  block.innerHTML =
+    '<div class="grant-card__ai-scores">' +
+      '<div class="grant-card__ai-score-item">' +
+        '<span class="grant-card__ai-score-label">AI-analyse RWS</span>' +
+        '<span class="ai-score ' + scoreCls + '">' + escapeHtml(String(aiScore)) + '/100</span>' +
+      '</div>' +
+      '<div class="grant-card__ai-score-item">' +
+        '<span class="grant-card__ai-score-label">Projectfit</span>' +
+        '<span class="ai-score ' + pfCls + '">' + escapeHtml(String(pfScore)) + '/100</span>' +
+      '</div>' +
+    '</div>' +
+    (aiReview.projectFit ? '<p class="grant-card__projectfit"><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
+    '<p>' + escapeHtml(aiReview.rationale || 'Geen toelichting beschikbaar.') + '</p>' +
+    '<dl class="grant-card__facts" style="margin-top:.5rem">' +
+      (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
+      (aiReview.possibleRwsRole  ? '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(aiReview.possibleRwsRole)  + '</dd></div>' : '') +
+      (aiReview.uncertainties    ? '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(aiReview.uncertainties)    + '</dd></div>' : '') +
+      (aiReview.callRequirements?.length ? '<div><dt>Vereisten uit calltekst</dt><dd><ul class="ai-requirements">' + aiReview.callRequirements.map(req => '<li>' + escapeHtml(req) + '</li>').join('') + '</ul></dd></div>' : '') +
+      (aiReview.ragMatchedItems?.length ? '<div><dt>RAG-context</dt><dd>' + escapeHtml(aiReview.ragMatchedItems.join(', ')) + '</dd></div>' : '') +
+    '</dl>';
+  return block;
+}
+
 // ── Render: results ───────────────────────────────────────────
 function renderResults() {
   const visible = getDisplayResults();
   elements.resultsList.innerHTML = '';
-  elements.resultsCount.textContent    = `${fmtCompact.format(state.filtered.length)} matches`;
-  elements.resultsHeadline.textContent = state.filtered.length
-    ? `${fmtCompact.format(state.filtered.length)} grants in view`
-    : 'No grants match the current filters';
+  updateResultCounts(state.filtered.length);
   if (elements.loadMoreButton) elements.loadMoreButton.hidden = true;
 
   if (!visible.length) {
-    const el = document.createElement('div');
-    el.className = 'empty-state'; el.textContent = 'Try a broader search or a different programme.';
-    elements.resultsList.appendChild(el); return;
+    renderEmptyResultsState(); return;
   }
 
   const frag = document.createDocumentFragment();
@@ -1511,28 +1856,7 @@ function renderResults() {
       const pfScore    = aiReview.projectFitScore ?? 0;
       const scoreCls   = getScoreBadgeClass(aiScore);
       const pfCls      = getScoreBadgeClass(pfScore);
-      const aiBlock    = document.createElement('div');
-      aiBlock.className = 'grant-card__ai-review';
-      aiBlock.innerHTML =
-        '<div class="grant-card__ai-scores">' +
-          '<div class="grant-card__ai-score-item">' +
-            '<span class="grant-card__ai-score-label">AI-analyse RWS</span>' +
-            '<span class="ai-score ' + scoreCls + '">' + escapeHtml(String(aiScore)) + '/100</span>' +
-          '</div>' +
-          '<div class="grant-card__ai-score-item">' +
-            '<span class="grant-card__ai-score-label">Projectfit</span>' +
-            '<span class="ai-score ' + pfCls + '">' + escapeHtml(String(pfScore)) + '/100</span>' +
-          '</div>' +
-        '</div>' +
-        (aiReview.projectFit ? '<p class="grant-card__projectfit"><strong>Projectfit:</strong> ' + escapeHtml(aiReview.projectFit) + '</p>' : '') +
-        '<p>' + escapeHtml(aiReview.rationale || 'Geen toelichting beschikbaar.') + '</p>' +
-        '<dl class="grant-card__facts" style="margin-top:.5rem">' +
-          (aiReview.theme            ? '<div><dt>Thema\'s</dt><dd>'      + escapeHtml(aiReview.theme)            + '</dd></div>' : '') +
-          (aiReview.possibleRwsRole  ? '<div><dt>RWS-rol</dt><dd>'       + escapeHtml(aiReview.possibleRwsRole)  + '</dd></div>' : '') +
-          (aiReview.uncertainties    ? '<div><dt>Onzekerheden</dt><dd>'  + escapeHtml(aiReview.uncertainties)    + '</dd></div>' : '') +
-          (aiReview.callRequirements?.length ? '<div><dt>Vereisten uit calltekst</dt><dd><ul class="ai-requirements">' + aiReview.callRequirements.map(req => '<li>' + escapeHtml(req) + '</li>').join('') + '</ul></dd></div>' : '') +
-          (aiReview.ragMatchedItems?.length ? '<div><dt>RAG-context</dt><dd>' + escapeHtml(aiReview.ragMatchedItems.join(', ')) + '</dd></div>' : '') +
-        '</dl>';
+      const aiBlock = createAiReviewBlock(aiReview, scoreCls, pfCls, aiScore, pfScore);
       relBlock.insertAdjacentElement('afterend', aiBlock);
     }
 
@@ -1812,30 +2136,22 @@ function getWatchlistCalls(reviews) {
 }
 
 function getDeduplicatedNextActions(reviews) {
-  const actions = new Map();
-  const topCalls = getTopCallsForBriefing(reviews);
-  
-  topCalls.forEach(review => {
-    const call = getCallByIdentifier(review.identifier);
-    // Removed recommendedNextStep handling - now using callRequirements
-  });
-  
-  return Array.from(actions.values());
+  // Note: This function is intentionally no-op since recommendedNextStep was replaced by callRequirements.
+  // It remains for compatibility but always returns an empty array.
+  return [];
 }
 
 function clampActionLabel(review, call) {
   if (!review || !call) return 'Niet prioriteren';
   
-  // If AI provided an action label, use it but clamp to our allowed labels
-  const aiAction = review.actielabelVoorstel || review.actionLabel;
-  
-  // Determine based on scores if no AI action or if we need to clamp
+  // Note: aiAction parameter is currently unused - function returns labels based solely on scores
+  // Determine based on scores (aiAction clamping logic removed as it was ineffective)
   if (review.aiRelevanceScore >= 80 && review.projectFitScore >= 60) {
-    return aiAction === 'Actief verkennen' ? 'Actief verkennen' : 'Actief verkennen';
+    return 'Actief verkennen';
   } else if (review.aiRelevanceScore >= 65 && review.projectFitScore >= 45) {
-    return aiAction === 'Nader toetsen' ? 'Nader toetsen' : 'Nader toetsen';
+    return 'Nader toetsen';
   } else if (review.aiRelevanceScore >= 45) {
-    return aiAction === 'Monitoren' ? 'Monitoren' : 'Monitoren';
+    return 'Monitoren';
   } else {
     return 'Niet prioriteren';
   }
@@ -2654,7 +2970,8 @@ async function scoreTopResultsWithAI() {
 
   try {
     // Process batches sequentially
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    let batchIndex;
+    for (batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
       
       // Update progress for current batch
@@ -3098,12 +3415,10 @@ async function requestPasswordReset(email) {
       throw error;
     }
 
-    // Only show success if no error
-    if (!error) {
-      state.auth.success = 'Password reset email sent! Check your inbox.';
-      updateAuthUI();
-    }
-    return !error;
+    // Show success message
+    state.auth.success = 'Password reset email sent! Check your inbox.';
+    updateAuthUI();
+    return true;
 
   } catch (error) {
     console.error('Password reset failed:', error.message);
