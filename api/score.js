@@ -425,7 +425,7 @@ THEMA-SPECIFIEKE RICHTLIJNEN:
 
 Scorebonussen (cumuleerbaar, max +15 totaal op aiRelevanceScore):
 +3 tot +8 als de call inhoudelijk aansluit op een of meer RAG-context items — benoem de titel(s) in ragMatchedItems
-+3 tot +7 als de call sterk lijkt op een POSITIEF VOORBEELD uit de historische voorbeelden
++3 tot +7 als de call sterk lijkt op een POSITIEF VOORBEELD uit de historische voorbeelden - benoem de titel(s) in ragMatchedItems
 
 CONSERVATIEVE SCORE RANGES:
 0–20 = geen RWS-domein, geen uitvoeringsrol denkbaar

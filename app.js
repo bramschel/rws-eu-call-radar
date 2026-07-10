@@ -329,6 +329,8 @@ const IMPORTANT_PHRASES = [
   { phrase: 'circular procurement',             theme: 'sustainability',      weight: 24 },
   { phrase: 'nature-based solutions',           theme: 'sustainability',      weight: 26 },
   { phrase: 'water quality',                    theme: 'sustainability',      weight: 20 },
+  { phrase: 'circular economy',                 theme: 'sustainability',      weight: 28 },
+  { phrase: 'zero pollution',                    theme: 'sustainability',      weight: 10 },
   { phrase: 'climate resilient infrastructure', theme: 'climate-adaptation',  weight: 34 },
   { phrase: 'climate resilience',               theme: 'climate-adaptation',  weight: 24 },
   { phrase: 'flood risk',                       theme: 'climate-adaptation',  weight: 28 },
