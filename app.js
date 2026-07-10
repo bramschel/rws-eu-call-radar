@@ -164,7 +164,7 @@ const RWS_THEMES = [
     description:
       'Circulaire infrastructuur, emissieloos bouwen, klimaatneutraal beheer, biodiversiteit, waterkwaliteit en RWS-areaal.',
     terms: [
-       "energy efficiency",
+    "energy efficiency",
     "renewable energy",
     "concrete recycling",
     "recycling infrastructure",
@@ -212,7 +212,12 @@ const RWS_THEMES = [
     "integrated territorial approach",
     "place-based approach",
     "NOVEX",
-    "infrabeheerders"
+    "infrabeheerders",
+    "zero pollution",
+    "green and blue infrastructure",
+    "Strategic Nature Action Projects",
+    "Strategic Integrated Nature Projects",
+    "nature restoration"
     ]
   },
 
@@ -329,8 +334,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'circular procurement',             theme: 'sustainability',      weight: 24 },
   { phrase: 'nature-based solutions',           theme: 'sustainability',      weight: 26 },
   { phrase: 'water quality',                    theme: 'sustainability',      weight: 20 },
-  { phrase: 'circular economy',                 theme: 'sustainability',      weight: 28 },
-  { phrase: 'zero pollution',                    theme: 'sustainability',      weight: 10 },
+  { phrase: 'zero pollution',                   theme: 'sustainability',      weight: 10 },
   { phrase: 'climate resilient infrastructure', theme: 'climate-adaptation',  weight: 34 },
   { phrase: 'climate resilience',               theme: 'climate-adaptation',  weight: 24 },
   { phrase: 'flood risk',                       theme: 'climate-adaptation',  weight: 28 },
