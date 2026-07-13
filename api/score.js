@@ -271,18 +271,6 @@ function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
     }
   }
 
-  // Als we nog steeds niet genoeg hebben: neem beste cross-theme regardless
-  if (seenIds.size < 5) {
-    otherThemeExamples.sort((a, b) => b.score - a.score);
-    for (const ex of otherThemeExamples) {
-      if (seenIds.size >= 5) break;
-      if (!seenIds.has(ex.id)) {
-        seenIds.add(ex.id);
-        selected.push(ex);
-      }
-    }
-  }
-
   return {
     examples: selected,
     metadata: selected.map((ex) => ({
