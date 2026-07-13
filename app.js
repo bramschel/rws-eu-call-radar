@@ -653,28 +653,7 @@ function normalizeText(v) {
     .trim();
 }
 
-// Short acronyms need token boundaries to avoid false positives such as
-// AI in "rail" and ITS in "benefits". Longer terms keep the existing fast
-// substring match. Call text is already normalized before this helper is used.
-const EXACT_TERM_PATTERNS = new Map([
-  ['ai',  /(^|[^\p{L}\p{N}])ai(?=$|[^\p{L}\p{N}])/u],
-  ['its', /(^|[^\p{L}\p{N}])its(?=$|[^\p{L}\p{N}])/u],
-  ['ris', /(^|[^\p{L}\p{N}])ris(?=$|[^\p{L}\p{N}])/u],
-  ['cef', /(^|[^\p{L}\p{N}])cef(?=$|[^\p{L}\p{N}])/u]
-]);
-
-function normalizedTextContainsTerm(normalizedText, term) {
-  const normalizedTerm = normalizeText(term);
-  if (!normalizedText || !normalizedTerm) return false;
-
-  const exactPattern = EXACT_TERM_PATTERNS.get(normalizedTerm);
-  return exactPattern
-    ? exactPattern.test(normalizedText)
-    : normalizedText.includes(normalizedTerm);
-}
-
-const textContainsAny = (text, terms) =>
-  terms.some(term => normalizedTextContainsTerm(text, term));
+const textContainsAny = (text, terms) => terms.some(t => text.includes(normalizeText(t)));
 
 function splitTerms(value) {
   return normalizeText(value).split(/[\s,;]+/).map(t => t.trim())
@@ -687,7 +666,7 @@ function expandQueryTerms(rawInput) {
   const base  = Array.isArray(rawInput) ? rawInput : splitTerms(input);
   const out   = new Set(base);
   for (const [trigger, synonyms] of Object.entries(QUERY_SYNONYMS)) {
-    if (normalizedTextContainsTerm(norm, trigger) || base.includes(normalizeText(trigger))) {
+    if (norm.includes(normalizeText(trigger)) || base.includes(normalizeText(trigger))) {
       for (const syn of synonyms) {
         const ns = normalizeText(syn);
         if (ns) { out.add(ns); splitTerms(syn).forEach(t => out.add(t)); }
@@ -792,7 +771,7 @@ function scoreRwsCoreFit(grantText) {
   
   for (const term of RWS_CORE_TERMS) {
     const normalizedTerm = normalizeText(term);
-    if (normalizedTextContainsTerm(grantText, normalizedTerm)) {
+    if (grantText.includes(normalizedTerm)) {
       // Phrase matches get higher weight
       const weight = term.includes(' ') ? 3 : 1;
       rwsCoreScore += weight;
@@ -817,9 +796,9 @@ function scoreImportantPhrases(fields, selectedTheme) {
     if (selectedTheme !== 'all' && item.theme !== selectedTheme) continue;
 
     const np = normalizeText(item.phrase);
-    const inTitle   = normalizedTextContainsTerm(fields.title, np);
-    const inSummary = normalizedTextContainsTerm(fields.summary, np) || normalizedTextContainsTerm(fields.destination, np);
-    const inOther   = normalizedTextContainsTerm(fields.abstract, np) || normalizedTextContainsTerm(fields.searchText, np);
+    const inTitle   = fields.title.includes(np);
+    const inSummary = fields.summary.includes(np) || fields.destination.includes(np);
+    const inOther   = fields.abstract.includes(np) || fields.searchText.includes(np);
 
     if (inTitle || inSummary || inOther) {
       let w = item.weight;
@@ -859,10 +838,10 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     const xw = isOrig ? 2  : isPhrase ? 2 : 0;
 
     let hit = false;
-    if      (normalizedTextContainsTerm(fields.title, term))                                          { queryRaw += tw; hit = true; }
-    else if (normalizedTextContainsTerm(fields.summary, term) || normalizedTextContainsTerm(fields.destination, term))   { queryRaw += sw; hit = true; }
-    else if (normalizedTextContainsTerm(fields.abstract, term))                                        { queryRaw += aw; hit = true; }
-    else if (xw > 0 && normalizedTextContainsTerm(fields.searchText, term))                           { queryRaw += xw; hit = true; }
+    if      (fields.title.includes(term))                                          { queryRaw += tw; hit = true; }
+    else if (fields.summary.includes(term) || fields.destination.includes(term))   { queryRaw += sw; hit = true; }
+    else if (fields.abstract.includes(term))                                        { queryRaw += aw; hit = true; }
+    else if (xw > 0 && fields.searchText.includes(term))                           { queryRaw += xw; hit = true; }
 
     if (hit) {
       matchedTerms.add(term);
@@ -882,7 +861,7 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     let ts = 0; const hits = [];
     for (const phrase of theme.terms) {
       const np = normalizeText(phrase);
-      if (normalizedTextContainsTerm(grantText, np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
+      if (grantText.includes(np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
     }
     if (ts > 0) {
       if (selectedTheme !== 'all' && theme.id === selectedTheme) ts += 8;
@@ -926,7 +905,7 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
 
   // Noise penalty - unchanged behavior
   for (const n of NOISE_TERMS) {
-    if (normalizedTextContainsTerm(grantText, n)) score -= 10;
+    if (grantText.includes(normalizeText(n))) score -= 10;
   }
 
   // RWS core fit bonus: add positive points for strong RWS core fit
@@ -934,8 +913,8 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   score += rwsCoreBonus;
 
   // RWS core fit gate: stricter caps for calls without clear RWS relevance
-const matchedNoiseTerms = NOISE_TERMS.filter(n => normalizedTextContainsTerm(grantText, n));
-const matchedLowRwsFitTerms = LOW_RWS_FIT_TERMS.filter(n => normalizedTextContainsTerm(grantText, n));
+const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
+const matchedLowRwsFitTerms = LOW_RWS_FIT_TERMS.filter(n => grantText.includes(normalizeText(n)));
 
 if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
   // No RWS core fit and explicit low-fit domain: keep low in all-theme ranking
@@ -958,7 +937,7 @@ if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
   }
   if (matchedThemes.length)              reasons.push("Thema's: " + matchedThemes.map(t => t.label).join(', '));
   if (phraseResult.matchedPhrases.length) reasons.push('Sleuteltermen: ' + phraseResult.matchedPhrases.slice(0, 5).join(', '));
-  if (fields.title && terms.some(t => normalizedTextContainsTerm(fields.title, t))) reasons.push('Match in titel.');
+  if (fields.title && terms.some(t => fields.title.includes(t))) reasons.push('Match in titel.');
 
   matchedThemes.sort((a, b) => b.score - a.score);
 
@@ -2964,49 +2943,73 @@ function toAiCallPayload(grant) {
 
 async function scoreTopResultsWithAI() {
   if (!AI_API_URL) { alert('AI_API_URL is niet ingesteld. Zorg dat de Vercel-backend actief is.'); return; }
-  const candidates = state.filtered.slice(0, 15);
+
+  // Build the candidate set from the current non-AI sort. Previous AI scores
+  // must not influence which calls enter a new analysis.
+  const getCurrentCandidates = () => [...state.filtered]
+    .sort((a, b) => {
+      switch (state.filters.sort) {
+        case 'relevance-desc': return (b.relevance?.score || 0) - (a.relevance?.score || 0);
+        case 'deadline-asc':   return new Date(a.deadlineDate || '2999-12-31') - new Date(b.deadlineDate || '2999-12-31');
+        case 'budget-desc':     return (b.budget?.totalBudgetEur || 0) - (a.budget?.totalBudgetEur || 0);
+        case 'title-asc':       return a.title.localeCompare(b.title);
+        default:                return new Date(b.startDate || 0) - new Date(a.startDate || 0);
+      }
+    })
+    .slice(0, 15);
+
+  const candidates = getCurrentCandidates();
   if (!candidates.length) { alert('Geen resultaten om te analyseren. Pas je filters aan.'); return; }
+
+  // Freeze the complete analysis context. Every batch must use the same
+  // project idea, keywords, theme and candidate set.
+  const analysisContext = {
+    projectIdea: state.filters.projectIdea,
+    query: state.filters.query,
+    theme: state.filters.theme,
+    candidateIds: candidates.map(candidate => candidate.identifier)
+  };
 
   const btn      = document.querySelector('#ai-rerank-button');
   const statusEl = document.querySelector('#ai-rerank-status');
   if (btn)      { btn.disabled = true; btn.textContent = 'Analyseren\u2026'; }
   if (statusEl) { statusEl.textContent = `Top ${candidates.length} calls worden beoordeeld\u2026`; statusEl.hidden = false; }
 
-  // Batch processing: split into chunks of 5
+  // Batch processing: split into chunks of 5.
   const AI_BATCH_SIZE = 5;
   const batches = [];
   for (let i = 0; i < candidates.length; i += AI_BATCH_SIZE) {
     batches.push(candidates.slice(i, i + AI_BATCH_SIZE));
   }
 
-  // Clear previous summary for batched processing
-  state.aiSummary = null;
+  // Transaction buffer. Existing reviews remain untouched until every batch
+  // has completed and every selected call has a valid review.
+  const nextReviews = new Map();
+  let batchIndex = 0;
 
   try {
-    // Process batches sequentially
-    let batchIndex;
     for (batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      
-      // Update progress for current batch
+      const expectedIds = new Set(batch.map(candidate => candidate.identifier));
+
       if (statusEl) {
         statusEl.textContent = `Analyseren batch ${batchIndex + 1} van ${batches.length} (${batch.length} calls)\u2026`;
       }
       console.log(`AI batch ${batchIndex + 1}/${batches.length} started`);
 
       const payload = {
-        projectIdea:   state.filters.projectIdea,
-        keywords:      state.filters.query,
-        selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+        projectIdea:   analysisContext.projectIdea,
+        keywords:      analysisContext.query,
+        selectedTheme: analysisContext.theme !== 'all' ? analysisContext.theme : '',
         calls:         batch.map(toAiCallPayload)
       };
 
-      const res = await fetch(AI_API_URL, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
+      const res = await fetch(AI_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-      
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.error(`AI batch ${batchIndex + 1}/${batches.length} failed:`, err);
@@ -3014,27 +3017,61 @@ async function scoreTopResultsWithAI() {
       }
 
       const data = await res.json();
-      const reviews = data.reviews || [];
-      if (!reviews.length) {
-        console.error(`Batch ${batchIndex + 1}/${batches.length} returned no reviews`);
-        throw new Error('Geen beoordelingen ontvangen voor batch.');
+      const reviews = Array.isArray(data.reviews) ? data.reviews : [];
+      const batchReviews = new Map();
+
+      for (const review of reviews) {
+        const normalizedReview = normalizeAiReviewForDisplay(review);
+        if (expectedIds.has(normalizedReview.identifier)) {
+          batchReviews.set(normalizedReview.identifier, normalizedReview);
+        }
       }
 
-      // Merge batch results
-      for (const r of reviews) {
-        const norm = normalizeAiReviewForDisplay(r);
-        state.aiReviews.set(norm.identifier, norm);
+      const missingIds = [...expectedIds].filter(identifier => !batchReviews.has(identifier));
+      if (missingIds.length) {
+        console.error(`Batch ${batchIndex + 1}/${batches.length} is incomplete:`, missingIds);
+        throw new Error(`Geen volledige beoordeling ontvangen voor batch ${batchIndex + 1}.`);
+      }
+
+      for (const [identifier, review] of batchReviews) {
+        nextReviews.set(identifier, review);
       }
 
       console.log(`AI batch ${batchIndex + 1}/${batches.length} completed`);
       if (statusEl) {
-        statusEl.textContent = `Batch ${batchIndex + 1} van ${batches.length} voltooid. Totaal: ${state.aiReviews.size} calls geanalyseerd.`;
+        statusEl.textContent = `Batch ${batchIndex + 1} van ${batches.length} voltooid. Totaal: ${nextReviews.size} calls geanalyseerd.`;
       }
     }
 
+    if (nextReviews.size !== candidates.length) {
+      throw new Error(`AI-analyse onvolledig: ${nextReviews.size} van ${candidates.length} calls beoordeeld.`);
+    }
+
+    // Do not publish results if the user changed the analysis context while
+    // the batches were running.
+    const currentCandidateIds = getCurrentCandidates()
+      .slice(0, analysisContext.candidateIds.length)
+      .map(candidate => candidate.identifier);
+    const contextUnchanged =
+      state.filters.projectIdea === analysisContext.projectIdea &&
+      state.filters.query === analysisContext.query &&
+      state.filters.theme === analysisContext.theme &&
+      currentCandidateIds.length === analysisContext.candidateIds.length &&
+      currentCandidateIds.every((identifier, index) => identifier === analysisContext.candidateIds[index]);
+
+    if (!contextUnchanged) {
+      throw new Error('Filters of zoekcontext zijn tijdens de AI-analyse gewijzigd. De resultaten zijn niet gepubliceerd.');
+    }
+
+    // Atomic publish: the new completed analysis replaces all older reviews.
+    state.aiReviews.clear();
+    for (const [identifier, review] of nextReviews) {
+      state.aiReviews.set(identifier, review);
+    }
+    state.aiSummary = null;
     state.aiRerankActive = true;
 
-    // Sort: AI-scored calls first (desc aiRelevanceScore), rest below
+    // Sort: AI-scored calls first (desc aiRelevanceScore), rest below.
     state.filtered.sort((a, b) => {
       const as = state.aiReviews.get(a.identifier)?.aiRelevanceScore ?? -1;
       const bs = state.aiReviews.get(b.identifier)?.aiRelevanceScore ?? -1;
@@ -3051,8 +3088,13 @@ async function scoreTopResultsWithAI() {
     renderResults();
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
-    if (statusEl) statusEl.textContent = `AI-analyse afgebroken tijdens batch ${batchIndex + 1} van ${batches.length}.`;
-    if (btn)      { btn.textContent = 'AI analyseer top 15'; btn.disabled = false; }
+    if (statusEl) {
+      statusEl.textContent = `${err.message} Eerdere volledige AI-resultaten zijn behouden.`;
+    }
+    if (btn) {
+      btn.textContent = state.aiReviews.size ? 'Heranalyseer' : 'AI analyseer top 15';
+      btn.disabled = false;
+    }
   }
 }
 
