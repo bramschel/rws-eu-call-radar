@@ -458,11 +458,10 @@ const QUERY_SYNONYMS = {
   taskforceinfra: ['Taskforce Infra','infrastructure sector collaboration','market cooperation','innovation platform'],
   'taskforce infra': ['Taskforce Infra','infrastructure sector collaboration','market cooperation','innovation platform'],
   piarc: ['PIARC','World Road Association','road authorities','international road cooperation'],
-  pianc: ['PIANC','waterborne transport infrastructure','navigation infrastructure','ports and waterways'],
-  bermbeheer: ['road verge', 'road verge maintenance', 'verge maintenance', 'highway maintenance', 'highway verge maintenance', 'roadside mowing maintenance']
+  pianc: ['PIANC','waterborne transport infrastructure','navigation infrastructure','ports and waterways']
 };
 
-const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via','hem','wil','alle','etc','mee']);
+const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via']);
 
 const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood', 'energy grid', 
   'local democracy', 'social inclusion',
@@ -654,7 +653,28 @@ function normalizeText(v) {
     .trim();
 }
 
-const textContainsAny = (text, terms) => terms.some(t => text.includes(normalizeText(t)));
+// Short acronyms need token boundaries to avoid false positives such as
+// AI in "rail" and ITS in "benefits". Longer terms keep the existing fast
+// substring match. Call text is already normalized before this helper is used.
+const EXACT_TERM_PATTERNS = new Map([
+  ['ai',  /(^|[^\p{L}\p{N}])ai(?=$|[^\p{L}\p{N}])/u],
+  ['its', /(^|[^\p{L}\p{N}])its(?=$|[^\p{L}\p{N}])/u],
+  ['ris', /(^|[^\p{L}\p{N}])ris(?=$|[^\p{L}\p{N}])/u],
+  ['cef', /(^|[^\p{L}\p{N}])cef(?=$|[^\p{L}\p{N}])/u]
+]);
+
+function normalizedTextContainsTerm(normalizedText, term) {
+  const normalizedTerm = normalizeText(term);
+  if (!normalizedText || !normalizedTerm) return false;
+
+  const exactPattern = EXACT_TERM_PATTERNS.get(normalizedTerm);
+  return exactPattern
+    ? exactPattern.test(normalizedText)
+    : normalizedText.includes(normalizedTerm);
+}
+
+const textContainsAny = (text, terms) =>
+  terms.some(term => normalizedTextContainsTerm(text, term));
 
 function splitTerms(value) {
   return normalizeText(value).split(/[\s,;]+/).map(t => t.trim())
@@ -667,7 +687,7 @@ function expandQueryTerms(rawInput) {
   const base  = Array.isArray(rawInput) ? rawInput : splitTerms(input);
   const out   = new Set(base);
   for (const [trigger, synonyms] of Object.entries(QUERY_SYNONYMS)) {
-    if (norm.includes(normalizeText(trigger)) || base.includes(normalizeText(trigger))) {
+    if (normalizedTextContainsTerm(norm, trigger) || base.includes(normalizeText(trigger))) {
       for (const syn of synonyms) {
         const ns = normalizeText(syn);
         if (ns) { out.add(ns); splitTerms(syn).forEach(t => out.add(t)); }
@@ -772,7 +792,7 @@ function scoreRwsCoreFit(grantText) {
   
   for (const term of RWS_CORE_TERMS) {
     const normalizedTerm = normalizeText(term);
-    if (grantText.includes(normalizedTerm)) {
+    if (normalizedTextContainsTerm(grantText, normalizedTerm)) {
       // Phrase matches get higher weight
       const weight = term.includes(' ') ? 3 : 1;
       rwsCoreScore += weight;
@@ -797,9 +817,9 @@ function scoreImportantPhrases(fields, selectedTheme) {
     if (selectedTheme !== 'all' && item.theme !== selectedTheme) continue;
 
     const np = normalizeText(item.phrase);
-    const inTitle   = fields.title.includes(np);
-    const inSummary = fields.summary.includes(np) || fields.destination.includes(np);
-    const inOther   = fields.abstract.includes(np) || fields.searchText.includes(np);
+    const inTitle   = normalizedTextContainsTerm(fields.title, np);
+    const inSummary = normalizedTextContainsTerm(fields.summary, np) || normalizedTextContainsTerm(fields.destination, np);
+    const inOther   = normalizedTextContainsTerm(fields.abstract, np) || normalizedTextContainsTerm(fields.searchText, np);
 
     if (inTitle || inSummary || inOther) {
       let w = item.weight;
@@ -839,10 +859,10 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     const xw = isOrig ? 2  : isPhrase ? 2 : 0;
 
     let hit = false;
-    if      (fields.title.includes(term))                                          { queryRaw += tw; hit = true; }
-    else if (fields.summary.includes(term) || fields.destination.includes(term))   { queryRaw += sw; hit = true; }
-    else if (fields.abstract.includes(term))                                        { queryRaw += aw; hit = true; }
-    else if (xw > 0 && fields.searchText.includes(term))                           { queryRaw += xw; hit = true; }
+    if      (normalizedTextContainsTerm(fields.title, term))                                          { queryRaw += tw; hit = true; }
+    else if (normalizedTextContainsTerm(fields.summary, term) || normalizedTextContainsTerm(fields.destination, term))   { queryRaw += sw; hit = true; }
+    else if (normalizedTextContainsTerm(fields.abstract, term))                                        { queryRaw += aw; hit = true; }
+    else if (xw > 0 && normalizedTextContainsTerm(fields.searchText, term))                           { queryRaw += xw; hit = true; }
 
     if (hit) {
       matchedTerms.add(term);
@@ -862,7 +882,7 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
     let ts = 0; const hits = [];
     for (const phrase of theme.terms) {
       const np = normalizeText(phrase);
-      if (grantText.includes(np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
+      if (normalizedTextContainsTerm(grantText, np)) { ts += np.includes(' ') ? 6 : 3; hits.push(phrase); }
     }
     if (ts > 0) {
       if (selectedTheme !== 'all' && theme.id === selectedTheme) ts += 8;
@@ -906,7 +926,7 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
 
   // Noise penalty - unchanged behavior
   for (const n of NOISE_TERMS) {
-    if (grantText.includes(normalizeText(n))) score -= 10;
+    if (normalizedTextContainsTerm(grantText, n)) score -= 10;
   }
 
   // RWS core fit bonus: add positive points for strong RWS core fit
@@ -914,8 +934,8 @@ function calculateRelevance(grant, query, projectIdea, selectedTheme = 'all') {
   score += rwsCoreBonus;
 
   // RWS core fit gate: stricter caps for calls without clear RWS relevance
-const matchedNoiseTerms = NOISE_TERMS.filter(n => grantText.includes(normalizeText(n)));
-const matchedLowRwsFitTerms = LOW_RWS_FIT_TERMS.filter(n => grantText.includes(normalizeText(n)));
+const matchedNoiseTerms = NOISE_TERMS.filter(n => normalizedTextContainsTerm(grantText, n));
+const matchedLowRwsFitTerms = LOW_RWS_FIT_TERMS.filter(n => normalizedTextContainsTerm(grantText, n));
 
 if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
   // No RWS core fit and explicit low-fit domain: keep low in all-theme ranking
@@ -938,7 +958,7 @@ if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
   }
   if (matchedThemes.length)              reasons.push("Thema's: " + matchedThemes.map(t => t.label).join(', '));
   if (phraseResult.matchedPhrases.length) reasons.push('Sleuteltermen: ' + phraseResult.matchedPhrases.slice(0, 5).join(', '));
-  if (fields.title && terms.some(t => fields.title.includes(t))) reasons.push('Match in titel.');
+  if (fields.title && terms.some(t => normalizedTextContainsTerm(fields.title, t))) reasons.push('Match in titel.');
 
   matchedThemes.sort((a, b) => b.score - a.score);
 
