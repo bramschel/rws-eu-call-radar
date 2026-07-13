@@ -458,10 +458,11 @@ const QUERY_SYNONYMS = {
   taskforceinfra: ['Taskforce Infra','infrastructure sector collaboration','market cooperation','innovation platform'],
   'taskforce infra': ['Taskforce Infra','infrastructure sector collaboration','market cooperation','innovation platform'],
   piarc: ['PIARC','World Road Association','road authorities','international road cooperation'],
-  pianc: ['PIANC','waterborne transport infrastructure','navigation infrastructure','ports and waterways']
+  pianc: ['PIANC','waterborne transport infrastructure','navigation infrastructure','ports and waterways'],
+  bermbeheer: ['road verge', 'road verge maintenance', 'verge maintenance', 'highway maintenance', 'highway verge maintenance', 'roadside mowing maintenance']
 };
 
-const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via']);
+const STOP_WORDS = new Set(['de','het','een','en','of','op','in','aan','van','voor','met','zonder','door','over','onder','naar','uit','bij','als','dat','dit','die','deze','wat','waar','welke','hoe','om','te','tot','is','zijn','wordt','worden','kan','kunnen','rond','binnen','tussen','zoals','the','and','or','for','with','without','from','into','onto','over','under','between','within','about','that','this','these','those','what','which','how','can','could','should','would','will','are','was','were','been','being','such','via','hem','wil','alle','etc','mee']);
 
 const NOISE_TERMS = ['clinical trial','medical device','pharmaceutical','oncology','rare diseases','school curriculum','performing arts','film festival','space telescope', 'neighbourhoods', 'neighbourhood', 'energy grid', 
   'local democracy', 'social inclusion',
