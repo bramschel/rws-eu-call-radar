@@ -1,9 +1,9 @@
 [
   {
     "id": "example-low-climased-sediment-river-management-capacity",
-    "relevanceLabel": "low",
+    "relevanceLabel": "high",
     "outcome": "rejected_rws",
-    "useAs": "negative_example",
+    "useAs": "positive_example",
     "theme": "Climate Adaptation",
     "themeId": "climate-adaptation",
     "programme": "Interreg",
@@ -21,9 +21,9 @@
       "capacity",
       "partner role"
     ],
-    "pattern": "Sediment- en riviersysteemcalls kunnen inhoudelijk relevant zijn, maar 7b-afwijzing door RWS betekent dat budget, scheepsinzet, cofinanciering of benodigde expertise onvoldoende geborgd kunnen zijn.",
+    "pattern": "Positief relevantiepatroon wanneer een call sedimentbeheer, riviersystemen en klimaatbestendigheid verbindt met een concrete rol voor een nationale waterbeheerder.",
     "rwsRole": "mogelijke partner, maar deelnamevoorwaarden onvoldoende passend",
-    "lesson": "Bij water- en sedimentcalls moet de AI niet alleen inhoudelijke fit beoordelen, maar ook haalbaarheid van inzet, budget en partnerrol."
+    "lesson": "ClimaSed bevestigt de inhoudelijke RWS-relevantie van water- en sedimentcalls. Budget, scheepsinzet, cofinanciering en beschikbare expertise zijn afzonderlijke haalbaarheidsvoorwaarden en mogen de inhoudelijke relevantie niet ontkennen."
   },
   {
     "id": "example-positive-bonsai-flood-defence-estuaries",
@@ -215,9 +215,9 @@
   },
   {
     "id": "example-low-large-scale-cits-demonstrations-timing",
-    "relevanceLabel": "low",
+    "relevanceLabel": "high",
     "outcome": "rejected_rws",
-    "useAs": "negative_example",
+    "useAs": "positive_example",
     "theme": "Corridor Management",
     "themeId": "corridor-management",
     "programme": "Horizon",
@@ -235,9 +235,9 @@
       "ITS corridor",
       "deadline"
     ],
-    "pattern": "C-ITS demonstraties zijn inhoudelijk relevant, maar 7b-afwijzing door RWS betekent dat haalbaarheid, rolzwaarte en timing expliciet moeten worden meegewogen.",
+    "pattern": "Positief relevantiepatroon wanneer een call grootschalige C-ITS-demonstraties, real-life testomgevingen en implementatie op Europese transportcorridors omvat.",
     "rwsRole": "mogelijk supporter, WP-leader of test track, maar niet haalbaar als lead onder tijdsdruk",
-    "lesson": "Beoordeel bij zeer relevante corridorcalls ook indieningshaalbaarheid, rolzwaarte en timing."
+    "lesson": "Grootschalige C-ITS-demonstraties zijn inhoudelijk sterk relevant voor RWS. Timing, indieningshaalbaarheid en rolzwaarte zijn afzonderlijke uitvoerbaarheidsvoorwaarden."
   },
   {
     "id": "example-positive-collibri-drone-infrastructure-monitoring",
@@ -486,9 +486,9 @@
   },
   {
     "id": "example-low-r4im-robotic-inspection-maintenance",
-    "relevanceLabel": "low",
+    "relevanceLabel": "high",
     "outcome": "rejected_rws",
-    "useAs": "negative_example",
+    "useAs": "positive_example",
     "theme": "Digitalisation",
     "themeId": "digitalisation",
     "programme": "Overige",
@@ -506,15 +506,15 @@
       "pilot",
       "co-financing"
     ],
-    "pattern": "Een call rond inspectie en onderhoud kan alsnog lager scoren als RWS zelf heeft afgewezen, bijvoorbeeld door timing, rolonduidelijkheid, cofinanciering of onvoldoende interne prioriteit.",
+    "pattern": "Positief relevantiepatroon wanneer een call robotica, drones of digitale inspectietechnieken toepast op beheer en onderhoud van infrastructuurassets.",
     "rwsRole": "mogelijke pilotpartner, maar intern onvoldoende passend opgepakt",
-    "lesson": "Gebruik 7b-cases als waarschuwing: inhoudelijke woorden zijn onvoldoende zonder haalbare RWS-inzet, capaciteit en interne eigenaar."
+    "lesson": "R4IM bevestigt de inhoudelijke relevantie van robotische inspectie en onderhoud voor RWS-assets. Timing, cofinanciering, interne prioriteit en eigenaarschap moeten afzonderlijk als haalbaarheidsvoorwaarden worden beoordeeld."
   },
   {
     "id": "example-low-remac-cyber-critical-infrastructure",
-    "relevanceLabel": "low",
+    "relevanceLabel": "high",
     "outcome": "rejected_rws",
-    "useAs": "negative_example",
+    "useAs": "positive_example",
     "theme": "Digitalisation",
     "themeId": "digitalisation",
     "programme": "Horizon",
@@ -532,9 +532,9 @@
       "cybersecurity",
       "resilience"
     ],
-    "pattern": "Cybersecurity en critical infrastructure kunnen inhoudelijk relevant zijn, maar scoren lager als RWS zelf niet verder oppakt door ontbrekende uitvoeringsrol, capaciteit of interne lijn.",
+    "pattern": "Positief relevantiepatroon wanneer cybersecurity en weerbaarheid concreet worden toegepast op verkeersmanagementcentrales, industriële automatisering of andere operationele RWS-infrastructuur.",
     "rwsRole": "mogelijke stakeholder, maar onvoldoende concrete uitvoeringsrol",
-    "lesson": "Generieke cybersecurity-calls moeten alleen hoog scoren als zij concreet toepasbaar zijn op RWS-assets, verkeersmanagementcentra of industriële automatisering."
+    "lesson": "REMAC bevestigt dat cybersecurity van verkeersmanagementcentrales en kritieke infrastructuur inhoudelijk relevant kan zijn voor RWS. De uitvoeringsrol, beschikbare capaciteit en interne aansluiting moeten afzonderlijk worden getoetst."
   },
   {
     "id": "example-positive-beproact-data-driven-asset-management",
@@ -565,9 +565,9 @@
   },
   {
     "id": "example-low-waterwarmth-aquathermy-costs",
-    "relevanceLabel": "low",
+    "relevanceLabel": "high",
     "outcome": "rejected_rws",
-    "useAs": "negative_example",
+    "useAs": "positive_example",
     "theme": "Sustainability",
     "themeId": "sustainability",
     "programme": "Interreg",
@@ -585,15 +585,15 @@
       "additional costs",
       "letter of support"
     ],
-    "pattern": "Een call kan raakvlakken hebben met RWS-areaal of water, maar 7b-afwijzing wijst op lagere praktische relevantie wanneer deelname te hoge kosten heeft of RWS vooral ondersteuning zonder partnerrol biedt.",
+    "pattern": "Positief relevantiepatroon wanneer aquathermie of oppervlaktewater als energiebron wordt gekoppeld aan RWS-areaal, watersysteemkennis, een concrete pilotlocatie of een uitvoerbare beheerrol.",
     "rwsRole": "mogelijke pilotlocatie of supporter, maar geen volwaardige partnerrol",
-    "lesson": "Beoordeel bij energie- en aquathermieprojecten expliciet of RWS een logische uitvoeringsrol en haalbaar budget heeft."
+    "lesson": "WaterWarmth bevestigt dat aquathermie inhoudelijk relevant kan zijn wanneer RWS-areaal, oppervlaktewaterkennis of een pilotrol nodig is. Kosten, budget en de zwaarte van de partnerrol zijn afzonderlijke haalbaarheidsvoorwaarden."
   },
   {
     "id": "example-low-zero-emissions-transport-infrastructure",
-    "relevanceLabel": "low",
+    "relevanceLabel": "high",
     "outcome": "rejected_rws",
-    "useAs": "negative_example",
+    "useAs": "positive_example",
     "theme": "Sustainability",
     "themeId": "sustainability",
     "programme": "Horizon",
@@ -612,9 +612,9 @@
       "capacity",
       "management support"
     ],
-    "pattern": "Een call kan inhoudelijk sterk aansluiten op RWS-transitiepaden, maar 7b-afwijzing door RWS wijst op lagere praktische relevantie voor opvolging zonder capaciteit, steun of concrete interne eigenaar.",
+    "pattern": "Positief relevantiepatroon wanneer een call emissiereductie, materiaalhergebruik, biobased asfalt of duurzame inkoop concreet verbindt met transportinfrastructuur en RWS-uitvoeringspraktijk.",
     "rwsRole": "mogelijke consortiumdeelnemer of procurement use case, maar intern niet gedragen",
-    "lesson": "Bij duurzaamheidscalls moet naast inhoudelijke fit expliciet worden beoordeeld of RWS-capaciteit, managementsteun en een concrete use case beschikbaar zijn."
+    "lesson": "Deze case bevestigt de sterke inhoudelijke aansluiting van zero-emission transport infrastructure op RWS-transitiepaden. Capaciteit, managementsteun, interne eigenaarschap en een concrete use case moeten afzonderlijk als uitvoerbaarheidsvoorwaarden worden beoordeeld."
   },
   {
     "id": "example-positive-circular-minds-governance-circular-economy",
