@@ -290,16 +290,17 @@ function buildPrompt({ projectIdea, keywords, selectedTheme, calls }) {
   const { examples, metadata: examplesMetadata } = selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls);
   
   const relevanceExamplesText = examples.length > 0
-    ? `\nRELEVANTE HISTORISCHE VOORBEELDEN:\n` + examples.map((ex) => `
+  ? `\nRELEVANTE HISTORISCHE VOORBEELDEN:\n` + examples.map((ex) => `
 ## Voorbeeld: ${ex.projectName}${ex.projectAbbreviation ? ` (${ex.projectAbbreviation})` : ''}
-Type: ${ex.useAs === 'positive_example' ? 'POSITIEF VOORBEELD — als een call hier sterk op lijkt, verhoog aiRelevanceScore met 5–10 punten' : 'Referentie'}
+Type: POSITIEF VOORBEELD — als een call hier sterk op lijkt, verhoog aiRelevanceScore met 5–10 punten
 Thema: ${ex.theme} (${ex.themeId})
+Programma: ${ex.programme || 'Niet beschikbaar'}
 Call: ${ex.call}
 Keywords: ${ex.keywords?.join(', ') || 'Niet beschikbaar'}
 Patroon: ${ex.pattern || 'Niet beschikbaar'}
 RWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}
 `).join('\n')
-    : '';
+  : '';
 
   const prompt = `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
@@ -318,6 +319,7 @@ COMPACTE REFERENTIES INSTRUCTIE:
 - Verzin geen labels of afkortingen — gebruik alleen bestaande referenties uit de data.
 - Houd projectFit en rationale beknopt en laat referenties niet domineren.
 - Als geen korte referentie beschikbaar is, gebruik dan de volledige titel maar herhaal deze niet meerdere keren.
+- Gebruik geen absolute termen zoals "perfecte match", "sluit perfect aan" of "volledig passend".
 
 RAG INSTRUCTIES:
 - RAG context is optional supporting context, not mandatory evidence.
@@ -330,6 +332,8 @@ HISTORISCHE VOORBEELDEN INSTRUCTIES:
 - They are pattern examples only, not proof of relevance.
 - Do not assign a high score solely because a call resembles a past positive example.
 - Generic similarity, such as both mentioning climate, AI, logistics or digitalisation, is weak evidence.
+- Preserve the programme of each historical example exactly as stated in the example data.
+- Never infer or copy a programme from the current call to a historical example.
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
