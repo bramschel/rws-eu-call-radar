@@ -340,6 +340,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'flood protection',                 theme: 'climate-adaptation',  weight: 28 },
   { phrase: 'sea level rise',                   theme: 'climate-adaptation',  weight: 26 },
   { phrase: 'river basin',                      theme: 'climate-adaptation',  weight: 22 },
+  { phrase: 'coastal resilience'                theme: 'climate adaptation',  weight: 20 },
   { phrase: 'inland waterways',                 theme: 'corridor-management', weight: 30 },
   { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
   { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
@@ -354,7 +355,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'dual use',                         theme: 'corridor-management', weight: 18 },
   { phrase: 'transport infrastructure',         theme: 'corridor-management', weight: 24 },
   { phrase: 'road transport',                   theme: 'corridor-management', weight: 24 },
-  { phrase: 'CEF Infrastructure Projects',       theme: 'corridor-management', weight: 16 },
+  { phrase: 'CEF Infrastructure Projects',      theme: 'corridor-management', weight: 16 },
 ];
 
 const RWS_DOMAIN_TERMS = ['infrastructure','transport infrastructure','road infrastructure','roads','highways','bridges','tunnels','asset management','maintenance','renovation','traffic management','mobility','smart mobility','corridor','TEN-T','inland waterways','waterways','navigation','shipping','ports','river','river basin','flood risk','flood protection','water safety','water management','coastal','sea level rise','drought','digital twin','sensor data','decision support','predictive maintenance','water infrastructure','flood management','flood resilience','flood defence','flood defense','stormwater','river management','coastal management','coastal protection','dike','dyke','levee','waterway infrastructure','climate-proof infrastructure','climate proof infrastructure','infrastructure resilience','road resilience','bridge resilience','tunnel resilience'];
@@ -556,7 +557,8 @@ const RWS_CORE_TERMS = [
   'dual-use infrastructure',
   'cross-border infrastructure',
   'CEF',
-  'dual use'
+  'dual use',
+  'ecosystem restoration'
 ];
 
 const WEAK_TERMS = new Set(['data','energy','AI','ai','resilience','sustainability','innovation','transition','governance','management','system','systems','network','capacity','digital','green','smart','risk','assessment','monitoring','analysis']);

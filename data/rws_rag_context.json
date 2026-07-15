@@ -21,7 +21,9 @@
       "infrastructure manager",
       "asset owner",
       "lead partner",
-      "consortium"
+      "consortium",
+      "crisis authority",
+      "crisis management"
     ],
     "text": "Rijkswaterstaat (RWS) werkt aan een veilig, leefbaar en bereikbaar Nederland. RWS is een nationale uitvoeringsorganisatie met circa 10.000 medewerkers onder het Ministerie van Infrastructuur en Waterstaat. RWS beheert 3.500 km rijkswegen, 6.200 km vaarwegen, 450 km2 rijkswateren en 800 km2 Noordzee. De vijf kerntaken zijn: droge voeten, voldoende en schoon water, vlot en veilig verkeer over weg en water, duurzame leefomgeving en betrouwbare informatie. RWS opereert in de twee onderste ruimtelijke lagen: de natuurlijke basislaag (bodem, water, natuur) en de infrastructuurnetwerkenlaag (wegen, vaarwegen, waterkeringen). RWS opereert niet in de occupatielaag (wonen, werken) — calls die uitsluitend op die laag gericht zijn passen niet. RWS is een ervaren Europese projectpartner: Bureau Brussel heeft sinds 2014 meer dan 207 miljoen euro aan EU-subsidies gefaciliteerd via meer dan 150 projecten in twaalf EU-programma's, met een slagingskans van ruim 70% op ingediende aanvragen. RWS treedt op als lead partner, projectpartner, geassocieerde partner of supporting partner, afhankelijk van de call. EU-calls zijn relevant voor RWS, wanneer er een uitvoerings-, beheer-, innovatie-, pilot-, implementatie-, demonstratie- of beleidsbeïnvloedingsrol is. RWS werkt internationaal samen met vergelijkbare organisaties zoals Die Autobahn (Duitsland), National Highways (VK), Voies Navigables de France (VNF), Trafikverket (Zweden), het US Army Corps of Engineers en het Vlaamse Agentschap Maritieme Dienstverlening en Kust, via MoU's en Europese projectconsortia."
   },
@@ -317,7 +319,8 @@
       "waterveiligheid",
       "zoetwatervoorziening",
       "integraal riviermanagement",
-      "klimaatbestendige netwerken"
+      "klimaatbestendige netwerken",
+      "ecosystem restoration"
     ],
     "text": "Het Bureau Brussel-thema Climate Adaptation sluit direct aan op het RWS-focuspunt Klimaatadaptatie uit het Kompas RWS 2024. RWS heeft als doel om vanaf 2030 klimaatadaptief te kunnen bouwen, beheren en onderhouden op het hoofd wegennet, hoofdvaarwegennet en hoofdwatersysteem. RWS werkt hierbij aan: waterveiligheid en overstromingsrisicobeheer, inclusief dijkverzwaring, waterkeringen en stormvloedkeringen; zoetwatervoorziening en bevaarbaarheid van rivieren bij droogte en laagwater; klimaatbestendige infrastructuur en kunstwerken (bruggen, sluizen, tunnels, waterkeringen) bij extremen van hitte, droogte en neerslag; stresstesten voor de infrastructuur bij klimaatextremen; Deltaprogramma en Integraal Rivier Management (IRM); ruimtelijke inpassing van klimaatadaptieve maatregelen in gebiedsprocessen. RWS werkt internationaal samen met gelijkgestemde organisaties zoals het US Army Corps of Engineers, het Engelse Environment Agency en buurlandbeheerders in Rijn- en Maasstroomgebied, via programma's als Interreg en Horizon Europe. RWS is hiermee zowel asset owner, pilotlocatie als kennispartner op systeemniveau voor grensoverschrijdende klimaatadaptatie van infrastructuur. EU-calls passen als ze gericht zijn op waterveiligheid, zeespiegelstijging, droogte of extreme neerslag in relatie tot infrastructuurbeheer of -aanpassing, klimaatbestendige netwerken, of grensoverschrijdend stroomgebiedbeheer. Calls over landbouwadaptatie, gewasveerkracht of boereninkomen zonder directe link met waterbeheer of RWS-infrastructuur passen niet, ook niet als ze 'climate adaptation' in de titel hebben."
   },
@@ -393,7 +396,6 @@
       "digitalisation"
     ],
     "keywords": [
-      "digitalisation",
       "digital twin",
       "digital twin infrastructure",
       "sensor data",
@@ -404,6 +406,7 @@
       "data ecosystem",
       "data sharing",
       "open data",
+      "mobility data",
       "DSGO",
       "DSM",
       "NGII",
@@ -432,9 +435,7 @@
       "CEF Digital",
       "interoperability",
       "EuroSDR",
-      "EuroGeographics",
-      "industrial automation"
-
+      "EuroGeographics"
     ],
     "text": "Het Bureau Brussel-thema Digitalisation sluit aan op twee RWS-focuspunten: Data en Informatievoorziening en Smart Mobility. RWS wil een digitale, datagedreven en verbonden infrabeheerder worden. RWS werkt aan: Digital Twins voor infrastructuurbeheer en assetmanagement; sensoring, datascience en AI voor conditiebeoordeling van bruggen, sluizen, tunnels en waterkeringen; industriële automatisering en cyberveiligheid van bedrijfssystemen; data-ecosystemen waarbij RWS samenwerkt via DSGO, DSM en NGII op basis van het principe eenmalig inwinnen en meervoudig gebruik; BIM en areaaldata; C-ITS en ITS voor veilig en slim rijkswegennetwerk; robotisering voor inspectie en onderhoud; predictive maintenance en beslissingsondersteuning. RWS participeert in Europese samenwerkingsverbanden zoals BEPROACT (Interreg, datagedreven assetmanagement met Die Autobahn en VNF) en BEGOOD (open data hergebruik), en werkt aan Europese data-standaarden via EuroSDR en EuroGeographics. EU-calls op dit thema komen uit meerdere programma's: Horizon Europe, Interreg, het Digital Europe Programme en CEF Digital. RWS is hiermee kennispartner, dataleverancier en living lab voor grootschalige toepassing van digitale technologie in infrastructuurbeheer. EU-calls passen als ze gericht zijn op digitalisering van infrastructuurbeheer, data-ecosystemen voor publieke infrabeheerders, AI of Digital Twins met infrastructuurtoepassing, of cybersecurity van operationele systemen. Calls over louter fundamenteel AI-onderzoek zonder infrastructuurtoepassing, of over consumentenelektronica en niet-infrastructuurgebonden digitalisering, passen niet."
   },
