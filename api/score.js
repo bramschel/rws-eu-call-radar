@@ -328,12 +328,13 @@ RAG INSTRUCTIES:
 - If RAG context is broad or generic, say so and do not increase the score much.
 
 HISTORISCHE VOORBEELDEN INSTRUCTIES:
-- All examples in data/relevance_examples.json are positive relevance examples.
-- They are pattern examples only, not proof of relevance.
-- Do not assign a high score solely because a call resembles a past positive example.
-- Generic similarity, such as both mentioning climate, AI, logistics or digitalisation, is weak evidence.
+- Historical examples are supporting content analogies, not proof of relevance.
+- Use a supplied historical example when the call has a concrete substantive match with its keywords, pattern or RWS role.
+- Mention only project names or abbreviations that appear verbatim in the RELEVANTE HISTORISCHE VOORBEELDEN section above.
+- Never invent, infer or complete a historical project name or abbreviation.
 - Preserve the programme of each historical example exactly as stated in the example data.
-- Never infer or copy a programme from the current call to a historical example.
+- Never copy the programme of the current call to a historical example.
+- If none of the supplied examples matches substantively, do not mention a historical project.
 
 ZOEKVRAAG VAN DE GEBRUIKER:
 Projectidee:
