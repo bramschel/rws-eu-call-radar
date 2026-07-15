@@ -340,7 +340,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'flood protection',                 theme: 'climate-adaptation',  weight: 28 },
   { phrase: 'sea level rise',                   theme: 'climate-adaptation',  weight: 26 },
   { phrase: 'river basin',                      theme: 'climate-adaptation',  weight: 22 },
-  { phrase: 'coastal resilience'                theme: 'climate adaptation',  weight: 20 },
+  { phrase: 'coastal resilience',               theme: 'climate adaptation',  weight: 20 },
   { phrase: 'inland waterways',                 theme: 'corridor-management', weight: 30 },
   { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
   { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
