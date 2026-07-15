@@ -332,6 +332,7 @@ HISTORISCHE VOORBEELDEN INSTRUCTIES:
 - Use a supplied historical example when the call has a concrete substantive match with its keywords, pattern or RWS role.
 - Mention only project names or abbreviations that appear verbatim in the RELEVANTE HISTORISCHE VOORBEELDEN section above.
 - Never invent, infer or complete a historical project name or abbreviation.
+- When mentioning an example, explain in the same sentence which concrete call objective, scope element or activity matches the example.
 - Preserve the programme of each historical example exactly as stated in the example data.
 - Never copy the programme of the current call to a historical example.
 - If none of the supplied examples matches substantively, do not mention a historical project.
