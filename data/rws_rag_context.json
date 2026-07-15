@@ -293,6 +293,7 @@
       "water management",
       "integrated water resource management",
       "river basin management",
+      "river morphology",
       "coastal resilience",
       "dike",
       "dyke",
@@ -307,10 +308,10 @@
       "heat stress infrastructure",
       "stress test infrastructure",
       "nature-based flood defence",
-      "integral river management",
+      "integrated river management",
       "cross-border water management",
-      "Deltaprogramma",
-      "IRM",
+      "Deltaprogramme",
+      "IRM",	
       "klimaatadaptatie",
       "zeespiegelstijging",
       "waterveiligheid",
@@ -431,7 +432,9 @@
       "CEF Digital",
       "interoperability",
       "EuroSDR",
-      "EuroGeographics"
+      "EuroGeographics",
+      "industrial automation"
+
     ],
     "text": "Het Bureau Brussel-thema Digitalisation sluit aan op twee RWS-focuspunten: Data en Informatievoorziening en Smart Mobility. RWS wil een digitale, datagedreven en verbonden infrabeheerder worden. RWS werkt aan: Digital Twins voor infrastructuurbeheer en assetmanagement; sensoring, datascience en AI voor conditiebeoordeling van bruggen, sluizen, tunnels en waterkeringen; industriële automatisering en cyberveiligheid van bedrijfssystemen; data-ecosystemen waarbij RWS samenwerkt via DSGO, DSM en NGII op basis van het principe eenmalig inwinnen en meervoudig gebruik; BIM en areaaldata; C-ITS en ITS voor veilig en slim rijkswegennetwerk; robotisering voor inspectie en onderhoud; predictive maintenance en beslissingsondersteuning. RWS participeert in Europese samenwerkingsverbanden zoals BEPROACT (Interreg, datagedreven assetmanagement met Die Autobahn en VNF) en BEGOOD (open data hergebruik), en werkt aan Europese data-standaarden via EuroSDR en EuroGeographics. EU-calls op dit thema komen uit meerdere programma's: Horizon Europe, Interreg, het Digital Europe Programme en CEF Digital. RWS is hiermee kennispartner, dataleverancier en living lab voor grootschalige toepassing van digitale technologie in infrastructuurbeheer. EU-calls passen als ze gericht zijn op digitalisering van infrastructuurbeheer, data-ecosystemen voor publieke infrabeheerders, AI of Digital Twins met infrastructuurtoepassing, of cybersecurity van operationele systemen. Calls over louter fundamenteel AI-onderzoek zonder infrastructuurtoepassing, of over consumentenelektronica en niet-infrastructuurgebonden digitalisering, passen niet."
   },

@@ -227,7 +227,6 @@ const RWS_THEMES = [
     description:
       'Digitalisering van infrastructuurbeheer, assetmanagement, sensoring, digital twins, ITS/C-ITS, operationele systemen en data-ecosystemen.',
     terms: [
-     "digitalisation",
     "digital twin",
     "digital twin infrastructure",
     "sensor data",
