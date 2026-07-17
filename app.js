@@ -30,10 +30,19 @@ try {
         state.auth.user = session?.user || null;
         state.auth.error = null;
         updateAuthUI();
+        // Load account-bound saved calls outside the auth callback stack.
+        setTimeout(() => {
+          loadSavedCallsForUser().catch(error => {
+            console.error('Failed to load saved calls after sign in:', error.message);
+          });
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         state.auth.session = null;
         state.auth.user = null;
+        state.savedIds.clear();
+        state.savedSearches = [];
         updateAuthUI();
+        if (state.data) update();
       }
     });
   } else {
@@ -954,26 +963,99 @@ if (rwsCoreScore === 0 && matchedLowRwsFitTerms.length > 0) {
 }
 
 // ── Saved calls ───────────────────────────────────────────────
-function loadSavedCalls() {
-  try {
-    const ids = JSON.parse(localStorage.getItem(SAVED_CALLS_KEY) || '[]');
-    state.savedIds = new Set(Array.isArray(ids) ? ids : []);
-  } catch { state.savedIds = new Set(); }
-}
-
-function persistSavedCalls() {
-  localStorage.setItem(SAVED_CALLS_KEY, JSON.stringify(Array.from(state.savedIds)));
-}
-
 const getGrantSaveId = g => String(g.identifier || g.id || '').trim();
 const isGrantSaved   = g => { const id = getGrantSaveId(g); return id ? state.savedIds.has(id) : false; };
 
-function toggleSavedGrant(grant) {
+function refreshSavedCallsUi() {
+  if (!state.data) return;
+  renderSavedCallsPanel();
+  renderResults();
+  if (state.activeView === 'pipeline') renderPipeline();
+}
+
+async function loadSavedCallsForUser() {
+  if (!supabase || !state.auth.user) {
+    state.savedIds.clear();
+    refreshSavedCallsUi();
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('saved_calls')
+    .select('grant_identifier')
+    .eq('user_id', state.auth.user.id);
+
+  if (error) throw error;
+
+  state.savedIds = new Set(
+    (data || [])
+      .map(row => String(row.grant_identifier || '').trim())
+      .filter(Boolean)
+  );
+  refreshSavedCallsUi();
+}
+
+async function saveCallForUser(identifier) {
+  if (!supabase || !state.auth.user) {
+    throw new Error('Log eerst in om een call te bewaren.');
+  }
+
+  const { error } = await supabase
+    .from('saved_calls')
+    .upsert(
+      { user_id: state.auth.user.id, grant_identifier: identifier },
+      { onConflict: 'user_id,grant_identifier' }
+    );
+
+  if (error) throw error;
+  state.savedIds.add(identifier);
+}
+
+async function removeSavedCallForUser(identifier) {
+  if (!supabase || !state.auth.user) {
+    throw new Error('Log eerst in om een bewaarde call te verwijderen.');
+  }
+
+  const { error } = await supabase
+    .from('saved_calls')
+    .delete()
+    .eq('user_id', state.auth.user.id)
+    .eq('grant_identifier', identifier);
+
+  if (error) throw error;
+  state.savedIds.delete(identifier);
+}
+
+async function clearSavedCallsForUser() {
+  if (!supabase || !state.auth.user) {
+    throw new Error('Log eerst in om bewaarde calls te wissen.');
+  }
+
+  const { error } = await supabase
+    .from('saved_calls')
+    .delete()
+    .eq('user_id', state.auth.user.id);
+
+  if (error) throw error;
+  state.savedIds.clear();
+}
+
+async function toggleSavedGrant(grant) {
   const id = getGrantSaveId(grant);
   if (!id) { console.warn('Ontbrekende identifier', grant); return; }
-  state.savedIds.has(id) ? state.savedIds.delete(id) : state.savedIds.add(id);
-  persistSavedCalls();
-  update();
+  if (!state.auth.user) {
+    alert('Log eerst in om een call te bewaren.');
+    return;
+  }
+
+  try {
+    if (state.savedIds.has(id)) await removeSavedCallForUser(id);
+    else await saveCallForUser(id);
+    update();
+  } catch (error) {
+    console.error('Failed to update saved call:', error.message);
+    alert(`Bewaren van de call is mislukt: ${error.message}`);
+  }
 }
 
 const getSavedGrants = () =>
@@ -1933,7 +2015,15 @@ function renderSavedCallsPanel() {
         rmBtn.className = 'saved-call-remove-button'; rmBtn.type = 'button';
         rmBtn.title = 'Verwijder uit bewaarde calls'; rmBtn.textContent = '\xD7';
         rmBtn.setAttribute('aria-label', `Verwijder ${g.identifier} uit bewaarde calls`);
-        rmBtn.addEventListener('click', () => { state.savedIds.delete(getGrantSaveId(g)); persistSavedCalls(); update(); });
+        rmBtn.addEventListener('click', async () => {
+          try {
+            await removeSavedCallForUser(getGrantSaveId(g));
+            update();
+          } catch (error) {
+            console.error('Failed to remove saved call:', error.message);
+            alert(`Verwijderen van de call is mislukt: ${error.message}`);
+          }
+        });
 
         item.append(wrap, rmBtn);
         elements.savedCallsList.appendChild(item);
@@ -3158,6 +3248,11 @@ async function checkAuthSession() {
       state.auth.session = session;
       state.auth.user = session.user;
       state.auth.error = null;
+      await loadSavedCallsForUser();
+      await loadSavedSearches();
+    } else {
+      state.savedIds.clear();
+      state.savedSearches = [];
     }
   } catch (error) {
     console.error('Auth check failed:', error.message);
@@ -3192,9 +3287,10 @@ async function signInWithEmail(email, password) {
     // Create profile if it doesn't exist
     await createUserProfileIfNotExists();
     
-    // Load saved searches
+    // Load account-bound saved calls and searches.
+    await loadSavedCallsForUser();
     await loadSavedSearches();
-    
+
     updateAuthUI();
     return true;
   } catch (error) {
@@ -3252,8 +3348,10 @@ async function signOut() {
   if (!supabase) {
     state.auth.user = null;
     state.auth.session = null;
+    state.savedIds.clear();
     state.savedSearches = [];
     updateAuthUI();
+    if (state.data) update();
     return;
   }
   
@@ -3264,9 +3362,10 @@ async function signOut() {
     
     state.auth.user = null;
     state.auth.session = null;
+    state.savedIds.clear();
     state.savedSearches = [];
-    
     updateAuthUI();
+    if (state.data) update();
   } catch (error) {
     console.error('Sign out failed:', error.message);
     state.auth.error = error.message;
@@ -3963,9 +4062,15 @@ function wireEvents() {
   elements.sortSelect?.addEventListener('change', e => { state.filters.sort = e.target.value; update(); });
 
   elements.exportSavedButton?.addEventListener('click', exportSavedCallsHtml);
-  elements.clearSavedButton?.addEventListener('click', () => {
+  elements.clearSavedButton?.addEventListener('click', async () => {
     if (!state.savedIds.size || !confirm('Weet je zeker dat je alle bewaarde calls wilt wissen?')) return;
-    state.savedIds.clear(); persistSavedCalls(); update();
+    try {
+      await clearSavedCallsForUser();
+      update();
+    } catch (error) {
+      console.error('Failed to clear saved calls:', error.message);
+      alert(`Wissen van bewaarde calls is mislukt: ${error.message}`);
+    }
   });
 
   elements.resetButton?.addEventListener('click', () => {
@@ -3986,11 +4091,18 @@ function wireEvents() {
   elements.signUpButton?.addEventListener('click', () => showAuthModal('signup'));
   elements.signOutButton?.addEventListener('click', signOut);
   window.addEventListener('hashchange', () => { parseHash(); syncControls(); update(); });
+  window.addEventListener('focus', () => {
+    if (state.auth.user) {
+      loadSavedCallsForUser().catch(error => {
+        console.error('Failed to refresh saved calls:', error.message);
+      });
+    }
+  });
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────
 async function init() {
-  loadSavedCalls();
+  state.savedIds.clear();
   loadPipeline();
   parseHash();
   
