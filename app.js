@@ -147,7 +147,7 @@ const RWS_THEMES = [
     "nature-based flood defence",
     "integral river management",
     "cross-border water management",
-    "Deltaprogramma",
+    "Deltaprogramme",
     "IRM",
     "klimaatadaptatie",
     "zeespiegelstijging",
@@ -340,7 +340,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'flood protection',                 theme: 'climate-adaptation',  weight: 28 },
   { phrase: 'sea level rise',                   theme: 'climate-adaptation',  weight: 26 },
   { phrase: 'river basin',                      theme: 'climate-adaptation',  weight: 22 },
-  { phrase: 'coastal resilience',               theme: 'climate adaptation',  weight: 20 },
+  { phrase: 'coastal resilience',               theme: 'climate-adaptation',  weight: 20 },
   { phrase: 'inland waterways',                 theme: 'corridor-management', weight: 30 },
   { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
   { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
@@ -389,8 +389,8 @@ const QUERY_SYNONYMS = {
   vaarwegen: ['waterways','inland waterways','navigation','waterborne transport','waterway infrastructure','River Information Services','RIS'],
   binnenvaart: ['inland navigation','inland waterways','waterborne transport','shipping','River Information Services','RIS','inland ports'],
   rivieren: ['rivers','river basin','river management','river systems','water management','flood risk'],
-  rivierbeheer: ['river management','river basin management','integrated river management','water management','flood risk management'],
-  waterbeheer: ['water management','water system management','river basin management','integrated water management','water governance'],
+  rivierbeheer: ['river management','river basin management','integral river management','water management','flood risk management'],
+  waterbeheer: ['water management','water system management','river basin management','integral water management','water governance'],
   waterveiligheid: ['flood risk','flood protection','flood safety','water safety','flood resilience','flood risk management'],
   overstroming: ['flood','flooding','flood risk','flood protection','flood resilience'],
   overstromingsrisico: ['flood risk','flood risk management','flood resilience','flood protection'],
@@ -442,7 +442,7 @@ const QUERY_SYNONYMS = {
   dsgo: ['DSGO','digital built environment','data ecosystem','built environment data'],
   dsm: ['DSM','digital mobility system','mobility data ecosystem','transport data'],
   ngii: ['NGII','geospatial data infrastructure','national geo-information infrastructure','geodata'],
-  opgavegericht: ['mission-oriented','challenge-driven','programme-based cooperation','integrated approach'],
+  opgavegericht: ['mission-oriented','challenge-driven','programme-based cooperation','integral approach'],
   opgavegerichtsamenwerken: ['mission-oriented collaboration','integrated cooperation','cross-sector cooperation','public sector cooperation'],
   'opgavegericht samenwerken': ['mission-oriented collaboration','integrated cooperation','cross-sector cooperation','public sector cooperation'],
   ketensamenwerking: ['value chain cooperation','supply chain cooperation','sector collaboration','infrastructure sector cooperation'],
@@ -1615,8 +1615,10 @@ function renderPagination() {
 // ── Hash routing ──────────────────────────────────────────────
 function parseHash() {
   const p = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  state.filters.query        = p.get('q')       || '';
-  state.filters.projectIdea  = p.get('idea')    || '';
+  // Vrije zoektekst en projectidee worden bewust niet uit de URL geladen.
+  // Dit voorkomt lange URL's en houdt mogelijk interne invoer uit de adresbalk.
+  state.filters.query        = '';
+  state.filters.projectIdea  = '';
   state.filters.status       = p.get('s')       || 'live';
   state.filters.programme    = p.get('p')       || 'all';
   state.filters.theme        = p.get('theme')   || 'all';
@@ -1626,8 +1628,8 @@ function parseHash() {
 
 function writeHash() {
   const p = new URLSearchParams();
-  if (state.filters.query)                      p.set('q',      state.filters.query);
-  if (state.filters.projectIdea)                p.set('idea',   state.filters.projectIdea);
+  // Alleen compacte filters worden in de URL bewaard.
+  // Zoekvraag en projectidee blijven uitsluitend in de applicatiestate.
   if (state.filters.status       !== 'live')    p.set('s',      state.filters.status);
   if (state.filters.programme    !== 'all')     p.set('p',      state.filters.programme);
   if (state.filters.theme        !== 'all')     p.set('theme',  state.filters.theme);
@@ -3903,6 +3905,14 @@ function wireSavedSearchEvents() {
 }
 
 // ── Controls sync & update cycle ─────────────────────────────
+function debounce(callback, delay = 400) {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => callback(...args), delay);
+  };
+}
+
 function syncControls() {
   elements.projectInput.value    = state.filters.projectIdea;
   elements.searchInput.value     = state.filters.query;
@@ -3928,7 +3938,21 @@ function update() {
 
 // ── Wire events ───────────────────────────────────────────────
 function wireEvents() {
-  const onInput  = (key, el) => el?.addEventListener('input',  e => { state.filters[key] = e.target.value; resetPagination(); update(); });
+  const onInput = (key, el) => {
+    if (!el) return;
+
+    // Bewaar de invoer direct, maar stel de kostbare filtering en rendering uit
+    // totdat de gebruiker 400 ms niet meer heeft getypt.
+    const applyInput = debounce(() => {
+      resetPagination();
+      update();
+    }, 400);
+
+    el.addEventListener('input', e => {
+      state.filters[key] = e.target.value;
+      applyInput();
+    });
+  };
   const onChange = (key, el) => el?.addEventListener('change', e => { state.filters[key] = e.target.value; resetPagination(); update(); });
 
   onInput('query',       elements.searchInput);
