@@ -3066,7 +3066,7 @@ async function scoreTopResultsWithAI() {
   const btn      = document.querySelector('#ai-rerank-button');
   const statusEl = document.querySelector('#ai-rerank-status');
   if (btn)      { btn.disabled = true; btn.textContent = 'Analyseren\u2026'; }
-  if (statusEl) { statusEl.textContent = `Top ${candidates.length} calls worden beoordeeld\u2026`; statusEl.hidden = false; }
+  if (statusEl) { statusEl.textContent = `Top ${candidates.length} calls worden beoordeeld\u2026`; statusEl.hidden = false; statusEl.removeAttribute('title'); }
 
   // Batch processing: split into chunks of 5.
   const AI_BATCH_SIZE = 5;
@@ -3075,9 +3075,10 @@ async function scoreTopResultsWithAI() {
     batches.push(candidates.slice(i, i + AI_BATCH_SIZE));
   }
 
-  // Transaction buffer. Existing reviews remain untouched until every batch
-  // has completed and every selected call has a valid review.
+  // Valid reviews are collected across all batches. A missing review or a
+  // failed batch no longer discards valid reviews from the same analysis.
   const nextReviews = new Map();
+  const batchWarnings = [];
   let batchIndex = 0;
 
   try {
@@ -3097,47 +3098,54 @@ async function scoreTopResultsWithAI() {
         calls:         batch.map(toAiCallPayload)
       };
 
-      const res = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const res = await fetch(AI_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error(`AI batch ${batchIndex + 1}/${batches.length} failed:`, err);
-        throw new Error(err.error || `Backend-fout ${res.status} tijdens batch ${batchIndex + 1}`);
-      }
-
-      const data = await res.json();
-      const reviews = Array.isArray(data.reviews) ? data.reviews : [];
-      const batchReviews = new Map();
-
-      for (const review of reviews) {
-        const normalizedReview = normalizeAiReviewForDisplay(review);
-        if (expectedIds.has(normalizedReview.identifier)) {
-          batchReviews.set(normalizedReview.identifier, normalizedReview);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Backend-fout ${res.status}`);
         }
+
+        const data = await res.json();
+        const reviews = Array.isArray(data.reviews) ? data.reviews : [];
+        const batchReviews = new Map();
+
+        for (const review of reviews) {
+          const normalizedReview = normalizeAiReviewForDisplay(review);
+          if (expectedIds.has(normalizedReview.identifier)) {
+            batchReviews.set(normalizedReview.identifier, normalizedReview);
+          }
+        }
+
+        for (const [identifier, review] of batchReviews) {
+          nextReviews.set(identifier, review);
+        }
+
+        const missingIds = [...expectedIds].filter(identifier => !batchReviews.has(identifier));
+        if (missingIds.length) {
+          batchWarnings.push(`Batch ${batchIndex + 1}: geen beoordeling voor ${missingIds.join(', ')}.`);
+          console.warn(`Batch ${batchIndex + 1}/${batches.length} is incomplete:`, missingIds);
+        }
+
+        console.log(`AI batch ${batchIndex + 1}/${batches.length} completed`);
+      } catch (batchError) {
+        batchWarnings.push(`Batch ${batchIndex + 1}: ${batchError.message}`);
+        console.error(`AI batch ${batchIndex + 1}/${batches.length} failed:`, batchError);
       }
 
-      const missingIds = [...expectedIds].filter(identifier => !batchReviews.has(identifier));
-      if (missingIds.length) {
-        console.error(`Batch ${batchIndex + 1}/${batches.length} is incomplete:`, missingIds);
-        throw new Error(`Geen volledige beoordeling ontvangen voor batch ${batchIndex + 1}.`);
-      }
-
-      for (const [identifier, review] of batchReviews) {
-        nextReviews.set(identifier, review);
-      }
-
-      console.log(`AI batch ${batchIndex + 1}/${batches.length} completed`);
       if (statusEl) {
-        statusEl.textContent = `Batch ${batchIndex + 1} van ${batches.length} voltooid. Totaal: ${nextReviews.size} calls geanalyseerd.`;
+        statusEl.textContent = `Batch ${batchIndex + 1} van ${batches.length} verwerkt. Totaal: ${nextReviews.size} calls beoordeeld.`;
       }
     }
 
-    if (nextReviews.size !== candidates.length) {
-      throw new Error(`AI-analyse onvolledig: ${nextReviews.size} van ${candidates.length} calls beoordeeld.`);
+    // Keep the previous review set only when the current analysis produced no
+    // valid reviews at all.
+    if (nextReviews.size === 0) {
+      throw new Error('Er zijn geen geldige AI-beoordelingen ontvangen.');
     }
 
     // Do not publish results if the user changed the analysis context while
@@ -3156,7 +3164,8 @@ async function scoreTopResultsWithAI() {
       throw new Error('Filters of zoekcontext zijn tijdens de AI-analyse gewijzigd. De resultaten zijn niet gepubliceerd.');
     }
 
-    // Atomic publish: the new completed analysis replaces all older reviews.
+    // Publish only reviews from the current analysis. Older reviews are never
+    // mixed into a partial result set.
     state.aiReviews.clear();
     for (const [identifier, review] of nextReviews) {
       state.aiReviews.set(identifier, review);
@@ -3174,15 +3183,26 @@ async function scoreTopResultsWithAI() {
       return (b.relevance?.score || 0) - (a.relevance?.score || 0);
     });
 
-    if (statusEl) statusEl.textContent = `${state.aiReviews.size} calls succesvol geanalyseerd.`;
-    if (btn)      { btn.textContent = 'Heranalyseer'; btn.disabled = false; }
+    const assessedCount = state.aiReviews.size;
+    const requestedCount = candidates.length;
+    const missingCount = requestedCount - assessedCount;
+    if (statusEl) {
+      statusEl.textContent = missingCount === 0
+        ? `${assessedCount} calls succesvol geanalyseerd.`
+        : `${assessedCount} van ${requestedCount} calls beoordeeld. Voor ${missingCount} call${missingCount === 1 ? '' : 's'} is geen volledige beoordeling ontvangen.`;
+      if (batchWarnings.length) statusEl.title = batchWarnings.join(' ');
+    }
+    if (btn) { btn.textContent = 'Heranalyseer'; btn.disabled = false; }
 
     renderAiBriefing();
     renderResults();
+    renderAiResults();
+    if (state.activeView === 'shortlist') renderAiShortlist();
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
     if (statusEl) {
-      statusEl.textContent = `${err.message} Eerdere volledige AI-resultaten zijn behouden.`;
+      statusEl.textContent = `${err.message} Eerdere AI-resultaten zijn behouden.`;
+      if (batchWarnings.length) statusEl.title = batchWarnings.join(' ');
     }
     if (btn) {
       btn.textContent = state.aiReviews.size ? 'Heranalyseer' : 'AI analyseer top 15';
@@ -3190,6 +3210,7 @@ async function scoreTopResultsWithAI() {
     }
   }
 }
+
 
 // ── AI: saved-calls review ────────────────────────────────────
 async function runAiReview() {
