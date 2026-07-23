@@ -3196,7 +3196,6 @@ async function scoreTopResultsWithAI() {
 
     renderAiBriefing();
     renderResults();
-    renderAiResults();
     if (state.activeView === 'shortlist') renderAiShortlist();
   } catch (err) {
     console.error('AI-reranking mislukt:', err);
