@@ -163,7 +163,16 @@ const RWS_THEMES = [
     "waterveiligheid",
     "zoetwatervoorziening",
     "integraal riviermanagement",
-    "klimaatbestendige netwerken"
+    "klimaatbestendige netwerken",
+    "water resilience",
+    "ecosystem restoration", 
+    "drought water allocation",
+    "multi-channel river system",
+    "extreme weather events",
+    "climate resilience of marine ecosystems",
+    "Marine Strategy Framework Directive",
+    "coastal climate resilience",
+    "sediment removal"
     ]
   },
 
@@ -226,7 +235,8 @@ const RWS_THEMES = [
     "green and blue infrastructure",
     "Strategic Nature Action Projects",
     "Strategic Integrated Nature Projects",
-    "nature restoration"
+    "nature restoration",
+    "fish passages" 
     ]
   },
 
@@ -329,7 +339,8 @@ const RWS_THEMES = [
     "lock management",
     "tunnel management",
     "infrastructure residual lifetime",
-    "failure risk assessment"
+    "failure risk assessment",
+    "international river commissions"
     ]
   }
 ];
@@ -350,6 +361,7 @@ const IMPORTANT_PHRASES = [
   { phrase: 'sea level rise',                   theme: 'climate-adaptation',  weight: 26 },
   { phrase: 'river basin',                      theme: 'climate-adaptation',  weight: 22 },
   { phrase: 'coastal resilience',               theme: 'climate-adaptation',  weight: 20 },
+  { phrase: 'ecosystem-based adaptation',       theme: 'climate-adaptation',  weight: 14 },
   { phrase: 'inland waterways',                 theme: 'corridor-management', weight: 30 },
   { phrase: 'river information services',       theme: 'corridor-management', weight: 30 },
   { phrase: 'TEN-T corridor',                   theme: 'corridor-management', weight: 30 },
@@ -413,7 +425,7 @@ const QUERY_SYNONYMS = {
   waterkeringen: ['flood defences','water barriers','dikes','dykes','levees','flood protection'],
   klimaatadaptatie: ['climate adaptation','climate resilience','climate-proof infrastructure','climate proof infrastructure','resilient infrastructure','adaptive infrastructure'],
   klimaatbestendig: ['climate resilient','climate-proof','climate proof','resilient infrastructure','climate adaptive'],
-  stresstest: ['stress test','climate stress test','vulnerability assessment','climate risk assessment'],
+  stresstest: ['climate vulnerability assessment','stress test','climate stress test','vulnerability assessment','climate risk assessment'],
   stresstesten: ['stress tests','climate stress tests','vulnerability assessments','climate risk assessments'],
   duurzaamheid: ['sustainability','sustainable infrastructure','sustainable asset management','climate neutral','low carbon infrastructure'],
   circulair: ['circular economy','circular infrastructure','circular construction','material reuse','reuse of materials','secondary raw materials'],
