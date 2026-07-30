@@ -1751,10 +1751,37 @@ function renderMetrics() {
   elements.sourceCount.textContent   = `${fmtCompact.format(src)} current calls from the official EU index`;
 }
 
+function getActualProgrammeCounts() {
+  const counts = new Map();
+
+  for (const grant of state.data?.grants || []) {
+    // Count each programme at most once per call.
+    const programmeIds = new Set(
+      (grant.frameworkProgrammes || [])
+        .map(programme => String(programme.id || '').trim())
+        .filter(Boolean)
+    );
+
+    for (const programmeId of programmeIds) {
+      counts.set(programmeId, (counts.get(programmeId) || 0) + 1);
+    }
+  }
+
+  return counts;
+}
+
 function renderSidebar() {
   // Render top programmes
   elements.topProgrammes.innerHTML = '';
-  const programmes = state.data.facets.frameworkProgramme.slice(0, 6);
+  const programmeCounts = getActualProgrammeCounts();
+  const programmes = state.data.facets.frameworkProgramme
+    .map(programme => ({
+      ...programme,
+      actualCount: programmeCounts.get(String(programme.rawValue)) || 0
+    }))
+    .filter(programme => programme.actualCount > 0)
+    .sort((a, b) => b.actualCount - a.actualCount)
+    .slice(0, 6);
   if (!programmes.length) {
     const el = document.createElement('div');
     el.className = 'mini-list__item'; el.textContent = 'No programme filters available.';
@@ -1764,7 +1791,7 @@ function renderSidebar() {
       const btn = document.createElement('button');
       btn.className = `mini-filter${state.filters.programme === prog.rawValue ? ' is-active' : ''}`;
       btn.type = 'button';
-      btn.innerHTML = `<span class="mini-filter__title">${escapeHtml(prog.value)}</span><span class="mini-filter__meta">${fmtCompact.format(prog.count)} calls</span>`;
+      btn.innerHTML = `<span class="mini-filter__title">${escapeHtml(prog.value)}</span><span class="mini-filter__meta">${fmtCompact.format(prog.actualCount)} calls</span>`;
       btn.addEventListener('click', () => toggleProgrammeFilter(prog.rawValue));
       elements.topProgrammes.appendChild(btn);
     }
@@ -1792,13 +1819,19 @@ function renderStatusPills() {
 }
 
 function renderProgrammeOptions() {
+  const programmeCounts = getActualProgrammeCounts();
+  elements.programmeSelect.innerHTML = '';
+
   const opt = document.createElement('option');
   opt.value = 'all'; opt.textContent = 'All programmes';
   elements.programmeSelect.appendChild(opt);
   for (const prog of state.data.facets.frameworkProgramme) {
+    const actualCount = programmeCounts.get(String(prog.rawValue)) || 0;
+    if (actualCount === 0) continue;
+
     const o = document.createElement('option');
     o.value = prog.rawValue;
-    o.textContent = `${prog.value} (${fmtCompact.format(prog.count)})`;
+    o.textContent = `${prog.value} (${fmtCompact.format(actualCount)})`;
     elements.programmeSelect.appendChild(o);
   }
 }
