@@ -21,16 +21,8 @@ const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Gemini als cross-provider fallback
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';
-const GEMINI_LITE_MODEL = process.env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-async function callGemini(prompt, modelName = GEMINI_MODEL) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-
-  const response = await fetch(`${url}?key=${apiKey}`, {
-    
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
   const allowed = ALLOWED_ORIGINS.some((o) => origin.startsWith(o));
@@ -806,28 +798,19 @@ try {
       }
     }
 
-    // 3. Gemini Flash als tweede fallback, als Mistral (primair + fallback) faalde
-if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
-  console.log('Trying Gemini as final fallback:', GEMINI_MODEL);
-  try {
-    ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL));
-    primaryCallSucceeded = true;
-    console.log('Gemini fallback succeeded:', model);
-  } catch (geminiError) {
-    console.log('Gemini fallback also failed:', geminiError.message);
-
-    // 4. Gemini Flash-Lite als laatste redmiddel, als Flash zelf ook faalde
-    console.log('Trying Gemini Flash-Lite as final fallback:', GEMINI_LITE_MODEL);
-    try {
-      ({ rawText, provider, model } = await callGemini(prompt, GEMINI_LITE_MODEL));
-      primaryCallSucceeded = true;
-      console.log('Gemini Flash-Lite fallback succeeded:', model);
-    } catch (geminiLiteError) {
-      console.log('Gemini Flash-Lite fallback also failed:', geminiLiteError.message);
+    // 3. Gemini as last resort, if Mistral (primary + fallback) failed
+    if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
+      console.log('Trying Gemini as final fallback:', GEMINI_MODEL);
+      try {
+        ({ rawText, provider, model } = await callGemini(prompt));
+        primaryCallSucceeded = true;
+        console.log('Gemini fallback succeeded:', model);
+      } catch (geminiError) {
+        console.log('Gemini fallback also failed:', geminiError.message);
+      }
     }
   }
-}
-    
+
   if (!primaryCallSucceeded) {
     // No provider available — rethrow the original Mistral error
     throw primaryError;
