@@ -250,6 +250,7 @@ Functionaliteiten die afhankelijk zijn van externe diensten vereisen aanvullende
 | Variabele | Verplicht | Omschrijving |
 | --- | --- | --- |
 | `VIBE_CLI_KEY_BCG` | nee* | Mistral API-sleutel (primair). |
+| `MISTRAL_ENABLED` | nee | `false` schakelt de hele Mistral-stap in de keten uit (standaard aan; Gemini wordt dan de eerste provider). |
 | `AI_MODEL` / `MISTRAL_MODEL` | nee | Primair Mistral-model, standaard `mistral-small-latest`. |
 | `AI_FALLBACK_MODEL` | nee | Tweede Mistral-model, standaard `ministral-3b-latest` (1 poging van 20s). |
 | `PROVIDER_COOLDOWN_MS` | nee | Cooldown voor een volledig falende provider, standaard `600000` (10 minuten). |
