@@ -709,82 +709,97 @@ const response = await fetchWithTimeout(MISTRAL_URL, {
   };
 }
 
-async function callGemini(prompt, modelName = GEMINI_MODEL) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-
- const response = await fetchWithTimeout(`${url}?key=${apiKey}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    systemInstruction: {
-      parts: [{
-        text: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug, zonder markdown-codeblokken.'
-      }]
-    },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: 'application/json',
-      maxOutputTokens: 16384,
-      responseSchema: {
+// Response-schema, ongewijzigd overgenomen uit de vorige generateContent-implementatie —
+// alleen verplaatst naar een losse constante zodat callGemini hem kan hergebruiken.
+const GEMINI_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    reviews: {
+      type: 'ARRAY',
+      items: {
         type: 'OBJECT',
         properties: {
-          reviews: {
-            type: 'ARRAY',
-            items: {
-              type: 'OBJECT',
-              properties: {
-                identifier: { type: 'STRING' },
-                aiRelevanceScore: { type: 'NUMBER' },
-                projectFit: { type: 'STRING' },
-                projectFitScore: { type: 'NUMBER' },
-                themeFit: { type: 'ARRAY', items: { type: 'STRING' } },
-                rationale: { type: 'STRING' },
-                possibleRwsRole: { type: 'STRING' },
-                possibleRwsProject: { type: 'STRING' },
-                callScopeSummary: { type: 'STRING' },
-                uncertainties: { type: 'STRING' },
-                callRequirements: { type: 'ARRAY', items: { type: 'STRING' } },
-                ragMatchedItems: { type: 'ARRAY', items: { type: 'STRING' } },
-                snapshotReden: { type: 'STRING' },
-                waaromRelevant: { type: 'ARRAY', items: { type: 'STRING' } }
-              },
-              required: [
-  'identifier', 'aiRelevanceScore', 'projectFit', 'rationale',
-  'possibleRwsRole', 'uncertainties', 'callRequirements', 'ragMatchedItems'
-]
-            }
-          },
-          summary: {
+          identifier: { type: 'STRING' },
+          aiRelevanceScore: { type: 'NUMBER' },
+          projectFit: { type: 'STRING' },
+          projectFitScore: { type: 'NUMBER' },
+          themeFit: { type: 'ARRAY', items: { type: 'STRING' } },
+          rationale: { type: 'STRING' },
+          possibleRwsRole: { type: 'STRING' },
+          possibleRwsProject: { type: 'STRING' },
+          callScopeSummary: { type: 'STRING' },
+          uncertainties: { type: 'STRING' },
+          callRequirements: { type: 'ARRAY', items: { type: 'STRING' } },
+          ragMatchedItems: { type: 'ARRAY', items: { type: 'STRING' } },
+          snapshotReden: { type: 'STRING' },
+          waaromRelevant: { type: 'ARRAY', items: { type: 'STRING' } }
+        },
+        required: [
+          'identifier', 'aiRelevanceScore', 'projectFit', 'rationale',
+          'possibleRwsRole', 'uncertainties', 'callRequirements', 'ragMatchedItems'
+        ]
+      }
+    },
+    summary: {
+      type: 'OBJECT',
+      properties: {
+        executiveSummary: { type: 'STRING' },
+        overallAdvice: { type: 'STRING' },
+        topOpportunities: {
+          type: 'ARRAY',
+          items: {
             type: 'OBJECT',
             properties: {
-              executiveSummary: { type: 'STRING' },
-              overallAdvice: { type: 'STRING' },
-              topOpportunities: {
-                type: 'ARRAY',
-                items: {
-                  type: 'OBJECT',
-                  properties: {
-                    identifier: { type: 'STRING' },
-                    title: { type: 'STRING' },
-                    score: { type: 'NUMBER' },
-                    rationale: { type: 'STRING' }
-                  }
-                }
-              },
-              notableExclusions: { type: 'STRING' },
-              recommendedNextSteps: { type: 'ARRAY', items: { type: 'STRING' } }
+              identifier: { type: 'STRING' },
+              title: { type: 'STRING' },
+              score: { type: 'NUMBER' },
+              rationale: { type: 'STRING' }
             }
           }
         },
-        required: ['reviews']
+        notableExclusions: { type: 'STRING' },
+        recommendedNextSteps: { type: 'ARRAY', items: { type: 'STRING' } }
       }
     }
-  })
-}, 45000);
+  },
+  required: ['reviews']
+};
+
+// callGemini gebruikt sinds de migratie de nieuwe Interactions API
+// (POST /v1beta/interactions) in plaats van de legacy generateContent-API.
+// Request- en response-vorm zijn aangepast; de rest van het bestand (buildPrompt,
+// de fallback-keten, normalizeAiReviews) blijft ongewijzigd en verwacht nog steeds
+// gewoon { rawText, provider, model } terug — dat contract is hier bewust intact gelaten.
+async function callGemini(prompt, modelName = GEMINI_MODELS[0]) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
+
+  const url = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+
+  const response = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+      // Vastgezet op de post-mei-2026 revisie (steps-array i.p.v. outputs-array).
+      // Controleer bij twijfel de actuele aanbevolen waarde op
+      // ai.google.dev/gemini-api/docs/interactions voordat je deze wijzigt.
+      'Api-Revision': '2026-05-20'
+    },
+    body: JSON.stringify({
+      model: modelName,
+      system_instruction: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug, zonder markdown-codeblokken.',
+      input: prompt,
+      response_format: {
+        type: 'json_schema',
+        json_schema: GEMINI_RESPONSE_SCHEMA
+      },
+      generation_config: {
+        temperature: 0.2,
+        max_output_tokens: 16384
+      }
+    })
+  }, 45000);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -795,8 +810,14 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
   }
 
   const data = await response.json();
+
+  // Nieuwe schema (post-mei-2026): steps-array i.p.v. de oude outputs-array.
+  const modelOutputStep = data.steps?.find((step) => step.type === 'model_output');
+  const textContent = modelOutputStep?.content?.find((c) => c.type === 'text');
+  const rawText = textContent?.text || '{"reviews":[],"summary":{}}';
+
   return {
-    rawText: data.candidates?.[0]?.content?.parts?.[0]?.text || '{"reviews":[],"summary":{}}',
+    rawText,
     provider: 'gemini',
     model: modelName
   };
