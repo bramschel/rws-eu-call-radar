@@ -651,7 +651,7 @@ function normalizeAiReviews(parsed, allowedIdentifiers = null) {
 
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
 
-async function fetchWithTimeout(url, options, timeoutMs = 18000) {
+async function fetchWithTimeout(url, options, timeoutMs = 25000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
