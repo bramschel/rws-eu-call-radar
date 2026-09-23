@@ -724,10 +724,11 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
       }]
     },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: 'application/json'
-    }
+  generationConfig: {
+  temperature: 0.2,
+  responseMimeType: 'application/json',
+  maxOutputTokens: 8192
+}
   })
 }, 18000);
 
