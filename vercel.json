@@ -2,7 +2,7 @@
   "functions": {
     "api/score.js": {
       "memory": 512,
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "headers": [
