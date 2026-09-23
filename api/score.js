@@ -817,7 +817,7 @@ try {
       }
     }
 
-        // 3. Gemini Flash, if Mistral (primary + fallback) failed
+    // 3. Gemini Flash, if Mistral (primary + fallback) failed
     if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
       console.log('Trying Gemini as final fallback:', GEMINI_MODEL);
       try {
@@ -838,6 +838,7 @@ try {
         }
       }
     }
+  }
 
   if (!primaryCallSucceeded) {
     // No provider available — rethrow the original Mistral error
