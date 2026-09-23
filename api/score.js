@@ -723,12 +723,65 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
         text: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug, zonder markdown-codeblokken.'
       }]
     },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-  generationConfig: {
-  temperature: 0.2,
-  responseMimeType: 'application/json',
-  maxOutputTokens: 8192
-}
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: 'application/json',
+      maxOutputTokens: 16384,
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          reviews: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                identifier: { type: 'STRING' },
+                aiRelevanceScore: { type: 'NUMBER' },
+                projectFit: { type: 'STRING' },
+                projectFitScore: { type: 'NUMBER' },
+                themeFit: { type: 'ARRAY', items: { type: 'STRING' } },
+                rationale: { type: 'STRING' },
+                possibleRwsRole: { type: 'STRING' },
+                possibleRwsProject: { type: 'STRING' },
+                callScopeSummary: { type: 'STRING' },
+                uncertainties: { type: 'STRING' },
+                callRequirements: { type: 'ARRAY', items: { type: 'STRING' } },
+                ragMatchedItems: { type: 'ARRAY', items: { type: 'STRING' } },
+                snapshotReden: { type: 'STRING' },
+                waaromRelevant: { type: 'ARRAY', items: { type: 'STRING' } }
+              },
+              required: [
+                'identifier', 'aiRelevanceScore', 'projectFit', 'rationale',
+                'possibleRwsRole', 'uncertainties', 'callRequirements'
+              ]
+            }
+          },
+          summary: {
+            type: 'OBJECT',
+            properties: {
+              executiveSummary: { type: 'STRING' },
+              overallAdvice: { type: 'STRING' },
+              topOpportunities: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    identifier: { type: 'STRING' },
+                    title: { type: 'STRING' },
+                    score: { type: 'NUMBER' },
+                    rationale: { type: 'STRING' }
+                  }
+                }
+              },
+              notableExclusions: { type: 'STRING' },
+              recommendedNextSteps: { type: 'ARRAY', items: { type: 'STRING' } }
+            }
+          }
+        },
+        required: ['reviews']
+      }
+    }
   })
 }, 25000);
 
