@@ -646,29 +646,46 @@ function normalizeAiReviews(parsed, allowedIdentifiers = null) {
 
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
 
+async function fetchWithTimeout(url, options, timeoutMs = 18000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutError = new Error(`Provider reageerde niet binnen ${timeoutMs / 1000}s (timeout)`);
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function callMistral(prompt, modelName = MISTRAL_MODEL) {
   const apiKey = process.env.VIBE_CLI_KEY_BCG;
   if (!apiKey) throw new Error('VIBE_CLI_KEY_BCG environment variable is required');
 
-  const response = await fetch(MISTRAL_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: modelName,
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
-        },
-        { role: 'user', content: prompt }
-      ]
-    })
-  });
+const response = await fetchWithTimeout(MISTRAL_URL, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`
+  },
+  body: JSON.stringify({
+    model: modelName,
+    temperature: 0.2,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
+      },
+      { role: 'user', content: prompt }
+    ]
+  })
+}, 18000);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -692,22 +709,22 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
-  const response = await fetch(`${url}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{
-          text: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug, zonder markdown-codeblokken.'
-        }]
-      },
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json'
-      }
-    })
-  });
+ const response = await fetchWithTimeout(`${url}?key=${apiKey}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    systemInstruction: {
+      parts: [{
+        text: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug, zonder markdown-codeblokken.'
+      }]
+    },
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: 'application/json'
+    }
+  })
+}, 18000);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
