@@ -21,11 +21,12 @@ const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Gemini als cross-provider fallback
 const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL_1 || 'gemini-3.5-flash',
+  process.env.GEMINI_MODEL_1 || 'gemma-4-31b-it',
   process.env.GEMINI_MODEL_2 || 'gemini-3.5-flash-lite',
   process.env.GEMINI_MODEL_3 || 'gemini-3.7-flash',
   process.env.GEMINI_MODEL_4 || 'gemini-3.6-flash',
-  process.env.GEMINI_MODEL_5 || 'gemini-3.8-flash'
+  process.env.GEMINI_MODEL_5 || 'gemini-3.5-flash',
+  process.env.GEMINI_MODEL_6 || 'gemini-3.8-flash'
 ];
 
 function setCorsHeaders(req, res) {
