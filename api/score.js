@@ -822,7 +822,7 @@ try {
       }
     }
 
-        // 3. Gemini-modellen na elkaar proberen, elk met eigen dagquota
+    // 3. Gemini-modellen na elkaar proberen, elk met eigen dagquota
     if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
       for (const geminiModel of GEMINI_MODELS) {
         console.log('Trying Gemini model:', geminiModel);
@@ -836,6 +836,7 @@ try {
         }
       }
     }
+  }
 
   if (!primaryCallSucceeded) {
     // No provider available — rethrow the original Mistral error
