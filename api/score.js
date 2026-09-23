@@ -21,11 +21,11 @@ const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Gemini als cross-provider fallback
 const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL_1 || 'gemini-3.8-flash',
-  process.env.GEMINI_MODEL_2 || 'gemini-3.7-flash',
-  process.env.GEMINI_MODEL_3 || 'gemini-3.6-flash',
-  process.env.GEMINI_MODEL_4 || 'gemini-3.5-flash',
-  process.env.GEMINI_MODEL_5 || 'gemini-3.5-flash-lite'
+  process.env.GEMINI_MODEL_1 || 'gemini-3.5-flash-lite',
+  process.env.GEMINI_MODEL_2 || 'gemini-3.8-flash',
+  process.env.GEMINI_MODEL_3 || 'gemini-3.7-flash',
+  process.env.GEMINI_MODEL_4 || 'gemini-3.6-flash',
+  process.env.GEMINI_MODEL_5 || 'gemini-3.5-flash'
 ];
 
 function setCorsHeaders(req, res) {
@@ -730,11 +730,11 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
   maxOutputTokens: 8192
 }
   })
-}, 18000);
+}, 25000);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    const apiError = new Error(err.error?.message || `Gemini-fout ${response.status}`);
+    const apiError = new Error(err.error?.megit pushssage || `Gemini-fout ${response.status}`);
     apiError.status = response.status;
     apiError.details = err;
     throw apiError;
