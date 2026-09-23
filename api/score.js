@@ -20,8 +20,13 @@ const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Gemini als cross-provider fallback
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-const GEMINI_LITE_MODEL = process.env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL_1 || 'gemini-3.8-flash',
+  process.env.GEMINI_MODEL_2 || 'gemini-3.7-flash',
+  process.env.GEMINI_MODEL_3 || 'gemini-3.6-flash',
+  process.env.GEMINI_MODEL_4 || 'gemini-3.5-flash',
+  process.env.GEMINI_MODEL_5 || 'gemini-3.5-flash-lite'
+];
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
@@ -817,28 +822,20 @@ try {
       }
     }
 
-    // 3. Gemini Flash, if Mistral (primary + fallback) failed
+        // 3. Gemini-modellen na elkaar proberen, elk met eigen dagquota
     if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
-      console.log('Trying Gemini as final fallback:', GEMINI_MODEL);
-      try {
-        ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL));
-        primaryCallSucceeded = true;
-        console.log('Gemini fallback succeeded:', model);
-      } catch (geminiError) {
-        console.log('Gemini fallback also failed:', geminiError.message);
-
-        // 4. Gemini Flash-Lite, if Flash itself also failed
-        console.log('Trying Gemini Flash-Lite as final fallback:', GEMINI_LITE_MODEL);
+      for (const geminiModel of GEMINI_MODELS) {
+        console.log('Trying Gemini model:', geminiModel);
         try {
-          ({ rawText, provider, model } = await callGemini(prompt, GEMINI_LITE_MODEL));
+          ({ rawText, provider, model } = await callGemini(prompt, geminiModel));
           primaryCallSucceeded = true;
-          console.log('Gemini Flash-Lite fallback succeeded:', model);
-        } catch (geminiLiteError) {
-          console.log('Gemini Flash-Lite fallback also failed:', geminiLiteError.message);
+          console.log('Gemini model succeeded:', model);
+          break;
+        } catch (geminiError) {
+          console.log(`Gemini model ${geminiModel} failed:`, geminiError.message);
         }
       }
     }
-  }
 
   if (!primaryCallSucceeded) {
     // No provider available — rethrow the original Mistral error
