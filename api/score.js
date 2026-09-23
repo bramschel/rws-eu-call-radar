@@ -734,7 +734,7 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    const apiError = new Error(err.error?.megit pushssage || `Gemini-fout ${response.status}`);
+    const apiError = new Error(err.error?.message || `Gemini-fout ${response.status}`);
     apiError.status = response.status;
     apiError.details = err;
     throw apiError;
