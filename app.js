@@ -3009,17 +3009,95 @@ function normalizeAiReviewForDisplay(review) {
   };
 }
 
+// ── AI: netwerk-helper (timeout + capacity-retry) ────────────
+const AI_FETCH_TIMEOUT_MS = 150000;  // moet ruim boven de server-side keten-deadline (120s) blijven
+const AI_RETRY_DELAY_MS = 2000;
+const AI_CAPACITY_STATUSES = [429, 503, 504];
+
+function describeAiAttempts(attempts) {
+  if (!Array.isArray(attempts) || !attempts.length) return '';
+  return attempts
+    .map(a => `${a.provider}/${a.model}: ${a.ok ? 'ok' : (a.status || 'netwerk')}`)
+    .join(' · ');
+}
+
+function aiErrorMessage(err) {
+  const attempts = describeAiAttempts(err?.attempts);
+  return attempts ? `${err.message} (${attempts})` : (err?.message || 'Onbekende fout');
+}
+
+/**
+ * POST naar /api/score met timeout + één automatische herpoging bij
+ * capacity-fouten (429/503/504) of netwerk-/timeout-fouten.
+ * Andere fouten (400/500/502) worden direct gegooid.
+ */
+async function postAiAnalysis(payload, { timeoutMs = AI_FETCH_TIMEOUT_MS, retries = 1, onRetry } = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      onRetry?.(lastError, attempt, retries);
+      await new Promise(resolve => setTimeout(resolve, AI_RETRY_DELAY_MS * attempt));
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(AI_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const err = new Error(body.error || `AI-backend fout: ${res.status}`);
+        err.status = res.status;
+        err.attempts = body.attempts;
+        if (!AI_CAPACITY_STATUSES.includes(res.status)) throw err;
+        lastError = err;
+        continue; // capacity-fout → herproberen (finally ruimt de timer op)
+      }
+      return body;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        const timeoutErr = new Error(`AI-backend reageerde niet binnen ${Math.round(timeoutMs / 1000)} seconden`);
+        timeoutErr.status = 504;
+        lastError = timeoutErr;
+      } else if (err.status && !AI_CAPACITY_STATUSES.includes(err.status)) {
+        throw err; // echte fout, geen zin om te herhalen
+      } else {
+        lastError = err; // netwerkfout of capacity-fout
+      }
+      if (attempt >= retries) throw lastError;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastError || new Error('AI-analyse mislukt');
+}
+
+// Client-side cache van volledige request/response-paren, zodat een sessie
+// nooit twee keer dezelfde analyse naar de backend stuurt.
+const AI_REQUEST_CACHE = new Map();
+const aiRequestKey = (payload) => JSON.stringify(payload);
+// "Forceer nieuwe analyse" omzeilt zowel de lokale cache als de Supabase-cache.
+const aiForceFresh = () => document.querySelector('#ai-force-fresh')?.checked === true;
+
 // ── AI: per-card scoring ──────────────────────────────────────
 const AI_CACHE = new Map();
 
 async function scoreGrantWithAI(grant) {
   if (!AI_API_URL) { alert('AI-backend nog niet geconfigureerd. Test AI via de Vercel-site.'); return null; }
-  if (AI_CACHE.has(grant.identifier)) return AI_CACHE.get(grant.identifier);
+  if (!aiForceFresh() && AI_CACHE.has(grant.identifier)) return AI_CACHE.get(grant.identifier);
 
   const payload = {
     projectIdea:   state.filters.projectIdea,
     keywords:      state.filters.query,
     selectedTheme: state.filters.theme === 'all' ? '' : state.filters.theme,
+    forceFresh:    aiForceFresh(),
     calls: [{
       identifier:          grant.identifier,
       title:               grant.title,
@@ -3036,9 +3114,7 @@ async function scoreGrantWithAI(grant) {
   };
 
   try {
-    const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!res.ok) throw new Error(await res.text() || `AI-backend fout: ${res.status}`);
-    const data   = await res.json();
+    const data = await postAiAnalysis(payload);
     const review = data.reviews?.[0] || (Array.isArray(data) ? data[0] : null) || data;
 
     // FIX: only use aiRelevanceScore — no fallback to review.score or review.relevanceScore
@@ -3049,13 +3125,16 @@ async function scoreGrantWithAI(grant) {
       thema:               Array.isArray(themeV) ? themeV.join(', ') : themeV,
       possibleRwsRole:     review.possibleRwsRole ?? review.rwsRole ?? '',
       uncertainties:       review.uncertainties ?? review.onzekerheden ?? '',
-      callRequirements:    Array.isArray(review.callRequirements) ? review.callRequirements : []
+      callRequirements:    Array.isArray(review.callRequirements) ? review.callRequirements : [],
+      provider:            data.provider || '',
+      model:               data.model || '',
+      cached:              !!data.cached
     };
     AI_CACHE.set(grant.identifier, result);
     return result;
   } catch (err) {
-    console.error('AI-analyse mislukt:', err);
-    alert(`AI-analyse mislukt: ${err.message}`);
+    console.error('AI-analyse mislukt:', err, err.attempts || []);
+    alert(`AI-analyse mislukt: ${aiErrorMessage(err)}`);
     return null;
   }
 }
@@ -3076,6 +3155,28 @@ function toAiCallPayload(grant) {
     programmeDivisions:  grant.programmeDivisions?.map(d => d.label) || [],
     matchedThemes: grant.relevance?.matchedThemes?.map(t => t.label) || [],
     matchedTerms:  grant.relevance?.matchedTerms || []
+  };
+}
+
+// Voegt de managementsamenvattingen van meerdere batches samen tot één briefing.
+function mergeAiSummaries(summaries) {
+  const usable = (summaries || []).filter(s =>
+    s && (s.executiveSummary || s.overallAdvice || s.topOpportunities?.length || s.recommendedNextSteps?.length)
+  );
+  if (!usable.length) return null;
+  if (usable.length === 1) return usable[0];
+
+  const topOpportunities = usable
+    .flatMap(s => s.topOpportunities || [])
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 3);
+
+  return {
+    executiveSummary:    usable.map(s => s.executiveSummary).filter(Boolean).join(' '),
+    overallAdvice:       usable.map(s => s.overallAdvice).filter(Boolean).join(' '),
+    topOpportunities,
+    notableExclusions:   usable.map(s => s.notableExclusions).filter(Boolean).join(' '),
+    recommendedNextSteps: [...new Set(usable.flatMap(s => s.recommendedNextSteps || []))].slice(0, 5)
   };
 }
 
@@ -3124,6 +3225,8 @@ async function scoreTopResultsWithAI() {
   // failed batch no longer discards valid reviews from the same analysis.
   const nextReviews = new Map();
   const batchWarnings = [];
+  const batchSummaries = [];
+  let cacheHits = 0;
   let batchIndex = 0;
 
   try {
@@ -3140,22 +3243,28 @@ async function scoreTopResultsWithAI() {
         projectIdea:   analysisContext.projectIdea,
         keywords:      analysisContext.query,
         selectedTheme: analysisContext.theme !== 'all' ? analysisContext.theme : '',
+        forceFresh:    aiForceFresh(),
         calls:         batch.map(toAiCallPayload)
       };
 
       try {
-        const res = await fetch(AI_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        const requestKey = aiRequestKey(payload);
+        let data = payload.forceFresh ? null : AI_REQUEST_CACHE.get(requestKey);
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Backend-fout ${res.status}`);
+        if (data) {
+          cacheHits++;
+          console.log(`AI batch ${batchIndex + 1}/${batches.length} uit lokale cache`);
+        } else {
+          data = await postAiAnalysis(payload, {
+            onRetry: (err, attempt, retries) => {
+              if (statusEl) {
+                statusEl.textContent = `AI overbelast\u2014opnieuw proberen (poging ${attempt + 1} van ${retries + 1})\u2026`;
+              }
+            }
+          });
+          AI_REQUEST_CACHE.set(requestKey, data);
         }
 
-        const data = await res.json();
         const reviews = Array.isArray(data.reviews) ? data.reviews : [];
         const batchReviews = new Map();
 
@@ -3170,6 +3279,10 @@ async function scoreTopResultsWithAI() {
           nextReviews.set(identifier, review);
         }
 
+        if (data.summary && (data.summary.executiveSummary || data.summary.topOpportunities?.length)) {
+          batchSummaries.push(data.summary);
+        }
+
         const missingIds = [...expectedIds].filter(identifier => !batchReviews.has(identifier));
         if (missingIds.length) {
           batchWarnings.push(`Batch ${batchIndex + 1}: geen beoordeling voor ${missingIds.join(', ')}.`);
@@ -3178,8 +3291,8 @@ async function scoreTopResultsWithAI() {
 
         console.log(`AI batch ${batchIndex + 1}/${batches.length} completed`);
       } catch (batchError) {
-        batchWarnings.push(`Batch ${batchIndex + 1}: ${batchError.message}`);
-        console.error(`AI batch ${batchIndex + 1}/${batches.length} failed:`, batchError);
+        batchWarnings.push(`Batch ${batchIndex + 1}: ${aiErrorMessage(batchError)}`);
+        console.error(`AI batch ${batchIndex + 1}/${batches.length} failed:`, batchError, batchError.attempts || []);
       }
 
       if (statusEl) {
@@ -3215,7 +3328,7 @@ async function scoreTopResultsWithAI() {
     for (const [identifier, review] of nextReviews) {
       state.aiReviews.set(identifier, review);
     }
-    state.aiSummary = null;
+    state.aiSummary = mergeAiSummaries(batchSummaries);
     state.aiRerankActive = true;
 
     // Sort: AI-scored calls first (desc aiRelevanceScore), rest below.
@@ -3231,10 +3344,13 @@ async function scoreTopResultsWithAI() {
     const assessedCount = state.aiReviews.size;
     const requestedCount = candidates.length;
     const missingCount = requestedCount - assessedCount;
+    const cacheNote = cacheHits
+      ? ` ${cacheHits} van ${batches.length} batch${batches.length === 1 ? '' : 'es'} kwam(en) uit de cache.`
+      : '';
     if (statusEl) {
-      statusEl.textContent = missingCount === 0
+      statusEl.textContent = (missingCount === 0
         ? `${assessedCount} calls succesvol geanalyseerd.`
-        : `${assessedCount} van ${requestedCount} calls beoordeeld. Voor ${missingCount} call${missingCount === 1 ? '' : 's'} is geen volledige beoordeling ontvangen.`;
+        : `${assessedCount} van ${requestedCount} calls beoordeeld. Voor ${missingCount} call${missingCount === 1 ? '' : 's'} is geen volledige beoordeling ontvangen.`) + cacheNote;
       if (batchWarnings.length) statusEl.title = batchWarnings.join(' ');
     }
     if (btn) { btn.textContent = 'Heranalyseer'; btn.disabled = false; }
@@ -3243,9 +3359,9 @@ async function scoreTopResultsWithAI() {
     renderResults();
     if (state.activeView === 'shortlist') renderAiShortlist();
   } catch (err) {
-    console.error('AI-reranking mislukt:', err);
+    console.error('AI-reranking mislukt:', err, err.attempts || []);
     if (statusEl) {
-      statusEl.textContent = `${err.message} Eerdere AI-resultaten zijn behouden.`;
+      statusEl.textContent = `${aiErrorMessage(err)} Eerdere AI-resultaten zijn behouden.`;
       if (batchWarnings.length) statusEl.title = batchWarnings.join(' ');
     }
     if (btn) {
@@ -3269,6 +3385,7 @@ async function runAiReview() {
     projectIdea:   state.filters.projectIdea,
     keywords:      state.filters.query,
     selectedTheme: state.filters.theme !== 'all' ? state.filters.theme : '',
+    forceFresh:    aiForceFresh(),
     calls: saved.slice(0, 10).map(g => ({
       identifier:          g.identifier,
       title:               g.title,
@@ -3285,18 +3402,30 @@ async function runAiReview() {
   };
 
   try {
-    const res = await fetch(AI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Backend-fout ${res.status}`); }
-    const data = await res.json();
+    const requestKey = aiRequestKey(payload);
+    let data = payload.forceFresh ? null : AI_REQUEST_CACHE.get(requestKey);
+    if (!data) {
+      data = await postAiAnalysis(payload, {
+        onRetry: (err, attempt, retries) => {
+          if (aiRevBtn) aiRevBtn.textContent = `Overbelast\u2014poging ${attempt + 1}/${retries + 1}\u2026`;
+        }
+      });
+      AI_REQUEST_CACHE.set(requestKey, data);
+    }
+
     for (const r of data.reviews || []) {
       const norm = normalizeAiReviewForDisplay(r);
       state.aiReviews.set(norm.identifier, norm);
     }
+    if (data.summary && (data.summary.executiveSummary || data.summary.topOpportunities?.length)) {
+      state.aiSummary = mergeAiSummaries([data.summary]);
+    }
+    renderAiBriefing();
     renderAiResults();
     renderResults();
   } catch (err) {
-    console.error('AI-review mislukt:', err);
-    alert(`AI-review mislukt: ${err.message}`);
+    console.error('AI-review mislukt:', err, err.attempts || []);
+    alert(`AI-review mislukt: ${aiErrorMessage(err)}`);
   } finally {
     if (aiRevBtn) { aiRevBtn.disabled = false; aiRevBtn.textContent = 'Beoordeel met AI'; }
   }
@@ -4141,10 +4270,12 @@ function wireEvents() {
   elements.resetButton?.addEventListener('click', () => {
     state.filters = { query: '', projectIdea: '', status: 'live', programme: 'all', theme: 'all', recentMonths: 'all', sort: 'relevance-desc' };
     state.aiReviews.clear(); state.aiSummary = null; state.aiRerankActive = false;
+    AI_REQUEST_CACHE.clear();
     const statusEl = document.querySelector('#ai-rerank-status');
     const aiBtn    = document.querySelector('#ai-rerank-button');
     if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
     if (aiBtn)    { aiBtn.textContent = 'AI analyseer top 15'; aiBtn.disabled = false; }
+    renderAiBriefing();
     resetPagination(); syncControls(); update();
   });
 

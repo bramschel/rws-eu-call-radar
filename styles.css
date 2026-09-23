@@ -239,6 +239,24 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .results__actions { display: flex; gap: 0.5rem; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
 .ai-panel, .ai-results-panel { margin-bottom: 16px; padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid #e6f0fa; border-left: 5px solid var(--rws-yellow); background: #ffffff; }
 .ai-panel__copy, .sidebar__copy { margin: 0; color: var(--muted); line-height: 1.6; }
+.ai-panel__force { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
+
+/* AI briefing (managementsamenvatting) */
+.ai-briefing { margin-bottom: 16px; padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid #e6f0fa; border-left: 5px solid var(--rws-blue-3); background: var(--panel-alt); }
+.ai-briefing__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-briefing__title { margin: 0; font-size: 1rem; color: var(--rws-blue); }
+.ai-briefing__badge { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; background: var(--rws-yellow); color: var(--ink); padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.ai-briefing__section { margin-top: 14px; }
+.ai-briefing__section h4 { margin: 0 0 4px; font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.ai-briefing__text { margin: 0; line-height: 1.6; }
+.ai-briefing__text--advice { font-weight: 600; color: var(--rws-blue-2); }
+.ai-briefing__opportunities { display: grid; gap: 8px; }
+.ai-briefing__opportunity { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #ffffff; }
+.ai-briefing__opportunity-rank { font-weight: 700; color: var(--rws-blue-3); }
+.ai-briefing__opportunity-title { display: block; font-size: .92rem; color: var(--ink); }
+.ai-briefing__opportunity-rationale { margin: 4px 0; font-size: .84rem; line-height: 1.5; color: var(--muted); }
+.ai-briefing__opportunity-score { font-size: .76rem; font-weight: 700; color: var(--rws-green); }
+.ai-briefing__steps { margin: 0; padding-left: 18px; line-height: 1.6; }
 .ai-results-list, .results-list { display: grid; gap: 10px; }
 
 .grant-card { background: #ffffff; border: 1px solid #cbdce8; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 4px 16px rgba(21, 66, 115, 0.08); }

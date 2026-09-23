@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RWS EU Call Radar</title>
     <meta name="description" content="EU Call Radar voor Rijkswaterstaat Bureau Brussel. Zoek, filter en beoordeel Europese funding calls op relevantie voor RWS-thema's.">
-    <link rel="stylesheet" href="styles.css?v=20260707-app-refactored-html-export-1">
+    <link rel="stylesheet" href="styles.css?v=20260923-ai-resilience-1">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <!-- Vercel Speed Insights -->
@@ -143,7 +143,8 @@
                 <a class="ghost-button link-button" href="https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?order=DESC&amp;pageNumber=1&amp;pageSize=50&amp;sortBy=startDate&amp;isExactMatch=true&amp;status=31094501,31094502,31094503" target="_blank" rel="noreferrer">Open EU portal</a>
               </div>
             </div>
-            <div class="ai-panel"><p class="ai-panel__label">AI-ranking</p><p class="ai-panel__copy">De AI-analyse beoordeelt de top 15 gefilterde calls op basis van je projectidee, keywords en eventueel gekozen Bureau Brussel-thema. De gewone filters blijven leidend.</p></div>
+            <div class="ai-panel"><p class="ai-panel__label">AI-ranking</p><p class="ai-panel__copy">De AI-analyse beoordeelt de top 15 gefilterde calls op basis van je projectidee, keywords en eventueel gekozen Bureau Brussel-thema. De gewone filters blijven leidend.</p><label class="ai-panel__copy ai-panel__force"><input type="checkbox" id="ai-force-fresh"> Forceer nieuwe analyse (cache omzeilen)</label></div>
+            <div id="ai-briefing-panel" class="ai-briefing" hidden></div>
             <div id="ai-results-panel" class="ai-results-panel" hidden><div class="ai-results-panel__header"><p class="ai-panel__label">AI-analyse</p><p class="ai-panel__copy">Gerangschikte AI-beoordeling van de geselecteerde calls.</p></div><div id="ai-results-list" class="ai-results-list"></div></div>
             <div id="results-list" class="results-list"></div>
             <div class="results__footer"><button id="load-more-button" class="ghost-button" type="button" hidden>Laad meer</button><div id="pagination-controls" class="pagination-controls"></div></div>
@@ -175,7 +176,7 @@
       </article>
     </template>
 
-    <script type="module" src="app.js?v=20260707-app-refactored-html-export-1"></script>
+    <script type="module" src="app.js?v=20260923-ai-resilience-1"></script>
     <script defer src="/_vercel/insights/script.js"></script>
   </body>
 </html>

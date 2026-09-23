@@ -1,11 +1,15 @@
 // api/score.js — Vercel serverless function
-// Gebruikt Mistral AI via VIBE_CLI_KEY_BCG environment variable met Gemini als fallback bij storingen.
-// Ontvangt: POST { projectIdea, keywords, selectedTheme, calls: [...] }
-// Geeft terug: { reviews: [...] }
+// Roept de LLM-keten in lib/llm.js aan (Mistral primair → Gemini → OpenRouter)
+// en cacht succesvolle resultaten in Supabase (lib/ai-cache.js).
+// Ontvangt: POST { projectIdea, keywords, selectedTheme, calls: [], forceFresh? }
+// Geeft terug: { reviews, summary, provider, model, attempts?, cached }
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
+import { runLlmChain, getChainConfig, isTransientError } from '../lib/llm.js';
+import { computeCacheKey, readAiCache, writeAiCache } from '../lib/ai-cache.js';
 
 const ALLOWED_ORIGINS = [
   'https://bramschel.github.io',
@@ -13,21 +17,10 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1'
 ];
 
-// Model selection with fallback support
-const MISTRAL_MODEL = process.env.AI_MODEL || process.env.MISTRAL_MODEL || 'mistral-small-latest';
-const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
-
-const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
-
-// Gemini als cross-provider fallback
-const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL_1 || 'gemma-4-31b-it',
-  process.env.GEMINI_MODEL_2 || 'gemini-3.5-flash-lite',
-  process.env.GEMINI_MODEL_3 || 'gemini-3.7-flash',
-  process.env.GEMINI_MODEL_4 || 'gemini-3.6-flash',
-  process.env.GEMINI_MODEL_5 || 'gemini-3.5-flash',
-  process.env.GEMINI_MODEL_6 || 'gemini-3.8-flash'
-];
+// Handmatige versie: verhoog bij wijzigingen in buildPrompt die bestaande
+// cache-entries ongeldig moeten maken (RAG-/voorbeeld-data wordt automatisch
+// meegenomen in de hash hieronder).
+const PROMPT_REVISION = '2026-09-23.1';
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
@@ -62,6 +55,14 @@ try {
 } catch (err) {
   console.warn('relevance_examples.json niet gevonden:', err.message);
 }
+
+// Cache-versie: verandert RAG-context of de historische voorbeelden, dan
+// verandert deze hash automatisch en worden alle AI-cache-entries genegeerd.
+const PROMPT_CONTEXT_VERSION = createHash('sha256')
+  .update(JSON.stringify(RAG_CONTEXT) + JSON.stringify(RELEVANCE_EXAMPLES))
+  .digest('hex')
+  .slice(0, 16);
+const PROMPT_VERSION = `${PROMPT_REVISION}:${PROMPT_CONTEXT_VERSION}`;
 
 const RWS_CONTEXT_FALLBACK = `
 Rijkswaterstaat is de Nederlandse uitvoeringsorganisatie voor rijkswegen, vaarwegen, waterbeheer, verkeersmanagement en infrastructuur. Beoordeel EU-calls niet op algemene EU-relevantie, maar op concrete relevantie voor RWS als uitvoeringsorganisatie. Een call scoort alleen hoog als er een duidelijke uitvoerings-, beheer-, innovatie-, pilot-, implementatie- of demonstratierol voor RWS mogelijk is.
@@ -312,6 +313,17 @@ RWS-rol: ${ex.rwsRole || 'Niet beschikbaar'}
 `).join('\n')
   : '';
 
+  // Grote batches: trim abstracts/summaries zodat het promptgewicht (en daarmee
+  // de TPM-quota op gratis tiers) beheersbaar blijft. Kleine batches houden de
+  // volledige tekst voor de scherpste beoordeling.
+  const promptCalls = calls.length > 5
+    ? calls.map((call) => ({
+        ...call,
+        summary: limitText(call.summary, 300),
+        abstract: limitText(call.abstract, 1500)
+      }))
+    : calls;
+
   const prompt = `
 Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel.
 
@@ -452,7 +464,7 @@ Scorebeperkingen voor aiRelevanceScore:
 
 
 CALLS:
-${JSON.stringify(calls, null, 2)}
+${JSON.stringify(promptCalls, null, 2)}
 
 MANAGEMENT SAMENVATTING OPDRACHT:
 Naast de individuele call-beoordelingen, lever ook een beknopte managementsamenvatting voor de top 15 resultaten. 
@@ -650,189 +662,6 @@ function normalizeAiReviews(parsed, allowedIdentifiers = null) {
   return { reviews: filtered };
 }
 
-// ── Provider-specifieke LLM-aanroepen ────────────────────────
-
-async function fetchWithTimeout(url, options, timeoutMs = 45000) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      const timeoutError = new Error(`Provider reageerde niet binnen ${timeoutMs / 1000}s (timeout)`);
-      timeoutError.status = 504;
-      throw timeoutError;
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function callMistral(prompt, modelName = MISTRAL_MODEL) {
-  const apiKey = process.env.VIBE_CLI_KEY_BCG;
-  if (!apiKey) throw new Error('VIBE_CLI_KEY_BCG environment variable is required');
-
-const response = await fetchWithTimeout(MISTRAL_URL, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`
-  },
-  body: JSON.stringify({
-    model: modelName,
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug.'
-      },
-      { role: 'user', content: prompt }
-    ]
-  })
-}, 18000);
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    const apiError = new Error(err.error?.message || `Mistral-fout ${response.status}`);
-    apiError.status = response.status;
-    apiError.details = err;
-    throw apiError;
-  }
-
-  const data = await response.json();
-  return {
-    rawText: data.choices?.[0]?.message?.content || '{"reviews":[],"summary":{}}',
-    provider: 'mistral',
-    model: modelName
-  };
-}
-
-// Response-schema, ongewijzigd overgenomen uit de vorige generateContent-implementatie —
-// alleen verplaatst naar een losse constante zodat callGemini hem kan hergebruiken.
-const GEMINI_RESPONSE_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    reviews: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          identifier: { type: 'STRING' },
-          aiRelevanceScore: { type: 'NUMBER' },
-          projectFit: { type: 'STRING' },
-          projectFitScore: { type: 'NUMBER' },
-          themeFit: { type: 'ARRAY', items: { type: 'STRING' } },
-          rationale: { type: 'STRING' },
-          possibleRwsRole: { type: 'STRING' },
-          possibleRwsProject: { type: 'STRING' },
-          callScopeSummary: { type: 'STRING' },
-          uncertainties: { type: 'STRING' },
-          callRequirements: { type: 'ARRAY', items: { type: 'STRING' } },
-          ragMatchedItems: { type: 'ARRAY', items: { type: 'STRING' } },
-          snapshotReden: { type: 'STRING' },
-          waaromRelevant: { type: 'ARRAY', items: { type: 'STRING' } }
-        },
-        required: [
-          'identifier', 'aiRelevanceScore', 'projectFit', 'rationale',
-          'possibleRwsRole', 'uncertainties', 'callRequirements', 'ragMatchedItems'
-        ]
-      }
-    },
-    summary: {
-      type: 'OBJECT',
-      properties: {
-        executiveSummary: { type: 'STRING' },
-        overallAdvice: { type: 'STRING' },
-        topOpportunities: {
-          type: 'ARRAY',
-          items: {
-            type: 'OBJECT',
-            properties: {
-              identifier: { type: 'STRING' },
-              title: { type: 'STRING' },
-              score: { type: 'NUMBER' },
-              rationale: { type: 'STRING' }
-            }
-          }
-        },
-        notableExclusions: { type: 'STRING' },
-        recommendedNextSteps: { type: 'ARRAY', items: { type: 'STRING' } }
-      }
-    }
-  },
-  required: ['reviews']
-};
-
-// callGemini gebruikt sinds de migratie de nieuwe Interactions API
-// (POST /v1beta/interactions) in plaats van de legacy generateContent-API.
-// Request- en response-vorm zijn aangepast; de rest van het bestand (buildPrompt,
-// de fallback-keten, normalizeAiReviews) blijft ongewijzigd en verwacht nog steeds
-// gewoon { rawText, provider, model } terug — dat contract is hier bewust intact gelaten.
-async function callGemini(prompt, modelName = GEMINI_MODELS[0]) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
-
-  const url = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-
-  const response = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-      // Vastgezet op de post-mei-2026 revisie (steps-array i.p.v. outputs-array).
-      // Controleer bij twijfel de actuele aanbevolen waarde op
-      // ai.google.dev/gemini-api/docs/interactions voordat je deze wijzigt.
-      'Api-Revision': '2026-05-20'
-    },
-    body: JSON.stringify({
-      model: modelName,
-      system_instruction: 'Je bent een EU-fondsenexpert voor Rijkswaterstaat Bureau Brussel. Geef uitsluitend geldige JSON terug, zonder markdown-codeblokken.',
-      input: prompt,
-      response_format: {
-        type: 'json_schema',
-        json_schema: GEMINI_RESPONSE_SCHEMA
-      },
-      generation_config: {
-        temperature: 0.2,
-        max_output_tokens: 16384
-      }
-    })
-  }, 45000);
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    const apiError = new Error(err.error?.message || `Gemini-fout ${response.status}`);
-    apiError.status = response.status;
-    apiError.details = err;
-    throw apiError;
-  }
-
-  const data = await response.json();
-
-  // Nieuwe schema (post-mei-2026): steps-array i.p.v. de oude outputs-array.
-  const modelOutputStep = data.steps?.find((step) => step.type === 'model_output');
-  const textContent = modelOutputStep?.content?.find((c) => c.type === 'text');
-  const rawText = textContent?.text || '{"reviews":[],"summary":{}}';
-
-  return {
-    rawText,
-    provider: 'gemini',
-    model: modelName
-  };
-}
-
-function isHighDemandError(err) {
-  const msg = err.message || '';
-  return msg.includes('high demand') ||
-         msg.includes('currently experiencing high demand') ||
-         msg.includes('try again later') ||
-         err.status === 429 ||
-         err.status === 503 ||
-         err.status === 504;
-}
-
 // ── Handler ───────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -862,63 +691,42 @@ export default async function handler(req, res) {
       projectIdea: safeProjectIdea, keywords: safeKeywords, selectedTheme: safeSelectedTheme, calls: batch
     });
 
-// Call Mistral with fallback support (Mistral fallback, then Gemini)
-let rawText, provider, model;
-let primaryCallSucceeded = false;
+    console.log('AI Configuration:', getChainConfig());
 
-console.log('AI Configuration:', {
-  primaryModel: MISTRAL_MODEL,
-  mistralFallbackConfigured: !!AI_FALLBACK_MODEL,
-  mistralFallbackModel: AI_FALLBACK_MODEL || 'none',
-  geminiFallbackConfigured: !!process.env.GEMINI_API_KEY
-});
+    // ── Server-side cache (Supabase) ──────────────────────────────
+    // Sleutel = hash van projectidee + keywords + thema + call-teksten +
+    // promptversie. Zelfde invoer → dezelfde score zonder AI-aanroep.
+    const forceFresh = req.body?.forceFresh === true || req.body?.forceFresh === 'true';
+    const cacheKey = computeCacheKey({
+      projectIdea: safeProjectIdea,
+      keywords: safeKeywords,
+      selectedTheme: safeSelectedTheme,
+      calls: batch,
+      promptVersion: PROMPT_VERSION
+    });
 
-try {
-  // 1. Primary Mistral model
-  ({ rawText, provider, model } = await callMistral(prompt));
-  primaryCallSucceeded = true;
-  console.log('Primary Mistral model succeeded:', model);
-} catch (primaryError) {
-  const highDemand = isHighDemandError(primaryError);
-  console.log('Primary Mistral model failed:', {
-    errorType: highDemand ? 'high_demand' : 'other',
-    errorMessage: primaryError.message
-  });
-
-  if (highDemand) {
-    // 2. Mistral fallback model, if configured
-    if (AI_FALLBACK_MODEL) {
-      console.log('Trying Mistral fallback model:', AI_FALLBACK_MODEL);
-      try {
-        ({ rawText, provider, model } = await callMistral(prompt, AI_FALLBACK_MODEL));
-        primaryCallSucceeded = true;
-        console.log('Mistral fallback model succeeded:', model);
-      } catch (mistralFallbackError) {
-        console.log('Mistral fallback model also failed:', mistralFallbackError.message);
+    if (!forceFresh) {
+      const cached = await readAiCache(cacheKey);
+      if (cached) {
+        console.log('AI-cache hit:', { cacheKey, provider: cached.provider, model: cached.model });
+        return res.status(200).json({
+          reviews: cached.payload.reviews,
+          summary: cached.payload.summary,
+          provider: cached.provider,
+          model: cached.model,
+          ragContextUsed: cached.payload.ragContextUsed || getRagContextMetadata(safeSelectedTheme),
+          relevanceExamplesUsed: cached.payload.relevanceExamplesUsed || relevanceExamplesUsed,
+          cached: true,
+          attempts: []
+        });
       }
     }
 
-    // 3. Gemini-modellen na elkaar proberen, elk met eigen dagquota
-    if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
-      for (const geminiModel of GEMINI_MODELS) {
-        console.log('Trying Gemini model:', geminiModel);
-        try {
-          ({ rawText, provider, model } = await callGemini(prompt, geminiModel));
-          primaryCallSucceeded = true;
-          console.log('Gemini model succeeded:', model);
-          break;
-        } catch (geminiError) {
-          console.log(`Gemini model ${geminiModel} failed:`, geminiError.message);
-        }
-      }
-    }
-  }
-
-  if (!primaryCallSucceeded) {
-    // No provider available — rethrow the original Mistral error
-    throw primaryError;
-  }
-}
+    // ── LLM-keten: Mistral → Gemini → OpenRouter ──────────────────
+    const { rawText, provider, model, attempts } = await runLlmChain(prompt, {
+      onAttempt: (attempt) => console.log('LLM-poging:', attempt)
+    });
+    console.log('LLM-succes:', { provider, model, attempts: attempts.length });
 
     let parsed;
     try {
@@ -927,10 +735,11 @@ try {
       const rawTextPreview = String(rawText || '').slice(0, 1000);
       console.error(`Kon ${provider}-output niet parsen:`, {
         error: parseError.message,
-        rawTextPreview
+        rawTextPreview,
+        attempts
       });
 
-      const responseBody = { error: 'AI gaf geen geldige JSON terug' };
+      const responseBody = { error: 'AI gaf geen geldige JSON terug', attempts };
       if (process.env.NODE_ENV !== 'production') {
         responseBody.rawTextPreview = rawTextPreview;
       }
@@ -952,36 +761,48 @@ try {
 
     const ragContext = getRagContextMetadata(safeSelectedTheme);
 
+    // Cache write: best-effort, mag de respons niet vertragen of breken.
+    const cacheWritten = await writeAiCache(cacheKey, {
+      reviews: normalized.reviews,
+      summary: responseSummary,
+      ragContextUsed: ragContext,
+      relevanceExamplesUsed
+    }, { provider, model, callCount: batch.length });
+    console.log('AI-cache write:', cacheWritten ? 'opgeslagen' : 'overgeslagen');
+
     return res.status(200).json({
       ...normalized,
       summary: responseSummary,
       provider,
       model,
       ragContextUsed: ragContext,
-      relevanceExamplesUsed
+      relevanceExamplesUsed,
+      cached: false,
+      attempts
     });
 
   } catch (error) {
-    console.error('Fout in /api/score:', error);
-    
-    // Check for high-demand/capacity errors and provide user-friendly message
-    const errorMessage = error.message || '';
-    const isHighDemandError = errorMessage.includes('high demand') || 
-                             errorMessage.includes('currently experiencing high demand') ||
-                             errorMessage.includes('try again later') ||
-                             error.status === 429 ||
-                             error.status === 503 ||
-                             error.status === 504;
-    
-    if (isHighDemandError) {
-      // User-friendly Dutch message
-      const userMessage = 'Het AI-model is tijdelijk overbelast. Probeer het later opnieuw of kies een ander model.';
-      console.warn('AI capacity error - showing user-friendly message');
-      return res.status(503).json({ 
-        error: userMessage
+    const attempts = Array.isArray(error.attempts) ? error.attempts : [];
+    const transient = typeof error.transient === 'boolean' ? error.transient : isTransientError(error);
+
+    console.error('Fout in /api/score:', {
+      message: error.message,
+      status: error.status ?? null,
+      transient,
+      attempts
+    });
+
+    if (transient) {
+      // Alle geprobeerde providers waren overbelast/quota/time-out.
+      return res.status(503).json({
+        error: 'Het AI-model is tijdelijk overbelast. Probeer het over enkele minuten opnieuw.',
+        ...(attempts.length ? { attempts } : {})
       });
     }
-    
-    return res.status(500).json({ error: error.message });
+
+    return res.status(500).json({
+      error: error.message,
+      ...(attempts.length ? { attempts } : {})
+    });
   }
 }

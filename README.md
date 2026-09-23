@@ -95,15 +95,19 @@ api/score.js
             |
             +--> RWS-context
             +--> historische voorbeelden
+            +--> Supabase AI-cache (lib/ai-cache.js)
             |
             v
-Mistral AI
+LLM-keten (lib/llm.js)
+Mistral → Gemini → OpenRouter
             |
             v
 Gestructureerde AI-beoordeling
 ```
 
-Supabase ondersteunt authenticatie en gebruikersgebonden functionaliteit.
+De LLM-keten probeert providers en modellen in volgorde, met exponential backoff bij tijdelijke fouten (429/503/504/timeouts) en een harde deadline van 120 seconden. Elke poging wordt gelogd en als `attempts` in de respons geretourneerd, zodat zichtbaar is welke provider of welk model faalde.
+
+Supabase ondersteunt authenticatie en gebruikersgebonden functionaliteit en bewaart AI-analyseresultaten als cache (tabel `public.ai_reviews`).
 
 ## Repositorystructuur
 
@@ -118,8 +122,14 @@ Supabase ondersteunt authenticatie en gebruikersgebonden functionaliteit.
 │   ├── grants.json
 │   ├── rws_rag_context.json
 │   └── relevance_examples.json
+├── lib/
+│   ├── llm.js
+│   └── ai-cache.js
 ├── scripts/
-│   └── update-data.mjs
+│   ├── update-data.mjs
+│   └── probe-models.mjs
+├── supabase/
+│   └── migrations/
 ├── app.js
 ├── index.html
 ├── package.json
@@ -147,7 +157,19 @@ Een deel van de inhoudelijke scoringsconfiguratie staat momenteel eveneens in di
 
 Vercel serverless function voor de AI-beoordeling.
 
-De functie laadt relevante context, stelt de AI-prompt samen, roept de AI-provider aan en verwerkt het gestructureerde antwoord.
+De functie laadt relevante context, stelt de AI-prompt samen, leest en schrijft de Supabase-cache, roept de LLM-keten aan en verwerkt het gestructureerde antwoord.
+
+### `lib/llm.js`
+
+Provider-adapters (Mistral, Gemini via twee transporten, OpenRouter), foutclassificatie (transient versus configuratie), retry met backoff en de volledige fallback-keten met `attempts`-registratie.
+
+### `lib/ai-cache.js`
+
+Berekent de cachesleutel (hash van projectidee, keywords, thema, call-teksten en promptversie) en leest/schrijft resultaten in `public.ai_reviews`. Cache-fouten zijn altijd best-effort.
+
+### `scripts/probe-models.mjs`
+
+Diagnosetool: `npm run probe:ai`. Toont welke sleutels actief zijn, haalt de models-lijsten op en stuurt per geconfigureerd model een minieme completion. Resultaat: PASS/FAIL per combinatie plus een voorgestelde `GEMINI_MODEL_1..n`-reeks.
 
 ### `data/grants.json`
 
@@ -222,6 +244,46 @@ Controleer de actuele scripts in `package.json` wanneer een commando niet beschi
 ## Configuratie
 
 Functionaliteiten die afhankelijk zijn van externe diensten vereisen aanvullende configuratie via environment variables.
+
+### AI-providers (Vercel, runtime)
+
+| Variabele | Verplicht | Omschrijving |
+| --- | --- | --- |
+| `VIBE_CLI_KEY_BCG` | nee* | Mistral API-sleutel (primair). |
+| `AI_MODEL` / `MISTRAL_MODEL` | nee | Primair Mistral-model, standaard `mistral-small-latest`. |
+| `AI_FALLBACK_MODEL` | nee | Tweede Mistral-model, standaard `open-mistral-nemo`. |
+| `GEMINI_API_KEY` | nee* | Google AI Studio-sleutel (fallback). |
+| `GEMINI_MODEL_1..6` | nee | Gemini-modelketen, standaard `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.6-flash`. |
+| `GEMINI_API_REVISION` | nee | Waarde van de `Api-Revision`-header op de Interactions API, standaard `2026-05-20`; leeg laten om de header te laten vallen. |
+| `OPENROUTER_API_KEY` | nee | Derde, gratis fallback. |
+| `OPENROUTER_MODEL` | nee | OpenRouter-model, standaard `meta-llama/llama-3.3-70b-instruct:free`. |
+| `OPENROUTER_SITE_URL` | nee | `HTTP-Referer`-header voor OpenRouter. |
+
+\* Minstens één provider-sleutel is verplicht, anders geeft `/api/score` een 500 met een duidelijke melding.
+
+### Supabase (build + runtime)
+
+| Variabele | Wanneer | Omschrijving |
+| --- | --- | --- |
+| `SUPABASE_URL` | build én runtime | Project-URL; bouwt `supabase-config.js` en wordt gebruikt door de AI-cache. |
+| `SUPABASE_PUBLISHABLE_KEY` | build én runtime | Publishable/anon sleutel voor frontend en AI-cache. |
+
+Pas na het draaien van `supabase/migrations/20240101000003_ai_cache.sql` (tabel `ai_reviews`) werkt de server-side AI-cache. Zonder die tabel of zonder runtime-variabelen draait de analyse gewoon door; alleen cache-slagen uit.
+
+### AI-cache gedrag
+
+- De cachesleutel is een hash van **projectidee + keywords + thema + call-teksten + promptversie**. Dezelfde invoer levert dus exact dezelfde score zonder nieuwe AI-aanroep; een aangepast projectidee of keyword levert automatisch een verse analyse.
+- Resultaten blijven 30 dagen bewaard (`public.ai_reviews`).
+- Het selectievakje **"Forceer nieuwe analyse"** omzeilt zowel de lokale als de Supabase-cache.
+- Wijzigt `data/rws_rag_context.json`, `data/relevance_examples.json` of `PROMPT_REVISION` in `api/score.js`, dan veranderen alle sleutels automatisch en worden oude resultaten genegeerd.
+
+### AI-providers controleren (diagnose)
+
+```powershell
+npm run probe:ai
+```
+
+De tool leest `.env`/`.env.local` (of je shell-omgeving), controleert de models-lijsten en test elk geconfigureerd model met een korte completion. Gebruik `npm run probe:ai -- --verbose` om ruwe responsen te tonen. Dit is de eerste stap wanneer je 503- of model-not-found-fouten ziet.
 
 Plaats nooit geheime waarden in:
 

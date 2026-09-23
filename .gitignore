@@ -8,5 +8,10 @@ portal-main.js
 *.backup*
 app.js.backup*
 
+# Secrets - nooit committen
+.env
+.env.local
+.env.*.local
+
 # Supabase config - contains secrets
 supabase-config.js
