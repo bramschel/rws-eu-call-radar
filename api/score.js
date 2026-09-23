@@ -21,11 +21,11 @@ const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Gemini als cross-provider fallback
 const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL_1 || 'gemini-3.5-flash-lite',
-  process.env.GEMINI_MODEL_2 || 'gemini-3.8-flash',
+  process.env.GEMINI_MODEL_1 || 'gemini-3.5-flash',
+  process.env.GEMINI_MODEL_2 || 'gemini-3.5-flash-lite',
   process.env.GEMINI_MODEL_3 || 'gemini-3.7-flash',
   process.env.GEMINI_MODEL_4 || 'gemini-3.6-flash',
-  process.env.GEMINI_MODEL_5 || 'gemini-3.5-flash'
+  process.env.GEMINI_MODEL_5 || 'gemini-3.8-flash'
 ];
 
 function setCorsHeaders(req, res) {
@@ -651,7 +651,7 @@ function normalizeAiReviews(parsed, allowedIdentifiers = null) {
 
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
 
-async function fetchWithTimeout(url, options, timeoutMs = 25000) {
+async function fetchWithTimeout(url, options, timeoutMs = 45000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -752,9 +752,9 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
                 waaromRelevant: { type: 'ARRAY', items: { type: 'STRING' } }
               },
               required: [
-                'identifier', 'aiRelevanceScore', 'projectFit', 'rationale',
-                'possibleRwsRole', 'uncertainties', 'callRequirements'
-              ]
+  'identifier', 'aiRelevanceScore', 'projectFit', 'rationale',
+  'possibleRwsRole', 'uncertainties', 'callRequirements', 'ragMatchedItems'
+]
             }
           },
           summary: {
@@ -783,7 +783,7 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
       }
     }
   })
-}, 25000);
+}, 45000);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
