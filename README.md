@@ -105,7 +105,7 @@ Mistral → Gemini → OpenRouter
 Gestructureerde AI-beoordeling
 ```
 
-De LLM-keten probeert providers en modellen in volgorde, met exponential backoff bij tijdelijke fouten (429/503/504/timeouts) en een harde deadline van 120 seconden. Elke poging wordt gelogd en als `attempts` in de respons geretourneerd, zodat zichtbaar is welke provider of welk model faalde.
+De LLM-keten probeert providers en modellen in volgorde, met exponential backoff bij tijdelijke fouten (429/503/504/timeouts) en een harde deadline van 150 seconden. Een provider die in een aanroep volledig faalt (geen enkele succesvolle stap) gaat 10 minuten op cooldown voor die warm instance, zodat een volgende batch dezelfde dode provider niet opnieuw probeert; een succesvolle aanroep heft die cooldown weer op. Elke poging wordt gelogd en als `attempts` in de respons geretourneerd, zodat zichtbaar is welke provider of welk model faalde.
 
 Supabase ondersteunt authenticatie en gebruikersgebonden functionaliteit en bewaart AI-analyseresultaten als cache (tabel `public.ai_reviews`).
 
@@ -251,7 +251,8 @@ Functionaliteiten die afhankelijk zijn van externe diensten vereisen aanvullende
 | --- | --- | --- |
 | `VIBE_CLI_KEY_BCG` | nee* | Mistral API-sleutel (primair). |
 | `AI_MODEL` / `MISTRAL_MODEL` | nee | Primair Mistral-model, standaard `mistral-small-latest`. |
-| `AI_FALLBACK_MODEL` | nee | Tweede Mistral-model, standaard `open-mistral-nemo`. |
+| `AI_FALLBACK_MODEL` | nee | Tweede Mistral-model, standaard `ministral-3b-latest` (1 poging van 20s). |
+| `PROVIDER_COOLDOWN_MS` | nee | Cooldown voor een volledig falende provider, standaard `600000` (10 minuten). |
 | `GEMINI_API_KEY` | nee* | Google AI Studio-sleutel (fallback). |
 | `GEMINI_MODEL_1..6` | nee | Gemini-modelketen, standaard `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.6-flash`. |
 | `GEMINI_API_REVISION` | nee | Waarde van de `Api-Revision`-header op de Interactions API, standaard `2026-05-20`; leeg laten om de header te laten vallen. |

@@ -3010,7 +3010,7 @@ function normalizeAiReviewForDisplay(review) {
 }
 
 // ── AI: netwerk-helper (timeout + capacity-retry) ────────────
-const AI_FETCH_TIMEOUT_MS = 150000;  // moet ruim boven de server-side keten-deadline (120s) blijven
+const AI_FETCH_TIMEOUT_MS = 180000;  // moet ruim boven de server-side keten-deadline (150s) blijven
 const AI_RETRY_DELAY_MS = 2000;
 const AI_CAPACITY_STATUSES = [429, 503, 504];
 
