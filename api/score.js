@@ -19,9 +19,11 @@ const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
 
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
-// Gemini als cross-provider fallback
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Gemini als cross-provider fallback: eerst het reguliere Flash-model,
+// daarna Flash-Lite als laatste redmiddel (ruimere gratis daglimiet).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const GEMINI_LITE_MODEL = process.env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
+const GEMINI_URL_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || '';
@@ -646,11 +648,30 @@ function normalizeAiReviews(parsed, allowedIdentifiers = null) {
 
 // ── Provider-specifieke LLM-aanroepen ────────────────────────
 
+// Wraps fetch met een harde timeout, zodat een tragere provider de keten
+// niet blokkeert voordat de volgende fallback aan de beurt komt.
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutError = new Error(`Provider reageerde niet binnen ${timeoutMs / 1000}s (timeout)`);
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function callMistral(prompt, modelName = MISTRAL_MODEL) {
   const apiKey = process.env.VIBE_CLI_KEY_BCG;
   if (!apiKey) throw new Error('VIBE_CLI_KEY_BCG environment variable is required');
 
-  const response = await fetch(MISTRAL_URL, {
+  const response = await fetchWithTimeout(MISTRAL_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -668,7 +689,7 @@ async function callMistral(prompt, modelName = MISTRAL_MODEL) {
         { role: 'user', content: prompt }
       ]
     })
-  });
+  }, 25000);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -686,11 +707,13 @@ async function callMistral(prompt, modelName = MISTRAL_MODEL) {
   };
 }
 
-async function callGemini(prompt, modelName = GEMINI_MODEL) {
+async function callGemini(prompt, modelName = GEMINI_MODEL, timeoutMs = 25000) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
 
-  const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+  const url = `${GEMINI_URL_BASE}/${modelName}:generateContent`;
+
+  const response = await fetchWithTimeout(`${url}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -705,7 +728,7 @@ async function callGemini(prompt, modelName = GEMINI_MODEL) {
         responseMimeType: 'application/json'
       }
     })
-  });
+  }, timeoutMs);
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -798,15 +821,25 @@ try {
       }
     }
 
-    // 3. Gemini as last resort, if Mistral (primary + fallback) failed
+    // 3. Gemini 3.5 Flash, 25s timeout
     if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
-      console.log('Trying Gemini as final fallback:', GEMINI_MODEL);
+      console.log('Trying Gemini model:', GEMINI_MODEL);
       try {
-        ({ rawText, provider, model } = await callGemini(prompt));
+        ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL, 25000));
         primaryCallSucceeded = true;
-        console.log('Gemini fallback succeeded:', model);
+        console.log('Gemini model succeeded:', model);
       } catch (geminiError) {
-        console.log('Gemini fallback also failed:', geminiError.message);
+        console.log('Gemini model failed:', GEMINI_MODEL, geminiError.message);
+
+        // 4. Gemini 3.5 Flash-Lite, 45s timeout, als laatste redmiddel
+        console.log('Trying Gemini model:', GEMINI_LITE_MODEL);
+        try {
+          ({ rawText, provider, model } = await callGemini(prompt, GEMINI_LITE_MODEL, 45000));
+          primaryCallSucceeded = true;
+          console.log('Gemini model succeeded:', model);
+        } catch (geminiLiteError) {
+          console.log('Gemini model failed:', GEMINI_LITE_MODEL, geminiLiteError.message);
+        }
       }
     }
   }
