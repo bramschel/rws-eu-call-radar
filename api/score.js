@@ -594,7 +594,7 @@ function normalizeIdentifier(value) {
   return String(value || '').trim();
 }
 
-function normalizeAiReviews(parsed, allowedIdentifiers = null) {
+function normalizeAiReviews(parsed, allowedIdentifiers = null, hasProjectIdea = true) {
   const reviews = Array.isArray(parsed)
     ? parsed
     : Array.isArray(parsed?.reviews)
@@ -604,13 +604,21 @@ function normalizeAiReviews(parsed, allowedIdentifiers = null) {
   const normalized = reviews.map((review) => ({
     identifier: normalizeIdentifier(review.identifier || review.callId),
     aiRelevanceScore: Number(review.aiRelevanceScore ?? 0),
-    projectFit: review.projectFit || review.project_fit || review.projectMatch || '',
-    projectFitScore: Number(
-      review.projectFitScore ??
-      review.project_fit_score ??
-      review.projectMatchScore ??
-      0
-    ),
+    // Zonder projectidee is er niets om op te matchen: projectFitScore/projectFit
+    // worden dan altijd hard op 0 / een vaste melding gezet, ongeacht wat de AI
+    // teruggeeft. Dit raakt geen ander veld — aiRelevanceScore, rationale, etc.
+    // blijven gewoon de AI-analyse.
+    projectFit: hasProjectIdea
+      ? (review.projectFit || review.project_fit || review.projectMatch || '')
+      : 'Er is geen projectidee ingediend.',
+    projectFitScore: hasProjectIdea
+      ? Number(
+          review.projectFitScore ??
+          review.project_fit_score ??
+          review.projectMatchScore ??
+          0
+        )
+      : 0,
     themeFit: Array.isArray(review.themeFit)
       ? review.themeFit
       : review.themeFit
@@ -893,7 +901,8 @@ try {
       return res.status(502).json(responseBody);
     }
 
-    const normalized     = normalizeAiReviews(parsed, allowedIdentifiers);
+    const hasProjectIdea = safeProjectIdea.trim().length > 0;
+    const normalized     = normalizeAiReviews(parsed, allowedIdentifiers, hasProjectIdea);
     const summary        = extractSummaryFromData(parsed);
     const responseSummary = summary || {
       executiveSummary: '',
