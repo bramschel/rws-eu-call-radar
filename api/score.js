@@ -535,10 +535,12 @@ function extractJsonFromText(text) {
     .replace(/```/g, '')
     .trim();
 
+  let lastParseError = null;
+
   try {
     return JSON.parse(cleaned);
-  } catch {
-    // Ga door naar extractie hieronder.
+  } catch (e) {
+    lastParseError = e;
   }
 
   const firstObject = cleaned.indexOf('{');
@@ -561,12 +563,25 @@ function extractJsonFromText(text) {
   for (const candidate of candidates) {
     try {
       return JSON.parse(candidate);
-    } catch {
-      // Probeer volgende kandidaat.
+    } catch (e) {
+      lastParseError = e;
     }
   }
 
-  throw new Error('AI gaf geen geldige JSON terug');
+  // Haal de tekenpositie uit de V8-foutmelding ("... at position 4231") zodat we
+  // precies kunnen loggen waar de JSON stuk is, in plaats van te gokken.
+  const positionMatch = /position (\d+)/.exec(lastParseError?.message || '');
+  const position = positionMatch ? Number(positionMatch[1]) : null;
+  const context = position !== null
+    ? cleaned.slice(Math.max(0, position - 200), position + 200)
+    : null;
+
+  const error = new Error('AI gaf geen geldige JSON terug');
+  error.parseErrorMessage = lastParseError?.message || null;
+  error.parseErrorPosition = position;
+  error.parseErrorContext = context;
+  error.rawTextLength = cleaned.length;
+  throw error;
 }
 
 function extractSummaryFromData(parsed) {
@@ -780,6 +795,18 @@ async function callGemini(prompt, modelName = GEMINI_MODEL, timeoutMs = 25000) {
   };
 }
 
+function logJsonParseFailure(provider, model, parseError, rawText) {
+  console.error(`Kon ${provider}-output niet parsen:`, {
+    model,
+    error: parseError.message,
+    parseErrorMessage: parseError.parseErrorMessage || null,
+    parseErrorPosition: parseError.parseErrorPosition ?? null,
+    parseErrorContext: parseError.parseErrorContext || null,
+    rawTextLength: parseError.rawTextLength ?? String(rawText || '').length,
+    rawTextPreview: String(rawText || '').slice(0, 1000)
+  });
+}
+
 function isHighDemandError(err) {
   const msg = err.message || '';
   return msg.includes('high demand') ||
@@ -888,17 +915,31 @@ try {
     try {
       parsed = extractJsonFromText(rawText);
     } catch (parseError) {
-      const rawTextPreview = String(rawText || '').slice(0, 1000);
-      console.error(`Kon ${provider}-output niet parsen:`, {
-        error: parseError.message,
-        rawTextPreview
-      });
+      logJsonParseFailure(provider, model, parseError, rawText);
 
-      const responseBody = { error: 'AI gaf geen geldige JSON terug' };
-      if (process.env.NODE_ENV !== 'production') {
-        responseBody.rawTextPreview = rawTextPreview;
+      // Eenmalige retry: een losse misvormde JSON-output is vaak een incidentele
+      // hik van het model, geen structureel probleem. Alleen zinvol bij Gemini —
+      // Mistral-fouten (429/503/504) worden al door de bestaande keten opgevangen.
+      let retrySucceeded = false;
+      if (provider === 'gemini') {
+        try {
+          console.log('JSON-parse mislukt, retry van hetzelfde model:', model);
+          ({ rawText, provider, model } = await callGemini(prompt, model, 45000));
+          parsed = extractJsonFromText(rawText);
+          retrySucceeded = true;
+          console.log('Retry geslaagd:', model);
+        } catch (retryError) {
+          logJsonParseFailure(provider, model, retryError, rawText);
+        }
       }
-      return res.status(502).json(responseBody);
+
+      if (!retrySucceeded) {
+        const responseBody = { error: 'AI gaf geen geldige JSON terug' };
+        if (process.env.NODE_ENV !== 'production') {
+          responseBody.rawTextPreview = String(rawText || '').slice(0, 1000);
+        }
+        return res.status(502).json(responseBody);
+      }
     }
 
     const hasProjectIdea = safeProjectIdea.trim().length > 0;
