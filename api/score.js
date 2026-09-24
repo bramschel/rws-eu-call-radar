@@ -821,11 +821,11 @@ try {
       }
     }
 
-    // 3. Gemini 3.5 Flash, 25s timeout
+    // 3. Gemini 3.5 Flash, 45s timeout
     if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
       console.log('Trying Gemini model:', GEMINI_MODEL);
       try {
-        ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL, 25000));
+        ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL, 45000));
         primaryCallSucceeded = true;
         console.log('Gemini model succeeded:', model);
       } catch (geminiError) {
