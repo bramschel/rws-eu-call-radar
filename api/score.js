@@ -19,9 +19,12 @@ const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL || '';
 
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
-// Gemini als cross-provider fallback: eerst het reguliere Flash-model,
-// daarna Flash-Lite als laatste redmiddel (ruimere gratis daglimiet).
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
+// Gemini als cross-provider fallback. Flash-Lite is de primaire Gemini-optie
+// (stabieler en ruimere gratis daglimiet); Flash 3.5 (regulier, geen preview)
+// is de backup.
+// Let op: de env-var-namen verwijzen naar het model zelf, niet naar de probeervolgorde
+// (zie handler: GEMINI_LITE_MODEL wordt als eerste geprobeerd).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GEMINI_LITE_MODEL = process.env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_URL_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -730,7 +733,12 @@ async function callGemini(prompt, modelName = GEMINI_MODEL, timeoutMs = 25000) {
       generationConfig: {
         temperature: 0.2,
         responseMimeType: 'application/json',
-        maxOutputTokens: 16384
+        maxOutputTokens: 32768,
+        // Thinking blijft aan (helpt bij het toepassen van de conditionele scoring-
+        // regels/caps), maar met een vast plafond: anders put onbegrensd thinking
+        // hetzelfde tokenbudget leeg als de JSON-output, met afkapping tot gevolg
+        // (zie finishReason-log hieronder — dat was de oorzaak van de parse-fout).
+        thinkingConfig: { thinkingBudget: 4096 }
       }
     })
   }, timeoutMs);
@@ -744,6 +752,19 @@ async function callGemini(prompt, modelName = GEMINI_MODEL, timeoutMs = 25000) {
   }
 
   const data = await response.json();
+  const finishReason = data.candidates?.[0]?.finishReason;
+  if (finishReason && finishReason !== 'STOP') {
+    // MAX_TOKENS betekent: output is afgekapt, JSON-parse zal waarschijnlijk falen.
+    console.warn('Gemini finishReason afwijkend van STOP:', { modelName, finishReason });
+  }
+  const usage = data.usageMetadata || {};
+  console.log('Gemini tokengebruik:', {
+    modelName,
+    promptTokens: usage.promptTokenCount ?? null,
+    thinkingTokens: usage.thoughtsTokenCount ?? null,
+    outputTokens: usage.candidatesTokenCount ?? null,
+    totalTokens: usage.totalTokenCount ?? null
+  });
   return {
     rawText: data.candidates?.[0]?.content?.parts?.[0]?.text || '{"reviews":[],"summary":{}}',
     provider: 'gemini',
@@ -826,24 +847,24 @@ try {
       }
     }
 
-    // 3. Gemini 3.5 Flash, 45s timeout
+    // 3. Gemini 3.5 Flash-Lite, 45s timeout — nu de primaire Gemini-optie
     if (!primaryCallSucceeded && process.env.GEMINI_API_KEY) {
-      console.log('Trying Gemini model:', GEMINI_MODEL);
+      console.log('Trying Gemini model:', GEMINI_LITE_MODEL);
       try {
-        ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL, 45000));
+        ({ rawText, provider, model } = await callGemini(prompt, GEMINI_LITE_MODEL, 45000));
         primaryCallSucceeded = true;
         console.log('Gemini model succeeded:', model);
-      } catch (geminiError) {
-        console.log('Gemini model failed:', GEMINI_MODEL, geminiError.message);
+      } catch (geminiLiteError) {
+        console.log('Gemini model failed:', GEMINI_LITE_MODEL, geminiLiteError.message);
 
-        // 4. Gemini 3.5 Flash-Lite, 45s timeout, als laatste redmiddel
-        console.log('Trying Gemini model:', GEMINI_LITE_MODEL);
+        // 4. Gemini 3.5 Flash, 45s timeout, als backup
+        console.log('Trying Gemini model:', GEMINI_MODEL);
         try {
-          ({ rawText, provider, model } = await callGemini(prompt, GEMINI_LITE_MODEL, 45000));
+          ({ rawText, provider, model } = await callGemini(prompt, GEMINI_MODEL, 45000));
           primaryCallSucceeded = true;
           console.log('Gemini model succeeded:', model);
-        } catch (geminiLiteError) {
-          console.log('Gemini model failed:', GEMINI_LITE_MODEL, geminiLiteError.message);
+        } catch (geminiError) {
+          console.log('Gemini model failed:', GEMINI_MODEL, geminiError.message);
         }
       }
     }
