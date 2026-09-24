@@ -21,7 +21,7 @@ const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Gemini als cross-provider fallback: eerst het reguliere Flash-model,
 // daarna Flash-Lite als laatste redmiddel (ruimere gratis daglimiet).
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';
 const GEMINI_LITE_MODEL = process.env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_URL_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
