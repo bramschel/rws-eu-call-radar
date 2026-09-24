@@ -262,13 +262,16 @@ function selectRelevanceExamples(projectIdea, keywords, selectedTheme, calls) {
     }
   }
 
-  // Als we nog ruimte hebben: vul aan met cross-theme examples die minimaal 2 keyword matches hebben
+  // Als we nog ruimte hebben: vul aan met de best scorende overige voorbeelden.
+  // Let op: score is niet afhankelijk van projectIdea/keywords/selectedTheme — de
+  // call-tekstmatch (title/summary/destination/abstract) telt altijd mee, dus dit
+  // werkt ook wanneer de gebruiker geen zoekvraag heeft ingevuld.
   if (seenIds.size < 5) {
-    const strongCrossTheme = otherThemeExamples.filter((ex) => ex.keywordMatches >= 2);
-    // Sorteer op score
-    strongCrossTheme.sort((a, b) => b.score - a.score);
-    
-    for (const ex of strongCrossTheme) {
+    const remaining = otherThemeExamples
+      .filter((ex) => ex.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    for (const ex of remaining) {
       if (seenIds.size >= 5) break;
       if (!seenIds.has(ex.id)) {
         seenIds.add(ex.id);
